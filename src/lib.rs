@@ -1,4 +1,4 @@
-mod text;
+pub mod text;
 
 
 #[cfg(test)]
