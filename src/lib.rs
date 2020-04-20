@@ -1,4 +1,5 @@
 pub mod text;
+pub mod collections;
 
 
 #[cfg(test)]
