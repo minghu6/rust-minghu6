@@ -9,3 +9,4 @@ edition = "2018"
 [dependencies]
 chardet = "0.2"
 encoding = "0.2"
+maplit = "1.0.2"
