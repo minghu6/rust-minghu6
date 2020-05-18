@@ -1,5 +1,8 @@
+#![feature(test)]
+
 pub mod text;
 pub mod collections;
+pub mod algs;
 
 
 #[cfg(test)]
