@@ -1,4 +1,7 @@
 #![feature(test)]
+#![feature(generators, generator_trait)]
+#![feature(ptr_internals)]
+
 
 pub mod text;
 pub mod collections;
