@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 
 use std::ops::{ Generator };
-use std::rc::Rc;
 
 pub struct KMPPattern {
     t: Vec<char>,

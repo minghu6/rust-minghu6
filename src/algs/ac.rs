@@ -100,7 +100,7 @@ pub struct TrieTree<'a> {
 impl <'a>TrieTree<'a> {
     pub fn new(keys: &Vec<&'a str>) -> Self {
         let keys = keys.clone();
-        let root_ptr = TrieTree::build_ac_automation(&keys);
+        let root_ptr = TrieTree::build_ac_automaton(&keys);
 
         TrieTree {
             root_ptr,
@@ -108,7 +108,7 @@ impl <'a>TrieTree<'a> {
         }
     }
 
-    fn build_ac_automation(target_strings:&Vec<&'a str>) -> *mut TrieNode<'a> {
+    fn build_ac_automaton(target_strings:&Vec<&'a str>) -> *mut TrieNode<'a> {
         let root_ptr = TrieNode::new('_');
 
         for target in target_strings.iter() {
@@ -269,7 +269,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn ac_automation_works() {
+    fn ac_automaton_works() {
         let mut result = TrieTree::new(&vec!["bcd", "cdfkcdf", "cde", "abcdef", "abhab"])
             .index_of("bcabcdebcedfabcdefababkabhabk");
 
