@@ -5,7 +5,7 @@ use std::ops::{ Generator };
 pub struct KMPPattern {
     t: Vec<char>,
     t_str_len: usize,
-    next: Vec<isize>
+    pub next: Vec<isize>
 }
 
 #[derive(Copy, Clone)]
@@ -36,17 +36,17 @@ impl<'a> KMPPattern {
 
         for (i, c) in text.char_indices() {
             loop {
-                if self.t[pattern_index as usize] == c {
+                 if pattern_index == -1  {
+                    break
+                 } else if self.t[pattern_index as usize] == c {
                     if pattern_index == (self.t.len() - 1) as isize {  // matched !
                         result.push(i + c.len_utf8() - self.t_str_len);
                         pattern_index = self.next[pattern_index as usize];
-                        // println!("hi, p_i{}", pattern_index);
+
                     } else {
                         pattern_index += 1;
                         break;
                     }
-                } else if pattern_index == -1  {
-                    break
                 } else {
                     pattern_index = self.next[pattern_index as usize];
                 }
@@ -56,7 +56,7 @@ impl<'a> KMPPattern {
         result
     }
 
-    pub fn find(&self, text:&str) -> impl Generator<Yield = usize, Return = ()> {
+    pub fn find(&self, text:&'a str) -> impl Generator<Yield = usize, Return = ()> {
         let text = Box::new(String::from(text));
         let next = self.next.clone();
         let t = self.t.clone();
@@ -128,24 +128,27 @@ impl<'a> KMPPattern {
 
 #[cfg(test)]
 mod tests {
+    use num_format::{Locale, ToFormattedString};
+
     use std::pin::Pin;
     use std::ops::{ Generator, GeneratorState };
 
+    use super::super::super::benchmarks::spm;
     use super::*;
 
     #[test]
     fn calc_right_next() {
         for flag in [ComputeNext::Naive, ComputeNext::Improved].iter() {
-            assert_eq!(KMPPattern::new("abababzabababa", *flag).next, 
+            assert_eq!(KMPPattern::new("abababzabababa", *flag).next,
                         vec![-1, 0, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 5, 6]);
 
-            assert_eq!(KMPPattern::new("aaaaa", *flag).next, 
+            assert_eq!(KMPPattern::new("aaaaa", *flag).next,
                         vec![-1, 0, 1, 2, 3]);
 
-            assert_eq!(KMPPattern::new("aaabaab", *flag).next, 
+            assert_eq!(KMPPattern::new("aaabaab", *flag).next,
                     vec![-1, 0, 1, 2, 0, 1, 2]);
 
-            assert_eq!(KMPPattern::new("hi哦啦，hi哦啦", *flag).next, 
+            assert_eq!(KMPPattern::new("hi哦啦，hi哦啦", *flag).next,
                     vec![-1, 0, 0, 0, 0, 0, 1, 2, 3]);
             }
     }
@@ -163,7 +166,7 @@ mod tests {
     #[test]
     fn find_works() {
         let test = |pattern, text, v| {
-            let p = KMPPattern::new(pattern, ComputeNext::Naive);    
+            let p = KMPPattern::new(pattern, ComputeNext::Naive);
             let mut gen_p = p.find(text);
             let mut myv = vec![];
             loop {
@@ -172,11 +175,28 @@ mod tests {
                     GeneratorState::Complete(_) => { println!("finished."); break }
                 }
             }
-    
+
             assert_eq!(myv, v)
         };
 
         test("abbaaba", "abbaabbaababbaaba", vec![4, 10]);
         test("aaa", "aaaaa", vec![0, 1, 2]);
+    }
+
+    /// cargo test -- --nocapture overflow_test
+    #[ignore]
+    #[test]
+    fn overflow_test() {
+        let mut s = String::from("5");
+
+        while s.len() < 19 {
+            let i = s.parse::<usize>().unwrap();
+            println!("{}", i.to_formatted_string(&Locale::en));
+
+            let text = spm::gen_random_text(i);
+            let pattern = "aaabb比d好d你c想想c是cdvd";
+            KMPPattern::new(pattern, ComputeNext::Improved).find_all(text.as_str());
+            s.push('0');
+        }
     }
 }

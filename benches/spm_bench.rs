@@ -1,0 +1,114 @@
+#![feature(test)]
+
+use minghu6::benchmarks::spm::{ gen_random_text, gen_pattern };
+use minghu6::algs::kmp::{ KMPPattern, ComputeNext };
+use minghu6::algs::ac::TrieTree;
+
+extern crate test;
+
+use test::Bencher;
+
+// const tested_texts:[String;2] = gen_tested_text();
+// const tested_patterns:[String;36] = gen_tested_pattern();
+
+fn gen_tested_text() -> Vec<String> {
+    let mut result = vec![];
+    //result.push(gen_random_text(1_000_000));
+    result.push(gen_random_text(500_000));
+    //result.push(gen_random_text(1_000));
+
+    result
+}
+
+fn gen_tested_pattern() -> Vec<String> {
+    let mut result = vec![];
+
+    for pattern in gen_pattern((4..1000, 50), 2) {
+        result.push(pattern)
+    }
+
+    result
+}
+
+#[bench]
+fn gen_some_random_text(b: &mut Bencher) {
+
+    b.iter(|| {
+        gen_tested_text();
+        gen_tested_pattern();
+    })
+}
+
+#[bench]
+fn bf_spm(b: &mut Bencher) {
+    let gen = || {
+        let tested_texts = gen_tested_text();
+        let tested_patterns = gen_tested_pattern();
+        for text in &tested_texts {
+            for pattern in &tested_patterns {
+                brute_force_match(pattern.as_str(), text.as_str());
+            }
+        }
+    };
+
+    b.iter(|| gen())
+}
+
+#[bench]
+fn kmp_spm(b: &mut Bencher) {
+    let gen = || {
+        let tested_texts = gen_tested_text();
+        let tested_patterns = gen_tested_pattern();
+        for text in &tested_texts {
+            for pattern in &tested_patterns {
+                KMPPattern::new(pattern.as_str(), ComputeNext::Improved).find_all(text.as_str());
+            }
+        }
+    };
+
+    b.iter(|| gen())
+}
+
+#[bench]
+fn kmp_spm_naive(b: &mut Bencher) {
+    let gen = || {
+        let tested_texts = gen_tested_text();
+        let tested_patterns = gen_tested_pattern();
+        for text in &tested_texts {
+            for pattern in &tested_patterns {
+                KMPPattern::new(pattern.as_str(), ComputeNext::Naive).find_all(text.as_str());
+            }
+        }
+    };
+
+    b.iter(|| gen())
+}
+
+#[bench]
+fn ac_automaton(b: &mut Bencher) {
+    let gen = || {
+        let tested_texts = gen_tested_text();
+        let tested_patterns = gen_tested_pattern();
+        let trie_tree = TrieTree::new(&tested_patterns);
+
+        for text in &tested_texts {
+            trie_tree.index_of(text.as_str());
+        }
+    };
+
+    b.iter(|| gen())
+}
+
+fn brute_force_match<'a>(pattern:&'a str, text:&'a str) -> Vec<usize> {
+    let mut result = vec![];
+
+    for (i, _) in text.char_indices() {
+        if let Some(text_slice) = text.get(i..i+pattern.len()) {
+            if text_slice == pattern {
+                result.push(i);
+            }
+        }
+    }
+
+    result
+}

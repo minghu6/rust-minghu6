@@ -1,11 +1,12 @@
 #![feature(test)]
 #![feature(generators, generator_trait)]
 #![feature(ptr_internals)]
-
+#![feature(const_fn)]
 
 pub mod text;
 pub mod collections;
 pub mod algs;
+pub mod benchmarks;
 
 
 #[cfg(test)]
