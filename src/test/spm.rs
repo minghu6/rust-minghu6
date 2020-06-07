@@ -109,6 +109,32 @@ pub fn gen_random_text(size:usize) -> String {
     s
 }
 
+pub fn brute_force_match<'a>(pattern:&'a str, text:&'a str) -> Vec<usize> {
+    let mut result = vec![];
+
+    for (i, _) in text.char_indices() {
+        if let Some(text_slice) = text.get(i..i+pattern.len()) {
+            if text_slice == pattern {
+                result.push(i);
+            }
+        }
+    }
+
+    result
+}
+
+pub fn gen_test_case() -> Vec<(String, String, Vec<usize>)>{
+    let mut cases = vec![];
+
+    for pat in gen_pattern((1..24, 1), 30) {
+        let text = gen_random_text(1000);
+
+        let result = brute_force_match(pat.as_str(), text.as_str());
+        cases.push((pat, text, result))
+    }
+
+     cases
+}
 
 #[cfg(test)]
 mod tests {
@@ -130,6 +156,14 @@ mod tests {
         let text = gen_random_text(5_000);
         println!("text size: {}", text.len());
         println!("{}", text);
+    }
+
+    #[test]
+    fn bf_find_all_works() {
+        assert_eq!(brute_force_match("abbaaba", "abbaabbaababbaaba"), vec![4, 10]);
+        assert_eq!(brute_force_match("aaa", "aaaaa"), vec![0, 1, 2]);
+        assert_eq!(brute_force_match("你好a", "aab你好a, 你好a,hahahah"), vec![3, 12]);
+        assert_eq!(brute_force_match("k", "yka你"), vec![1]);
     }
 
     #[bench]

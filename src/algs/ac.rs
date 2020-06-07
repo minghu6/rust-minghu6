@@ -112,6 +112,7 @@ impl <'a>TrieTree<'a> {
 
         for target in target_strings.iter() {
             let mut node = unsafe { &mut *root_ptr };
+            assert_ne!(target.len(), 0);
 
             for c in target.chars() {
                 let matched_child_ptr = node.try_find_child(c);

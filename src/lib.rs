@@ -6,7 +6,7 @@
 pub mod text;
 pub mod collections;
 pub mod algs;
-pub mod benchmarks;
+pub mod test;
 
 
 #[cfg(test)]

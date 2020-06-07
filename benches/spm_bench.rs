@@ -1,6 +1,6 @@
 #![feature(test)]
 
-use minghu6::benchmarks::spm::{ gen_random_text, gen_pattern };
+use minghu6::test::spm::{ gen_random_text, gen_pattern, brute_force_match };
 use minghu6::algs::kmp::{ KMPPattern, ComputeNext };
 use minghu6::algs::ac::TrieTree;
 
@@ -8,8 +8,6 @@ extern crate test;
 
 use test::Bencher;
 
-// const tested_texts:[String;2] = gen_tested_text();
-// const tested_patterns:[String;36] = gen_tested_pattern();
 
 fn gen_tested_text() -> Vec<String> {
     let mut result = vec![];
@@ -23,7 +21,7 @@ fn gen_tested_text() -> Vec<String> {
 fn gen_tested_pattern() -> Vec<String> {
     let mut result = vec![];
 
-    for pattern in gen_pattern((4..1000, 50), 2) {
+    for pattern in gen_pattern((1..14, 1), 10) {
         result.push(pattern)
     }
 
@@ -32,7 +30,6 @@ fn gen_tested_pattern() -> Vec<String> {
 
 #[bench]
 fn gen_some_random_text(b: &mut Bencher) {
-
     b.iter(|| {
         gen_tested_text();
         gen_tested_pattern();
@@ -54,6 +51,7 @@ fn bf_spm(b: &mut Bencher) {
     b.iter(|| gen())
 }
 
+
 #[bench]
 fn kmp_spm(b: &mut Bencher) {
     let gen = || {
@@ -68,6 +66,7 @@ fn kmp_spm(b: &mut Bencher) {
 
     b.iter(|| gen())
 }
+
 
 #[bench]
 fn kmp_spm_naive(b: &mut Bencher) {
@@ -84,6 +83,7 @@ fn kmp_spm_naive(b: &mut Bencher) {
     b.iter(|| gen())
 }
 
+
 #[bench]
 fn ac_automaton(b: &mut Bencher) {
     let gen = || {
@@ -97,18 +97,4 @@ fn ac_automaton(b: &mut Bencher) {
     };
 
     b.iter(|| gen())
-}
-
-fn brute_force_match<'a>(pattern:&'a str, text:&'a str) -> Vec<usize> {
-    let mut result = vec![];
-
-    for (i, _) in text.char_indices() {
-        if let Some(text_slice) = text.get(i..i+pattern.len()) {
-            if text_slice == pattern {
-                result.push(i);
-            }
-        }
-    }
-
-    result
 }
