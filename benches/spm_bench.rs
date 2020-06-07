@@ -3,6 +3,7 @@
 use minghu6::test::spm::{ gen_random_text, gen_pattern, brute_force_match };
 use minghu6::algs::kmp::{ KMPPattern, ComputeNext };
 use minghu6::algs::ac::TrieTree;
+use minghu6::algs::bm::BMPattern;
 
 extern crate test;
 
@@ -21,7 +22,7 @@ fn gen_tested_text() -> Vec<String> {
 fn gen_tested_pattern() -> Vec<String> {
     let mut result = vec![];
 
-    for pattern in gen_pattern((1..14, 1), 10) {
+    for pattern in gen_pattern((99..100, 1), 60) {
         result.push(pattern)
     }
 
@@ -76,6 +77,22 @@ fn kmp_spm_naive(b: &mut Bencher) {
         for text in &tested_texts {
             for pattern in &tested_patterns {
                 KMPPattern::new(pattern.as_str(), ComputeNext::Naive).find_all(text.as_str());
+            }
+        }
+    };
+
+    b.iter(|| gen())
+}
+
+
+#[bench]
+fn bm_spm(b: &mut Bencher) {
+    let gen = || {
+        let tested_texts = gen_tested_text();
+        let tested_patterns = gen_tested_pattern();
+        for text in &tested_texts {
+            for pattern in &tested_patterns {
+                BMPattern::new(pattern.as_str(), ).find_all(text.as_str());
             }
         }
     };
