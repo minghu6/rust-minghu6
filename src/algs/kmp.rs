@@ -176,7 +176,7 @@ mod tests {
     }
 
     #[test]
-    fn kmp_find_all_works_fixeddata() {
+    fn kmp_find_all_fixeddata_works() {
         let p1 = KMPPattern::new("abbaaba", ComputeNext::Naive);
         assert_eq!(p1.find_all("abbaabbaababbaaba"), vec![4, 10]);
 
@@ -188,7 +188,7 @@ mod tests {
     }
 
     #[test]
-    fn kmp_find_all_works_randomdata() {
+    fn kmp_find_all_randomdata_works() {
         for (pat, text, result) in spm::gen_test_case() {
             assert_eq!(KMPPattern::new(pat.as_str(), ComputeNext::Improved).find_all(text.as_str()), result)
         }
