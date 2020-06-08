@@ -149,7 +149,7 @@ mod tests {
     use std::pin::Pin;
     use std::ops::{ Generator, GeneratorState };
 
-    use super::super::super::test::spm;
+    use super::super::super::super::test::spm;
     use super::*;
 
     #[test]

@@ -1,10 +1,10 @@
 #![feature(test)]
 
 use minghu6::test::spm::{ gen_random_text, gen_pattern, brute_force_match };
-use minghu6::algs::kmp::{ KMPPattern, ComputeNext };
-use minghu6::algs::ac::TrieTree;
-use minghu6::algs::bm::BMPattern;
-use minghu6::algs::horspool::HorsPoolPattern;
+use minghu6::algs::spm::kmp::{ KMPPattern, ComputeNext };
+use minghu6::algs::spm::ac::TrieTree;
+use minghu6::algs::spm::bm::BMPattern;
+use minghu6::algs::spm::horspool::HorsPoolPattern;
 
 
 extern crate test;
@@ -15,7 +15,9 @@ use test::Bencher;
 fn gen_tested_text() -> Vec<String> {
     let mut result = vec![];
     //result.push(gen_random_text(1_000_000));
-    result.push(gen_random_text(1_000_000));
+    result.push(gen_random_text(500_000));
+    result.push(gen_random_text(500_000));
+
     //result.push(gen_random_text(1_000));
 
     result
@@ -24,7 +26,7 @@ fn gen_tested_text() -> Vec<String> {
 fn gen_tested_pattern() -> Vec<String> {
     let mut result = vec![];
 
-    for pattern in gen_pattern((1..24, 1), 5) {
+    for pattern in gen_pattern((1..36, 1), 5) {
         result.push(pattern)
     }
 

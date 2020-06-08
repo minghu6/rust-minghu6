@@ -225,7 +225,7 @@ impl BMPattern {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::super::test::spm;
+    use super::super::super::super::test::spm;
 
     #[test]
     fn bm_delta2_table_built_correctly() {

@@ -98,7 +98,7 @@ impl HorsPoolPattern {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::super::test::spm;
+    use super::super::super::super::test::spm;
     #[test]
     fn horspool_find_all_fixeddata_works() {
         let p1 = HorsPoolPattern::new("abbaaba");
