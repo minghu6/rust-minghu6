@@ -4,7 +4,8 @@ use minghu6::test::spm::{ gen_random_text, gen_pattern, brute_force_match };
 use minghu6::algs::spm::kmp::{ KMPPattern, ComputeNext };
 use minghu6::algs::spm::ac::TrieTree;
 use minghu6::algs::spm::bm::BMPattern;
-use minghu6::algs::spm::horspool::HorsPoolPattern;
+use minghu6::algs::spm::horspool::HorspoolPattern;
+use minghu6::algs::spm::sunday::SundayPattern;
 
 
 extern crate test;
@@ -112,13 +113,30 @@ fn horspool_spm(b: &mut Bencher) {
         let tested_patterns = gen_tested_pattern();
         for text in &tested_texts {
             for pattern in &tested_patterns {
-                HorsPoolPattern::new(pattern.as_str(), ).find_all(text.as_str());
+                HorspoolPattern::new(pattern.as_str(), ).find_all(text.as_str());
             }
         }
     };
 
     b.iter(|| gen())
 }
+
+
+#[bench]
+fn sunday_spm(b: &mut Bencher) {
+    let gen = || {
+        let tested_texts = gen_tested_text();
+        let tested_patterns = gen_tested_pattern();
+        for text in &tested_texts {
+            for pattern in &tested_patterns {
+                SundayPattern::new(pattern.as_str(), ).find_all(text.as_str());
+            }
+        }
+    };
+
+    b.iter(|| gen())
+}
+
 
 #[bench]
 fn ac_automaton(b: &mut Bencher) {
