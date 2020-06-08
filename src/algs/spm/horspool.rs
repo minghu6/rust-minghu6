@@ -1,7 +1,5 @@
 #![allow(dead_code)]
 
-use std::collections::{HashMap, VecDeque};
-
 pub struct HorsPoolPattern<'a> {
     pat_bytes: &'a [u8],
     bc: [usize; 256],
@@ -30,27 +28,29 @@ impl<'a> HorsPoolPattern<'a> {
     pub fn find_all(&self, string: &str) -> Vec<usize> {
         let mut result = vec![];
         let string_bytes = string.as_bytes();
-        let mut string_index = (self.pat_bytes.len() - 1) as isize;
-        let mut pat_index = (self.pat_bytes.len() - 1) as isize;
+        let mut string_index = self.pat_bytes.len() - 1;
+        let mut pat_index = self.pat_bytes.len() - 1;
 
-        while string_index < string_bytes.len() as isize {
-            if pat_index < 0 {
-                result.push((string_index + 1) as usize);
+        while string_index < string_bytes.len() {
+            if string_bytes[string_index] == self.pat_bytes[pat_index] {
+                if pat_index == 0 {
+                    result.push(string_index);
 
-                string_index += 1 + self.pat_bytes.len() as isize;
-                pat_index = (self.pat_bytes.len() - 1) as isize;
+                    string_index += self.pat_bytes.len();
+                    pat_index = self.pat_bytes.len() - 1;
 
-                continue;
-            }
+                    continue;
+                }
 
-            if string_bytes[string_index as usize] == self.pat_bytes[pat_index as usize] {
+
                 pat_index -= 1;
                 string_index -= 1;
+
                 continue;
             }
 
             let last_char_pos =
-                string_index as usize + (self.pat_bytes.len() as isize - 1 - pat_index) as usize;
+                string_index + self.pat_bytes.len() - 1 - pat_index;
             // println!(
             //     "string_index:{}, last_char_pos:{}, last_char:{}, bc:{}",
             //     string_index,
@@ -59,8 +59,8 @@ impl<'a> HorsPoolPattern<'a> {
             //     self.bc[string_bytes[last_char_pos] as usize]
             // );
 
-            string_index = (last_char_pos + self.bc[string_bytes[last_char_pos] as usize]) as isize;
-            pat_index = (self.pat_bytes.len() - 1) as isize;
+            string_index = last_char_pos + self.bc[string_bytes[last_char_pos] as usize];
+            pat_index = self.pat_bytes.len() - 1;
         }
 
         result
