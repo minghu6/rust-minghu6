@@ -27,8 +27,8 @@ impl BMPattern {
     fn build_delta1_table(p: &Vec<char>) -> HashMap<char, usize> {
         let mut delta1_table = HashMap::new();
 
-        for (i, c) in p.iter().enumerate() {
-            delta1_table.insert(c.clone(), p.len()-i-1);
+        for i in 0..p.len()-1 {
+            delta1_table.insert(p[i].clone(), p.len()-i-1);
         }
 
         delta1_table
