@@ -28,39 +28,16 @@ impl<'a> HorspoolPattern<'a> {
     pub fn find_all(&self, string: &str) -> Vec<usize> {
         let mut result = vec![];
         let string_bytes = string.as_bytes();
-        let mut string_index = self.pat_bytes.len() - 1;
-        let mut pat_index = self.pat_bytes.len() - 1;
+        let stringlen = string_bytes.len();
+        let pat_last_pos = self.pat_bytes.len() - 1;
+        let mut string_index = pat_last_pos;
 
-        while string_index < string_bytes.len() {
-            if string_bytes[string_index] == self.pat_bytes[pat_index] {
-                if pat_index == 0 {
-                    result.push(string_index);
-
-                    string_index += self.pat_bytes.len();
-                    pat_index = self.pat_bytes.len() - 1;
-
-                    continue;
-                }
-
-
-                pat_index -= 1;
-                string_index -= 1;
-
-                continue;
+        while string_index < stringlen {
+            if &string_bytes[string_index-pat_last_pos..string_index+1] == self.pat_bytes {
+                result.push(string_index-pat_last_pos);
             }
 
-            let last_char_pos =
-                string_index + self.pat_bytes.len() - 1 - pat_index;
-            // println!(
-            //     "string_index:{}, last_char_pos:{}, last_char:{}, bm_bc:{}",
-            //     string_index,
-            //     last_char_pos,
-            //     string_bytes[last_char_pos],
-            //     self.bm_bc[string_bytes[last_char_pos] as usize]
-            // );
-
-            string_index = last_char_pos + self.bm_bc[string_bytes[last_char_pos] as usize];
-            pat_index = self.pat_bytes.len() - 1;
+            string_index += self.bm_bc[string_bytes[string_index] as usize];
         }
 
         result
