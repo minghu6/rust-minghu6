@@ -27,36 +27,12 @@ const ALPHA_LIST:[char;26] = [
     'z',
 ];
 
-
-pub struct TestCaseGenerator {
-
-}
-
-impl TestCaseGenerator {
-    // fn gen_pattern () -> Vec<&str> {
-
-    // }
-}
-
-/// pattern type:
-///     all_same
-///
-///
-// pub struct PatternGenerator {
-//     len_range: Range<usize>,
-// }
-
-// impl PatternGenerator {
-//     pub fn new(range: Range<usize>) -> Self {
-//         PatternGenerator {
-//             len_range: range
-//         }
-//     }
+const DNA_LIST:[char;4] = [
+    'A', 'C', 'T', 'G'
+];
 
 
-// }
-
-pub fn gen_pattern<'a>(len_range:(Range<usize>, usize), n:usize) -> Vec<String> {
+pub fn gen_pattern(len_range:(Range<usize>, usize), n:usize) -> Vec<String> {
     let mut result = vec![];
     let __gen = |length| {
         let mut s = String::with_capacity(3 * length);
@@ -85,12 +61,48 @@ pub fn gen_pattern<'a>(len_range:(Range<usize>, usize), n:usize) -> Vec<String> 
     result
 }
 
+
+pub fn gen_dna_pattern(len_range:(Range<usize>, usize), n:usize) -> Vec<String> {
+    let mut result = vec![];
+    let __gen = |length| {
+        let mut s = String::with_capacity(length);
+        for _ in 0..length {
+            let mut rand_value = 0;
+            unsafe {
+                match _rdrand64_step(&mut rand_value) {
+                    1 => {
+                        s.push(random_dna_char((rand_value % 4) as usize))
+                    },
+                    _ => assert!(false),
+                }
+            }
+        }
+        s
+    };
+
+    let (range, step) = len_range;
+
+    for len in range.step_by(step) {
+        for _ in 0..n {
+            result.push(__gen(len));
+        }
+    }
+
+    result
+}
+
+
 fn random_char(regular_rand_value: usize) -> char {
     if regular_rand_value < 26 {
         ALPHA_LIST[regular_rand_value]
     } else {
         CN_ALPHA_LIST[regular_rand_value-26]
     }
+}
+
+
+fn random_dna_char(regular_rand_value: usize) -> char {
+    DNA_LIST[regular_rand_value]
 }
 
 
@@ -103,6 +115,22 @@ pub fn gen_random_text(size:usize) -> String {
     while cur_size < size {
         let c = random_char(rng.gen_range(0, 52));
         cur_size += c.len_utf8();
+        s.push(c)
+    }
+
+    s
+}
+
+
+pub fn gen_random_dna_text(size:usize) -> String {
+    let mut s = String::with_capacity(size);
+
+    let mut rng = thread_rng();
+    let mut cur_size = 0;
+
+    while cur_size < size {
+        let c = random_dna_char(rng.gen_range(0, 4));
+        cur_size += 1;
         s.push(c)
     }
 

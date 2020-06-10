@@ -7,8 +7,9 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-chardet = "0.2"
-encoding = "0.2"
-maplit = "1.0.2"
-rand = "0.7"
-num-format = "0.4.0"
+chardet = "^0.2"
+encoding = "^0.2"
+maplit = "^1.0.2"
+rand = "^0.7"
+num-format = "^0.4.0"
+bloom = "^0.3.2"

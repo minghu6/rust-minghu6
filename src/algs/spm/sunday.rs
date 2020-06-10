@@ -12,11 +12,14 @@ impl<'a> SundayPattern<'a> {
         let pat_bytes = pat.as_bytes();
         let sunday_bc = SundayPattern::build_sunday_bc(pat_bytes);
 
-        SundayPattern { pat_bytes, sunday_bc }
+        SundayPattern {
+            pat_bytes,
+            sunday_bc,
+        }
     }
 
     fn build_sunday_bc(p: &'a [u8]) -> [usize; 256] {
-        let mut sunday_bc_table = [p.len(); 256];
+        let mut sunday_bc_table = [p.len() + 1; 256];
 
         for i in 0..p.len() {
             sunday_bc_table[p[i] as usize] = p.len() - i;
@@ -33,15 +36,15 @@ impl<'a> SundayPattern<'a> {
         let mut string_index = pat_last_pos;
 
         while string_index < stringlen {
-            if &string_bytes[string_index-pat_last_pos..string_index+1] == self.pat_bytes {
-                result.push(string_index-pat_last_pos);
+            if &string_bytes[string_index - pat_last_pos..string_index + 1] == self.pat_bytes {
+                result.push(string_index - pat_last_pos);
             }
 
             if string_index + 1 == stringlen {
                 break;
             }
 
-            string_index += self.sunday_bc[string_bytes[string_index+1] as usize];
+            string_index += self.sunday_bc[string_bytes[string_index + 1] as usize];
         }
 
         result

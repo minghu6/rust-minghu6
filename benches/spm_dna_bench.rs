@@ -1,12 +1,12 @@
 #![feature(test)]
 
 use minghu6::algs::spm::ac::TrieTree;
-use minghu6::algs::spm::b5s::{ B5STimePattern, B5SSpacePattern };
+use minghu6::algs::spm::b5s::{B5SSpacePattern, B5STimePattern};
 use minghu6::algs::spm::bm::BMPattern;
 use minghu6::algs::spm::horspool::HorspoolPattern;
 use minghu6::algs::spm::kmp::{ComputeNext, KMPPattern};
 use minghu6::algs::spm::sunday::SundayPattern;
-use minghu6::test::spm::{brute_force_match, gen_pattern, gen_random_text};
+use minghu6::test::spm::{brute_force_match, gen_dna_pattern, gen_random_dna_text};
 
 extern crate test;
 
@@ -14,11 +14,7 @@ use test::Bencher;
 
 fn gen_tested_text() -> Vec<String> {
     let mut result = vec![];
-    //result.push(gen_random_text(1_000_000));
-    result.push(gen_random_text(500_000));
-    // result.push(gen_random_text(500_000));
-
-    //result.push(gen_random_text(1_000));
+    result.push(gen_random_dna_text(500_000));
 
     result
 }
@@ -26,7 +22,7 @@ fn gen_tested_text() -> Vec<String> {
 fn gen_tested_pattern() -> Vec<String> {
     let mut result = vec![];
 
-    for pattern in gen_pattern((1..36, 1), 3) {
+    for pattern in gen_dna_pattern((1..100, 4), 2) {
         result.push(pattern)
     }
 
@@ -34,7 +30,7 @@ fn gen_tested_pattern() -> Vec<String> {
 }
 
 #[bench]
-fn gen_some_random_text(b: &mut Bencher) {
+fn gen_some_random_dna_text(b: &mut Bencher) {
     b.iter(|| {
         gen_tested_text();
         gen_tested_pattern();
@@ -42,7 +38,7 @@ fn gen_some_random_text(b: &mut Bencher) {
 }
 
 #[bench]
-fn bf_spm(b: &mut Bencher) {
+fn bf_dna_spm(b: &mut Bencher) {
     let gen = || {
         let tested_texts = gen_tested_text();
         let tested_patterns = gen_tested_pattern();
@@ -58,7 +54,7 @@ fn bf_spm(b: &mut Bencher) {
 
 #[ignore]
 #[bench]
-fn kmp_spm(b: &mut Bencher) {
+fn kmp_dna_spm(b: &mut Bencher) {
     let gen = || {
         let tested_texts = gen_tested_text();
         let tested_patterns = gen_tested_pattern();
@@ -74,7 +70,7 @@ fn kmp_spm(b: &mut Bencher) {
 
 #[ignore]
 #[bench]
-fn kmp_spm_naive(b: &mut Bencher) {
+fn kmp_naive_dna_spm(b: &mut Bencher) {
     let gen = || {
         let tested_texts = gen_tested_text();
         let tested_patterns = gen_tested_pattern();
@@ -89,7 +85,7 @@ fn kmp_spm_naive(b: &mut Bencher) {
 }
 
 #[bench]
-fn bm_spm(b: &mut Bencher) {
+fn bm_dna_spm(b: &mut Bencher) {
     let gen = || {
         let tested_texts = gen_tested_text();
         let tested_patterns = gen_tested_pattern();
@@ -104,7 +100,7 @@ fn bm_spm(b: &mut Bencher) {
 }
 
 #[bench]
-fn horspool_spm(b: &mut Bencher) {
+fn horspool_dna_spm(b: &mut Bencher) {
     let gen = || {
         let tested_texts = gen_tested_text();
         let tested_patterns = gen_tested_pattern();
@@ -119,7 +115,7 @@ fn horspool_spm(b: &mut Bencher) {
 }
 
 #[bench]
-fn sunday_spm(b: &mut Bencher) {
+fn sunday_dna_spm(b: &mut Bencher) {
     let gen = || {
         let tested_texts = gen_tested_text();
         let tested_patterns = gen_tested_pattern();
@@ -134,7 +130,7 @@ fn sunday_spm(b: &mut Bencher) {
 }
 
 #[bench]
-fn b5s_time_spm(b: &mut Bencher) {
+fn b5s_time_dna_spm(b: &mut Bencher) {
     let gen = || {
         let tested_texts = gen_tested_text();
         let tested_patterns = gen_tested_pattern();
@@ -164,7 +160,7 @@ fn b5s_space_spm(b: &mut Bencher) {
 }
 
 #[bench]
-fn ac_automaton(b: &mut Bencher) {
+fn ac_automaton_dna(b: &mut Bencher) {
     let gen = || {
         let tested_texts = gen_tested_text();
         let tested_patterns = gen_tested_pattern();

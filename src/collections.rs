@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::collections::{ HashMap };
 use std::collections::hash_map;
 use std::hash::{Hash, Hasher};
@@ -47,14 +49,14 @@ impl<T> CustomHashSet<T> where T:Hash + Clone {
         self._value_map.contains_key(key)
     }
 
-    // Rust doesn't open the constructor method for struct Draw 
+    // Rust doesn't open the constructor method for struct Draw
     pub fn drain(&mut self) -> IteratorWrapper<Map<hash_map::Drain<String, T>, Map2SetType<T>>, T> {
         IteratorWrapper::new(self._value_map.drain().map(|(_, v)| v))
     }
 
     pub fn remove(&mut self, value:&T) -> bool {
         let key = &(self.get_key)(value);
-    
+
         match self._value_map.remove(key) {
             None => false,
             _ => true
@@ -63,13 +65,13 @@ impl<T> CustomHashSet<T> where T:Hash + Clone {
 
     pub fn take(&mut self, value:&T) -> Option<T> {
         let key = &(self.get_key)(value);
-    
+
         self._value_map.remove(key)
     }
 
     pub fn get(&mut self, value:&T) -> Option<&T> {
         let key = &(self.get_key)(value);
-    
+
         self._value_map.get(key)
     }
 
@@ -183,5 +185,107 @@ impl<I, T> Iterator for IteratorWrapper<I, T>  where I: Iterator<Item=T> {
 
     fn next(&mut self) -> Option<T> {
         self.iter.next()
+    }
+}
+
+/// Bloom filter
+pub struct BloomFilter {
+
+}
+
+impl BloomFilter {
+    fn optimal_k(m:i32, n:i32) -> i32 {
+        let k = (m as f32 / n as f32 * 2f32.ln()).round() as i32;
+
+        if k < 1 {
+            1
+        } else {
+            k
+        }
+    }
+
+    // calculate false positive rate
+    fn fp_rate(m:i32, n:i32, k:i32) -> f32 {
+        (1f32 - (1f32 - 1f32 / m as f32).powi(k * n)).powi(k)
+    }
+
+    /// -> (k, m)
+    fn find_proper_params(n:i32, max_fp_rate:f32) -> (i32, i32) {
+        let mut m = n;
+        let step = n;
+        let mut k = BloomFilter::optimal_k(m, n);
+
+        while BloomFilter::fp_rate(m, n ,k) > max_fp_rate {
+            m += step;
+            k = BloomFilter::optimal_k(m, n);
+        }
+
+        (k, m)
+    }
+}
+
+
+
+pub struct SimpleBloomFilter {
+    mask: u128,
+    bloom_width: u8,
+}
+
+/// k=1, fp_rate很高, 不建议使用
+impl SimpleBloomFilter {
+    pub fn new(width: u8) -> Self {
+        SimpleBloomFilter {
+            mask: 0,
+            bloom_width: width
+        }
+    }
+
+    pub fn add(&mut self, char: u8) {
+        // let t = char & (self.bloom_width -1);
+        // println!("{}", t);
+        // 100u128 << 127u8;
+        (self.mask) |= 1u128 << (char & (self.bloom_width -1));
+    }
+
+    pub fn contains(&self, char: u8) -> bool {
+        (self.mask & (1u128 << (char & (self.bloom_width - 1)))) != 0
+    }
+}
+
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn simple_bloom_works() {
+        let mut sbf = SimpleBloomFilter::new(128);
+        sbf.add(0u8);
+        for i in 0..255u8 {
+            sbf.add(i+1);
+
+            for j in i+2..255u8 {
+                if sbf.contains(j+1) {
+                    println!("false negative case i:{}, j:{}", i+2, j+1);
+                    break;
+                }
+            }
+        }
+
+        assert!(false);
+    }
+
+    #[test]
+    fn bloom_filter_fp_rate() {
+        let fp_rate = BloomFilter::fp_rate(1024, 256, 1);
+
+        println!("fp_rate: {}", fp_rate);
+    }
+
+    #[test]
+    fn bloom_filter_proper_params() {
+        let (k, m) = BloomFilter::find_proper_params(256, 0.15);
+
+        println!("capacity: {} Bytes, k: {}", m/8, k);
     }
 }
