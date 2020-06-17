@@ -228,27 +228,25 @@ impl BloomFilter {
 
 pub struct SimpleBloomFilter {
     mask: u128,
-    bloom_width: u8,
 }
 
-/// k=1, fp_rate很高, 不建议使用
+/// k=1, fp_rate很高, 不建议使用， 支持0-255的输入。
 impl SimpleBloomFilter {
-    pub fn new(width: u8) -> Self {
+    pub fn new() -> Self {
         SimpleBloomFilter {
             mask: 0,
-            bloom_width: width
         }
     }
 
-    pub fn add(&mut self, char: u8) {
+    pub fn add(&mut self, char: &u8) {
         // let t = char & (self.bloom_width -1);
         // println!("{}", t);
         // 100u128 << 127u8;
-        (self.mask) |= 1u128 << (char & (self.bloom_width -1));
+        (self.mask) |= 1u128 << (char & (127u8));
     }
 
-    pub fn contains(&self, char: u8) -> bool {
-        (self.mask & (1u128 << (char & (self.bloom_width - 1)))) != 0
+    pub fn contains(&self, char: &u8) -> bool {
+        (self.mask & (1u128<< (char & (127u8)))) != 0
     }
 }
 
@@ -259,19 +257,20 @@ mod test {
 
     #[test]
     fn simple_bloom_works() {
-        let mut sbf = SimpleBloomFilter::new(128);
-        sbf.add(0u8);
+        let mut sbf = SimpleBloomFilter::new();
+        sbf.add(&0u8);
         for i in 0..255u8 {
-            sbf.add(i+1);
+            sbf.add(&(i+1));
 
             for j in i+2..255u8 {
-                if sbf.contains(j+1) {
+                if sbf.contains(&(j+1)) {
                     println!("false negative case i:{}, j:{}", i+2, j+1);
                     break;
                 }
             }
         }
 
+        sbf.add(&255u8);
         assert!(false);
     }
 

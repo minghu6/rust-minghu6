@@ -1,6 +1,16 @@
 #![allow(dead_code)]
 
-use std::cmp::max;
+use std::cmp::{max, min};
+use std::collections::VecDeque;
+
+use super::compute_pi;
+
+/// stringlen-1 + patlen <= large && stringlen-1 + large <= 2^$(usize width)
+#[cfg(target_pointer_width = "64")]
+const LARGE: usize = 10_000_000_000_000_000_000;
+
+#[cfg(not(target_pointer_width = "64"))]
+const LARGE: usize = 2_000_000_000;
 
 pub struct BMPattern<'a> {
     pat_bytes: &'a [u8],
@@ -14,12 +24,25 @@ impl<'a> BMPattern<'a> {
 
         let pat_bytes = pat.as_bytes();
         let delta1 = BMPattern::build_delta1_table(&pat_bytes);
-        let delta2 = BMPattern::build_delta2_table_naive(&pat_bytes);
+        //let delta2 = BMPattern::build_delta2_table_naive(&pat_bytes);
+        //let delta2 = BMPattern::build_delta2_table_improved_knuth(&pat_bytes);
+        //let delta2 = BMPattern::build_delta2_table_improved_rytter(&pat_bytes);
+        //let delta2 = BMPattern::build_delta2_table_improved_blog(&pat_bytes);
+        let delta2 = BMPattern::build_delta2_table_improved_minghu6(&pat_bytes);
 
         BMPattern {
             pat_bytes,
             delta1,
             delta2,
+        }
+    }
+
+    #[inline]
+    fn delta0(&self, char: u8) -> usize {
+        if char == self.pat_bytes[self.pat_bytes.len() - 1] {
+            LARGE
+        } else {
+            self.delta1[char as usize]
         }
     }
 
@@ -34,7 +57,7 @@ impl<'a> BMPattern<'a> {
         delta1
     }
 
-    fn build_delta2_table_naive(p: &'a [u8]) -> Vec<usize> {
+    pub fn build_delta2_table_naive(p: &'a [u8]) -> Vec<usize> {
         // refer to kmp calc_next_improved
         let mut delta2_table = vec![];
 
@@ -72,65 +95,234 @@ impl<'a> BMPattern<'a> {
         delta2_table
     }
 
-    // bad idea! no works...
-    fn build_delta2_table_improved(p: &Vec<char>) -> Vec<usize> {
-        // refer to kmp calc_next_improved
-        let mut rpr = vec![0isize].repeat(p.len());
-        rpr[p.len() - 1] = (p.len() - 1) as isize;
+    pub fn build_delta2_table_improved_knuth(p: &'a [u8]) -> Vec<usize> {
+        let mut delta2 = Vec::with_capacity(p.len());
+        let patlen = p.len();
+        let lastpos = patlen - 1;
 
-        if p.len() > 1 {
-            for j in (-1..(p.len() - 1) as isize).rev() {
-                if j < 0
-                    || p[j as usize] == p[p.len() - 1]
-                        && (j == 0 || p[(j - 1) as usize] != p[p.len() - 2])
-                {
-                    rpr[p.len() - 2] = j;
-                    break;
-                }
-            }
+        for k in 0..patlen {
+            delta2.push(patlen + lastpos - k);
         }
 
-        for i in (1..p.len() - 1).rev() {
-            if rpr[i] > 0
-                && (p[(rpr[i] - 1) as usize] == p[i]
-                    && (rpr[i] == 1 || p[(rpr[i] - 2) as usize] != p[i - 1]))
-            {
-                rpr[i - 1] = rpr[i] - 1;
-                println!("rpr({}): {}", i - 1, rpr[i - 1]);
+        let mut j = lastpos;
+        let mut t = patlen;
+        let mut f = vec![0].repeat(patlen);
+
+        loop {
+            f[j] = t;
+            while t < patlen && p[j] != p[t] {
+                delta2[t] = lastpos - j;
+                t = f[t];
+            }
+
+            t -= 1;
+            if j == 0 {
+                break;
+            }
+            j -= 1;
+        }
+
+        for k in 0..t + 1 {
+            delta2[k] = min(delta2[k], patlen + t - 1 - k);
+        }
+
+        delta2
+    }
+
+    pub fn build_delta2_table_improved_rytter(p: &'a [u8]) -> Vec<usize> {
+        let mut delta2 = Vec::with_capacity(p.len());
+        let patlen = p.len();
+        let lastpos = patlen - 1;
+
+        for k in 0..p.len() {
+            delta2.push(2*lastpos - k);
+        }
+
+        let mut j = lastpos;
+        let mut t = patlen;
+        let mut f = vec![0; patlen];
+
+        loop {
+            f[j] = t;
+            while t < patlen && p[j] != p[t] {
+                // println!("case A2: t:{}, j:{}, delta2[t]:{}, new_delta2[t]:{}", t, j, delta2[t], min(delta2[t], lastpos - 1 - j));
+                delta2[t] = min(delta2[t], lastpos - 1 - j);
+                t = f[t];
+            }
+
+            t -= 1;
+            if j == 0 {
+                break;
+            }
+            j -= 1;
+        }
+        //delta2[t] = min(delta2[t], lastpos - 1 + 1); // j = -1, -j = +1
+        // println!("after case A2, delta2:{:?}", delta2);
+        // println!("after case A2, f:{:?}", f);
+        // println!("t: {}", t);
+
+        let mut q = t+1;
+        t = patlen - q;
+
+        let mut j1 = 1;
+        let mut t1 = 0;
+        let mut f1 = f;
+        while j1-1 < t {
+            f1[j1-1] = t1;
+            while t1 > 0 && p[j1-1] != p[t1-1] {
+                t1 = f1[t1-1];
+            }
+
+            t1 += 1;
+            j1 += 1;
+        }
+        // println!("f1:{:?}, t:{}, q:{}", f1, t, q);
+
+        let mut q1 = 0;
+        while q < patlen {
+            for k in q1..q {
+                delta2[k] = min(delta2[k], lastpos + q - 1 - k);
+                // println!("delta2[{}]:{}", k, delta2[k]);
+            }
+
+            // let k = q1;
+            // delta2[k] = min(delta2[k], lastpos + q - 1 - k);
+            // println!("delta2[{}]:{}", k, delta2[k]);
+
+            q1 = q;
+            q = q + t - f1[t-1];
+            t = f1[t-1];
+            // println!("q1:{}, q:{}, t:{}, f1:{:?}", q1, q, t, f1);
+        }
+
+        delta2[lastpos] = 0;
+
+        delta2
+    }
+
+    pub fn build_delta2_table_improved_blog(p: &'a [u8]) -> Vec<usize> {
+        if p.len() == 1 {
+            return vec![0]
+        }
+
+        let mut delta2 = Vec::with_capacity(p.len());
+        let patlen = p.len();
+        let lastpos = patlen - 1;
+        let mut suffix = vec![patlen].repeat(patlen);
+        let mut f = 0;
+        let mut g = lastpos;
+        for i in (0..lastpos).rev() {
+            if i > g && suffix[i+lastpos-f] < i-g {
+                suffix[i] = suffix[i+lastpos-f];
             } else {
-                let start_pos = rpr[i] - 2;
-                let subpatlen = (p.len() - 1 - (i - 1)) as isize;
-
-                println!("subpatlen:{}, start_pos:{}", subpatlen, start_pos);
-
-                for j in (-subpatlen..(start_pos + 1) as isize).rev() {
-                    // subpat 匹配
-                    if (j..j + subpatlen)
-                        .zip(i..p.len())
-                        .all(|(rpr_index, subpat_index)| {
-                            if rpr_index < 0 {
-                                return true;
-                            }
-
-                            if p[rpr_index as usize] == p[subpat_index] {
-                                return true;
-                            }
-
-                            false
-                        })
-                        && (j <= 0 || p[(j - 1) as usize] != p[i - 1])
-                    {
-                        rpr[i - 1] = j;
+                if i < g {
+                    g = i;
+                }
+                f = i;
+                while p[g] == p[g+lastpos-f] {
+                    if g == 0 {
                         break;
                     }
+                    g -= 1;
+                }
+                suffix[i] = f - g
+            }
+
+            // let mut q = i as isize;
+            // while q >=0 && p[q as usize] == p[lastpos + q as usize - i] {
+
+            //     q -= 1;
+            // }
+
+            // suffix[i] = (i as isize - q) as usize;
+        }
+
+        let mut j = 0;
+
+        for _ in 0..patlen {
+            delta2.push(patlen);
+        }
+
+        for i in (0..patlen).rev() {
+            if suffix[i] == i+1 {
+                while j < lastpos - i {
+                    delta2[j] = lastpos - i;
+                    j += 1;
                 }
             }
         }
 
-        println!("rpr: {:?}", rpr);
-        rpr.iter()
-            .map(|pos| (p.len() as isize - 1 - pos) as usize)
-            .collect()
+        println!("lastpos: {}, suffix:{:?}", lastpos, suffix);
+        for i in 0..lastpos {
+            delta2[lastpos-suffix[i]] = lastpos - i;
+        }
+
+        delta2
+    }
+
+    pub fn build_delta2_table_improved_minghu6(p: &'a [u8]) -> Vec<usize> {
+        let mut delta2 = Vec::with_capacity(p.len());
+        let patlen = p.len();
+        let lastpos = patlen - 1;
+
+        for k in 0..patlen {
+            delta2.push(lastpos * 2 - k);
+        }
+
+        // println!("case1 delta2:{:?}",delta2);
+        let mut f = compute_pi(p);
+        let mut pat_prefix = VecDeque::new();
+        let mut i = lastpos;
+        while f[i] > 0 {
+            pat_prefix.push_front(f[i]);
+            i = f[i] - 1;
+        }
+
+        let pat_prefix_len = pat_prefix.len();
+        for i in 0..pat_prefix_len {
+            let start;
+            let end;
+
+            if i == pat_prefix_len - 1 {
+                start = 0;
+            } else {
+                start = patlen-pat_prefix[i+1]
+            }
+
+            end = patlen - pat_prefix[i];
+
+
+            // println!("({}, {})", start, end);
+            for j in start..end {
+                delta2[j] = lastpos * 2 - j - pat_prefix[i];
+            }
+        }
+
+        // println!("case2 delta2:{:?}",delta2);
+
+        let mut j = lastpos;
+        let mut t = patlen;
+        // let mut f = vec![0; patlen];
+
+        loop {
+            f[j] = t;
+            while t < patlen && p[j] != p[t] {
+                // println!("delta2[{}]:{}", t, lastpos - j);
+                delta2[t] = min(delta2[t], lastpos - 1 - j);
+                t = f[t];
+            }
+
+            t -= 1;
+            if j == 0 {
+                break;
+            }
+            j -= 1;
+        }
+        //delta2[t] = min(delta2[t], lastpos); // j = -1, -j = +1
+
+        delta2[lastpos] = 0;
+
+        delta2
     }
 
     pub fn find_all(&self, string: &str) -> Vec<usize> {
@@ -142,8 +334,15 @@ impl<'a> BMPattern<'a> {
         let mut pat_index;
 
         while string_index < stringlen {
-            pat_index = pat_last_pos;
+            while string_index < stringlen {
+                string_index += self.delta0(string_bytes[string_index]);
+            }
+            if string_index < LARGE {
+                break;
+            }
 
+            string_index -= LARGE;
+            pat_index = pat_last_pos;
             while pat_index > 0 && string_bytes[string_index] == self.pat_bytes[pat_index] {
                 string_index -= 1;
                 pat_index -= 1;
@@ -160,6 +359,97 @@ impl<'a> BMPattern<'a> {
                 );
             }
         }
+        result
+    }
+}
+
+pub struct SimplifiedBMPattern<'a> {
+    pat_bytes: &'a [u8],
+    delta1: [usize; 256],
+}
+
+impl<'a> SimplifiedBMPattern<'a> {
+    pub fn new(pat: &'a str) -> Self {
+        assert_ne!(pat.len(), 0);
+
+        let pat_bytes = pat.as_bytes();
+        let delta1 = BMPattern::build_delta1_table(&pat_bytes);
+
+        SimplifiedBMPattern { pat_bytes, delta1 }
+    }
+
+    #[inline]
+    fn delta0(&self, char: u8) -> usize {
+        if char == self.pat_bytes[self.pat_bytes.len() - 1] {
+            LARGE
+        } else {
+            self.delta1[char as usize]
+        }
+    }
+
+    fn build_delta1_table(p: &'a [u8]) -> [usize; 256] {
+        let mut delta1 = [p.len(); 256];
+        let lastpos = p.len() - 1;
+
+        for i in 0..lastpos {
+            delta1[p[i] as usize] = lastpos - i;
+        }
+
+        delta1
+    }
+
+    pub fn find_all(&self, string: &str) -> Vec<usize> {
+        let mut result = vec![];
+        let string_bytes = string.as_bytes();
+        let stringlen = string_bytes.len();
+        let pat_last_pos = self.pat_bytes.len() - 1;
+        let mut string_index = pat_last_pos;
+        let mut pat_index;
+
+        while string_index < stringlen {
+            while string_index < stringlen {
+                string_index += self.delta0(string_bytes[string_index]);
+            }
+            if string_index < LARGE {
+                break;
+            }
+
+            string_index -= LARGE;
+            pat_index = pat_last_pos;
+            while pat_index > 0 && string_bytes[string_index] == self.pat_bytes[pat_index] {
+                string_index -= 1;
+                pat_index -= 1;
+            }
+
+            if pat_index == 0 && string_bytes[string_index] == self.pat_bytes[0] {
+                result.push(string_index);
+
+                string_index += self.pat_bytes.len();
+            } else {
+                string_index += max(
+                    self.delta1[string_bytes[string_index] as usize],
+                    pat_last_pos - pat_index + 1,
+                );
+            }
+        }
+
+        // old version
+        // while string_index < stringlen {
+        //     pat_index = pat_last_pos;
+        //     while pat_index > 0 && string_bytes[string_index] == self.pat_bytes[pat_index] {
+        //         string_index -= 1;
+        //         pat_index -= 1;
+        //     }
+
+        //     if pat_index == 0 && string_bytes[string_index] == self.pat_bytes[0] {
+        //         result.push(string_index);
+
+        //         string_index += self.pat_bytes.len();
+        //     } else {
+        //         string_index += max(self.delta1[string_bytes[string_index] as usize], pat_last_pos-pat_index+1);
+        //     }
+
+        // }
         result
     }
 }
@@ -182,9 +472,13 @@ mod tests {
         p = BMPattern::new("abbaaba");
         assert_eq!(p.delta2, vec![11, 10, 9, 8, 4, 2, 0]);
 
+        p = BMPattern::new("abaabaabaa");
+        assert_eq!(p.delta2, vec![11, 10, 9, 11, 10, 9, 11, 10, 1, 0]);
+
         p = BMPattern::new("aaa");
         assert_eq!(p.delta2, vec![2, 2, 0]);
     }
+
     #[test]
     fn bm_find_all_fixeddata_works() {
         let p1 = BMPattern::new("abbaaba");
@@ -192,12 +486,37 @@ mod tests {
 
         let p2 = BMPattern::new("aaa");
         assert_eq!(p2.find_all("aaaaa"), vec![0, 1, 2]);
+
+        let p3 = BMPattern::new("a");
+        assert_eq!(p3.find_all("a"), vec![0]);
     }
 
     #[test]
     fn bm_find_all_randomdata_works() {
         for (pat, text, result) in spm::gen_test_case() {
             assert_eq!(BMPattern::new(pat.as_str()).find_all(text.as_str()), result)
+        }
+    }
+
+    #[test]
+    fn simplified_bm_find_all_fixeddata_works() {
+        let p1 = SimplifiedBMPattern::new("abbaaba");
+        assert_eq!(p1.find_all("abbaabbaababbaaba"), vec![4, 10]);
+
+        // let p2 = SimplifiedBMPattern::new("aaa");
+        // assert_eq!(p2.find_all("aaaaa"), vec![0, 1, 2]);
+
+        // let p3 = SimplifiedBMPattern::new("a");
+        // assert_eq!(p3.find_all("a"), vec![0]);
+    }
+
+    #[test]
+    fn simplified_bm_find_all_randomdata_works() {
+        for (pat, text, result) in spm::gen_test_case() {
+            assert_eq!(
+                SimplifiedBMPattern::new(pat.as_str()).find_all(text.as_str()),
+                result
+            )
         }
     }
 }

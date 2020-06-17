@@ -2,7 +2,7 @@
 
 use minghu6::algs::spm::ac::TrieTree;
 use minghu6::algs::spm::b5s::{ B5STimePattern, B5SSpacePattern };
-use minghu6::algs::spm::bm::BMPattern;
+use minghu6::algs::spm::bm::{ BMPattern, SimplifiedBMPattern };
 use minghu6::algs::spm::horspool::HorspoolPattern;
 use minghu6::algs::spm::kmp::{ComputeNext, KMPPattern};
 use minghu6::algs::spm::sunday::SundayPattern;
@@ -15,7 +15,7 @@ use test::Bencher;
 fn gen_tested_text() -> Vec<String> {
     let mut result = vec![];
     //result.push(gen_random_text(1_000_000));
-    result.push(gen_random_text(500_000));
+    result.push(gen_random_text(1_000_000));
     // result.push(gen_random_text(500_000));
 
     //result.push(gen_random_text(1_000));
@@ -26,7 +26,7 @@ fn gen_tested_text() -> Vec<String> {
 fn gen_tested_pattern() -> Vec<String> {
     let mut result = vec![];
 
-    for pattern in gen_pattern((1..36, 1), 3) {
+    for pattern in gen_pattern((1..40, 1), 3) {
         result.push(pattern)
     }
 
@@ -41,6 +41,7 @@ fn gen_some_random_text(b: &mut Bencher) {
     })
 }
 
+#[ignore]
 #[bench]
 fn bf_spm(b: &mut Bencher) {
     let gen = || {
@@ -96,6 +97,21 @@ fn bm_spm(b: &mut Bencher) {
         for text in &tested_texts {
             for pattern in &tested_patterns {
                 BMPattern::new(pattern.as_str()).find_all(text.as_str());
+            }
+        }
+    };
+
+    b.iter(|| gen())
+}
+
+#[bench]
+fn simplified_bm_spm(b: &mut Bencher) {
+    let gen = || {
+        let tested_texts = gen_tested_text();
+        let tested_patterns = gen_tested_pattern();
+        for text in &tested_texts {
+            for pattern in &tested_patterns {
+                SimplifiedBMPattern::new(pattern.as_str()).find_all(text.as_str());
             }
         }
     };

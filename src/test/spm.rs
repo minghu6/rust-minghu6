@@ -153,12 +153,19 @@ pub fn brute_force_match<'a>(pattern:&'a str, text:&'a str) -> Vec<usize> {
 
 pub fn gen_test_case() -> Vec<(String, String, Vec<usize>)>{
     let mut cases = vec![];
+    let texts = vec![
+        gen_random_text(1000),
+        gen_random_text(100),
+        gen_random_text(10),
+        gen_random_text(1),
+        gen_random_text(0)
+    ];
 
-    for pat in gen_pattern((1..24, 1), 100) {
-        let text = gen_random_text(1000);
-
-        let result = brute_force_match(pat.as_str(), text.as_str());
-        cases.push((pat, text, result))
+    for text in texts {
+        for pat in gen_pattern((1..24, 1), 100) {
+            let result = brute_force_match(pat.as_str(), text.as_str());
+            cases.push((pat, text.clone(), result))
+        }
     }
 
      cases

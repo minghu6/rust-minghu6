@@ -1,8 +1,7 @@
 #![allow(dead_code)]
 ///! BMHBNFS (fast search algorithm from stringlib of Python)[http://effbot.org/zone/stringlib.htm#BMHBNFS]
 
-use bloom::{ BloomFilter, ASMS};
-
+use super::super::super::collections::SimpleBloomFilter;
 
 pub struct B5STimePattern<'a> {
     pat_bytes: &'a [u8],
@@ -82,7 +81,7 @@ impl<'a> B5STimePattern<'a> {
 
 pub struct B5SSpacePattern<'a> {
     pat_bytes: &'a [u8],
-    alphabet: BloomFilter,
+    alphabet: SimpleBloomFilter,
     skip: usize,
 }
 
@@ -96,20 +95,22 @@ impl<'a> B5SSpacePattern<'a> {
         B5SSpacePattern { pat_bytes, alphabet, skip }
     }
 
-    fn build(p: &'a [u8]) -> (BloomFilter, usize)  {
-        let mut alphabet = BloomFilter::with_rate(0.15, 256);  // 相对最合适的参数，m=126Byte, k=3
+    fn build(p: &'a [u8]) -> (SimpleBloomFilter, usize)  {
+        //let mut alphabet = BloomFilter::with_rate(0.15, 256);  // 相对最合适的参数，m=126Byte, k=3
+
+        let mut alphabet = SimpleBloomFilter::new();  // 性能表现比BloomFilter::with_rate(0.15, 256)居然更好
         let lastpos = p.len() - 1;
         let mut skip = p.len();
 
         for i in 0..p.len()-1 {
-            alphabet.insert(&p[i]);
+            alphabet.add(&p[i]);
 
             if p[i] == p[lastpos] {
                 skip = lastpos - i;
             }
         }
 
-        alphabet.insert(&p[lastpos]);
+        alphabet.add(&p[lastpos]);
 
         (alphabet, skip)
     }
