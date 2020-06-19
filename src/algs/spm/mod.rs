@@ -30,6 +30,16 @@ pub fn compute_pi(s: &[impl PartialEq]) -> Vec<usize> {
     pi
 }
 
+/// AKA Galil rule
+fn compute_k(p: &[impl PartialEq]) -> usize {
+    let patlen = p.len();
+    let lastpos = patlen - 1;
+
+    let pi = compute_pi(p);
+
+    patlen - pi[lastpos]
+}
+
 mod test {
 
     use super::*;

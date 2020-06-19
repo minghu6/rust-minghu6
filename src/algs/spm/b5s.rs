@@ -2,11 +2,13 @@
 ///! BMHBNFS (fast search algorithm from stringlib of Python)[http://effbot.org/zone/stringlib.htm#BMHBNFS]
 
 use super::super::super::collections::SimpleBloomFilter;
+use super::{ compute_k };
 
 pub struct B5STimePattern<'a> {
     pat_bytes: &'a [u8],
     alphabet: [bool;256],
     bm_bc: [usize;256],
+    k: usize
 }
 
 impl<'a> B5STimePattern<'a> {
@@ -14,12 +16,12 @@ impl<'a> B5STimePattern<'a> {
         assert_ne!(pat.len(), 0);
 
         let pat_bytes = pat.as_bytes();
-        let (alphabet, bm_bc) = B5STimePattern::build(pat_bytes);
+        let (alphabet, bm_bc, k) = B5STimePattern::build(pat_bytes);
 
-        B5STimePattern { pat_bytes, alphabet, bm_bc }
+        B5STimePattern { pat_bytes, alphabet, bm_bc, k }
     }
 
-    fn build(p: &'a [u8]) -> ([bool;256], [usize;256])  {
+    fn build(p: &'a [u8]) -> ([bool;256], [usize;256], usize)  {
         let mut alphabet = [false;256];
         let mut bm_bc = [p.len(); 256];
         let lastpos = p.len() - 1;
@@ -31,7 +33,7 @@ impl<'a> B5STimePattern<'a> {
 
         alphabet[p[lastpos] as usize] = true;
 
-        (alphabet, bm_bc)
+        (alphabet, bm_bc, compute_k(p))
     }
 
     pub fn find_all(&self, string: &str) -> Vec<usize> {
@@ -41,10 +43,22 @@ impl<'a> B5STimePattern<'a> {
         let patlen = self.pat_bytes.len();
         let stringlen = string_bytes.len();
         let mut string_index = pat_last_pos;
-
-        let skip = #[inline] |string_index: &mut usize| {
+        let mut offset = pat_last_pos;
+        let offset0 = self.k - 1;
+        #[derive(PartialEq)]
+        enum MatchState {
+            Goon, Break
+        }
+        let mut state;
+        let skip = #[inline] |string_index: &mut usize, state: MatchState| {
             if *string_index + 1 == stringlen {
                 return false;
+            }
+
+            // Galil rule
+            if state == MatchState::Goon {
+                *string_index += self.k;
+                return true;
             }
 
             if !self.alphabet[string_bytes[*string_index+1] as usize] {
@@ -58,20 +72,27 @@ impl<'a> B5STimePattern<'a> {
 
         while string_index < stringlen {
             if string_bytes[string_index] == self.pat_bytes[pat_last_pos] {
-                if &string_bytes[string_index-pat_last_pos..string_index] == &self.pat_bytes[..patlen-1] {
+                if &string_bytes[string_index-offset..string_index] == &self.pat_bytes[pat_last_pos-offset..pat_last_pos] {
                     result.push(string_index-pat_last_pos);
+
+                    offset = offset0;
+                    state = MatchState::Goon;
+                } else {
+                    offset = pat_last_pos;
+                    state = MatchState::Break;
                 }
 
-                if !skip(&mut string_index) {
+                if !skip(&mut string_index, state) {
                     break;
                 }
-
             } else {
-                if !skip(&mut string_index) {
+                offset = pat_last_pos;
+                state = MatchState::Break;
+
+                if !skip(&mut string_index, state) {
                     break;
                 }
             }
-
         }
 
         result
@@ -161,14 +182,22 @@ mod tests {
     use super::*;
     #[test]
     fn b5s_time_find_all_fixeddata_works() {
-        let p1 = B5STimePattern::new("abbaaba");
-        assert_eq!(p1.find_all("abbaabbaababbaaba"), vec![4, 10]);
+        let mut p;
 
-        let p2 = B5STimePattern::new("aaa");
-        assert_eq!(p2.find_all("aaaaa"), vec![0, 1, 2]);
+        // p = B5STimePattern::new("abbaaba");
+        // assert_eq!(p.find_all("abbaabbaababbaaba"), vec![4, 10]);
 
-        let p3 = B5STimePattern::new("b");
-        assert_eq!(p3.find_all("aaaaa"), vec![]);
+        // p = B5STimePattern::new("aaa");
+        // assert_eq!(p.find_all("aaaaa"), vec![0, 1, 2]);
+
+        // p = B5STimePattern::new("b");
+        // assert_eq!(p.find_all("aaaaa"), vec![]);
+
+        // p = B5STimePattern::new("a");
+        // assert_eq!(p.find_all("a"), vec![0]);
+
+        p = B5STimePattern::new("abcd");
+        assert_eq!(p.find_all("abcdabcdabcabcd"), vec![0, 4, 11]);
     }
 
     #[test]

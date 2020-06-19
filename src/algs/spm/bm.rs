@@ -1,9 +1,8 @@
 #![allow(dead_code)]
 
 use std::cmp::{max, min};
-use std::collections::VecDeque;
 
-use super::compute_pi;
+use super::{ compute_pi, compute_k };
 
 /// stringlen-1 + patlen <= large && stringlen-1 + large <= 2^$(usize width)
 #[cfg(target_pointer_width = "64")]
@@ -16,6 +15,7 @@ pub struct BMPattern<'a> {
     pat_bytes: &'a [u8],
     delta1: [usize; 256],
     delta2: Vec<usize>,
+    k: usize
 }
 
 impl<'a> BMPattern<'a> {
@@ -29,11 +29,13 @@ impl<'a> BMPattern<'a> {
         //let delta2 = BMPattern::build_delta2_table_improved_rytter(&pat_bytes);
         //let delta2 = BMPattern::build_delta2_table_improved_blog(&pat_bytes);
         let delta2 = BMPattern::build_delta2_table_improved_minghu6(&pat_bytes);
+        let k = compute_k(&pat_bytes);
 
         BMPattern {
             pat_bytes,
             delta1,
             delta2,
+            k
         }
     }
 
@@ -58,21 +60,22 @@ impl<'a> BMPattern<'a> {
     }
 
     pub fn build_delta2_table_naive(p: &'a [u8]) -> Vec<usize> {
-        // refer to kmp calc_next_improved
-        let mut delta2_table = vec![];
+        let patlen = p.len();
+        let lastpos = patlen - 1;
+        let mut delta2 = vec![];
 
-        for (i, _) in p.iter().enumerate() {
-            let subpatlen = (p.len() - 1 - i) as isize;
+        for i in 0..patlen {
+            let subpatlen = (lastpos - i) as isize;
 
             if subpatlen == 0 {
-                delta2_table.push(0);
+                delta2.push(0);
                 break;
             }
 
             for j in (-subpatlen..(i + 1) as isize).rev() {
                 // subpat 匹配
                 if (j..j + subpatlen)
-                    .zip(i + 1..p.len())
+                    .zip(i + 1..patlen)
                     .all(|(rpr_index, subpat_index)| {
                         if rpr_index < 0 {
                             return true;
@@ -86,13 +89,13 @@ impl<'a> BMPattern<'a> {
                     })
                     && (j <= 0 || p[(j - 1) as usize] != p[i])
                 {
-                    delta2_table.push((p.len() as isize - 1 - j) as usize);
+                    delta2.push((lastpos as isize - j) as usize);
                     break;
                 }
             }
         }
 
-        delta2_table
+        delta2
     }
 
     pub fn build_delta2_table_improved_knuth(p: &'a [u8]) -> Vec<usize> {
@@ -101,17 +104,17 @@ impl<'a> BMPattern<'a> {
         let lastpos = patlen - 1;
 
         for k in 0..patlen {
-            delta2.push(patlen + lastpos - k);
+            delta2.push(lastpos * 2 - 1 - k);
         }
 
         let mut j = lastpos;
         let mut t = patlen;
-        let mut f = vec![0].repeat(patlen);
+        let mut f = vec![0; patlen];
 
         loop {
             f[j] = t;
             while t < patlen && p[j] != p[t] {
-                delta2[t] = lastpos - j;
+                delta2[t] = min(delta2[t], lastpos - 1 - j);
                 t = f[t];
             }
 
@@ -135,7 +138,7 @@ impl<'a> BMPattern<'a> {
         let lastpos = patlen - 1;
 
         for k in 0..p.len() {
-            delta2.push(2*lastpos - k);
+            delta2.push(2 * lastpos - k);
         }
 
         let mut j = lastpos;
@@ -161,16 +164,16 @@ impl<'a> BMPattern<'a> {
         // println!("after case A2, f:{:?}", f);
         // println!("t: {}", t);
 
-        let mut q = t+1;
+        let mut q = t + 1;
         t = patlen - q;
 
         let mut j1 = 1;
         let mut t1 = 0;
         let mut f1 = f;
-        while j1-1 < t {
-            f1[j1-1] = t1;
-            while t1 > 0 && p[j1-1] != p[t1-1] {
-                t1 = f1[t1-1];
+        while j1 - 1 < t {
+            f1[j1 - 1] = t1;
+            while t1 > 0 && p[j1 - 1] != p[t1 - 1] {
+                t1 = f1[t1 - 1];
             }
 
             t1 += 1;
@@ -190,8 +193,8 @@ impl<'a> BMPattern<'a> {
             // println!("delta2[{}]:{}", k, delta2[k]);
 
             q1 = q;
-            q = q + t - f1[t-1];
-            t = f1[t-1];
+            q = q + t - f1[t - 1];
+            t = f1[t - 1];
             // println!("q1:{}, q:{}, t:{}, f1:{:?}", q1, q, t, f1);
         }
 
@@ -202,7 +205,7 @@ impl<'a> BMPattern<'a> {
 
     pub fn build_delta2_table_improved_blog(p: &'a [u8]) -> Vec<usize> {
         if p.len() == 1 {
-            return vec![0]
+            return vec![0];
         }
 
         let mut delta2 = Vec::with_capacity(p.len());
@@ -212,14 +215,14 @@ impl<'a> BMPattern<'a> {
         let mut f = 0;
         let mut g = lastpos;
         for i in (0..lastpos).rev() {
-            if i > g && suffix[i+lastpos-f] < i-g {
-                suffix[i] = suffix[i+lastpos-f];
+            if i > g && suffix[i + lastpos - f] < i - g {
+                suffix[i] = suffix[i + lastpos - f];
             } else {
                 if i < g {
                     g = i;
                 }
                 f = i;
-                while p[g] == p[g+lastpos-f] {
+                while p[g] == p[g + lastpos - f] {
                     if g == 0 {
                         break;
                     }
@@ -244,7 +247,7 @@ impl<'a> BMPattern<'a> {
         }
 
         for i in (0..patlen).rev() {
-            if suffix[i] == i+1 {
+            if suffix[i] == i + 1 {
                 while j < lastpos - i {
                     delta2[j] = lastpos - i;
                     j += 1;
@@ -254,60 +257,53 @@ impl<'a> BMPattern<'a> {
 
         println!("lastpos: {}, suffix:{:?}", lastpos, suffix);
         for i in 0..lastpos {
-            delta2[lastpos-suffix[i]] = lastpos - i;
+            delta2[lastpos - suffix[i]] = lastpos - i;
         }
 
         delta2
     }
 
     pub fn build_delta2_table_improved_minghu6(p: &'a [u8]) -> Vec<usize> {
-        let mut delta2 = Vec::with_capacity(p.len());
         let patlen = p.len();
         let lastpos = patlen - 1;
+        let mut delta2 = Vec::with_capacity(patlen);
 
-        for k in 0..patlen {
-            delta2.push(lastpos * 2 - k);
+        // delta2[j] = lastpos * 2 - j
+        for i in 0..patlen {
+            delta2.push(lastpos * 2 - i);
         }
 
-        // println!("case1 delta2:{:?}",delta2);
-        let mut f = compute_pi(p);
-        let mut pat_prefix = VecDeque::new();
+        // lastpos <= delata2[j] = lastpos * 2 - j
+        let pi = compute_pi(p);
         let mut i = lastpos;
-        while f[i] > 0 {
-            pat_prefix.push_front(f[i]);
-            i = f[i] - 1;
-        }
-
-        let pat_prefix_len = pat_prefix.len();
-        for i in 0..pat_prefix_len {
+        let mut last_i = lastpos; // 只是为了初始化
+        while pi[i] > 0 {
             let start;
             let end;
 
-            if i == pat_prefix_len - 1 {
+            if i == lastpos {
                 start = 0;
             } else {
-                start = patlen-pat_prefix[i+1]
+                start = patlen - pi[last_i];
             }
 
-            end = patlen - pat_prefix[i];
+            end = patlen - pi[i];
 
-
-            // println!("({}, {})", start, end);
             for j in start..end {
-                delta2[j] = lastpos * 2 - j - pat_prefix[i];
+                delta2[j] = lastpos * 2 - j - pi[i];
             }
+
+            last_i = i;
+            i = pi[i] - 1;
         }
 
-        // println!("case2 delta2:{:?}",delta2);
-
+        // delata2[j] < lastpos
         let mut j = lastpos;
         let mut t = patlen;
-        // let mut f = vec![0; patlen];
-
+        let mut f = pi;
         loop {
             f[j] = t;
             while t < patlen && p[j] != p[t] {
-                // println!("delta2[{}]:{}", t, lastpos - j);
                 delta2[t] = min(delta2[t], lastpos - 1 - j);
                 t = f[t];
             }
@@ -318,8 +314,6 @@ impl<'a> BMPattern<'a> {
             }
             j -= 1;
         }
-        //delta2[t] = min(delta2[t], lastpos); // j = -1, -j = +1
-
         delta2[lastpos] = 0;
 
         delta2
@@ -329,9 +323,12 @@ impl<'a> BMPattern<'a> {
         let mut result = vec![];
         let string_bytes = string.as_bytes();
         let stringlen = string_bytes.len();
-        let pat_last_pos = self.pat_bytes.len() - 1;
+        let patlen = self.pat_bytes.len();
+        let pat_last_pos = patlen - 1;
         let mut string_index = pat_last_pos;
         let mut pat_index;
+        let l0 =  patlen - self.k;
+        let mut l = 0;
 
         while string_index < stringlen {
             while string_index < stringlen {
@@ -343,16 +340,22 @@ impl<'a> BMPattern<'a> {
 
             string_index -= LARGE;
             pat_index = pat_last_pos;
-            while pat_index > 0 && string_bytes[string_index] == self.pat_bytes[pat_index] {
+            while pat_index > l && string_bytes[string_index] == self.pat_bytes[pat_index] {
                 string_index -= 1;
                 pat_index -= 1;
             }
 
-            if pat_index == 0 && string_bytes[string_index] == self.pat_bytes[0] {
-                result.push(string_index);
+            if pat_index == l && string_bytes[string_index] == self.pat_bytes[pat_index] {
+                result.push(string_index - l);
 
-                string_index += self.pat_bytes.len();
+                if l == 0 {
+                    string_index += pat_last_pos;
+                }
+
+                string_index += self.k;
+                l = l0;
             } else {
+                l = 0;
                 string_index += max(
                     self.delta1[string_bytes[string_index] as usize],
                     self.delta2[pat_index],
@@ -406,6 +409,7 @@ impl<'a> SimplifiedBMPattern<'a> {
         let mut string_index = pat_last_pos;
         let mut pat_index;
 
+        // improved version
         while string_index < stringlen {
             while string_index < stringlen {
                 string_index += self.delta0(string_bytes[string_index]);
@@ -433,7 +437,7 @@ impl<'a> SimplifiedBMPattern<'a> {
             }
         }
 
-        // old version
+        //old version
         // while string_index < stringlen {
         //     pat_index = pat_last_pos;
         //     while pat_index > 0 && string_bytes[string_index] == self.pat_bytes[pat_index] {
@@ -481,14 +485,19 @@ mod tests {
 
     #[test]
     fn bm_find_all_fixeddata_works() {
-        let p1 = BMPattern::new("abbaaba");
-        assert_eq!(p1.find_all("abbaabbaababbaaba"), vec![4, 10]);
+        let mut p;
 
-        let p2 = BMPattern::new("aaa");
-        assert_eq!(p2.find_all("aaaaa"), vec![0, 1, 2]);
+        p = BMPattern::new("abbaaba");
+        assert_eq!(p.find_all("abbaabbaababbaaba"), vec![4, 10]);
 
-        let p3 = BMPattern::new("a");
-        assert_eq!(p3.find_all("a"), vec![0]);
+        p = BMPattern::new("aaa");
+        assert_eq!(p.find_all("aaaaa"), vec![0, 1, 2]);
+
+        p = BMPattern::new("a");
+        assert_eq!(p.find_all("a"), vec![0]);
+
+        p = BMPattern::new("abcd");
+        assert_eq!(p.find_all("abcdabcdabcabcd"), vec![0, 4, 11]);
     }
 
     #[test]
@@ -503,11 +512,11 @@ mod tests {
         let p1 = SimplifiedBMPattern::new("abbaaba");
         assert_eq!(p1.find_all("abbaabbaababbaaba"), vec![4, 10]);
 
-        // let p2 = SimplifiedBMPattern::new("aaa");
-        // assert_eq!(p2.find_all("aaaaa"), vec![0, 1, 2]);
+        let p2 = SimplifiedBMPattern::new("aaa");
+        assert_eq!(p2.find_all("aaaaa"), vec![0, 1, 2]);
 
-        // let p3 = SimplifiedBMPattern::new("a");
-        // assert_eq!(p3.find_all("a"), vec![0]);
+        let p3 = SimplifiedBMPattern::new("a");
+        assert_eq!(p3.find_all("a"), vec![0]);
     }
 
     #[test]
