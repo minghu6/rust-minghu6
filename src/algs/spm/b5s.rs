@@ -184,17 +184,17 @@ mod tests {
     fn b5s_time_find_all_fixeddata_works() {
         let mut p;
 
-        // p = B5STimePattern::new("abbaaba");
-        // assert_eq!(p.find_all("abbaabbaababbaaba"), vec![4, 10]);
+        p = B5STimePattern::new("abbaaba");
+        assert_eq!(p.find_all("abbaabbaababbaaba"), vec![4, 10]);
 
-        // p = B5STimePattern::new("aaa");
-        // assert_eq!(p.find_all("aaaaa"), vec![0, 1, 2]);
+        p = B5STimePattern::new("aaa");
+        assert_eq!(p.find_all("aaaaa"), vec![0, 1, 2]);
 
-        // p = B5STimePattern::new("b");
-        // assert_eq!(p.find_all("aaaaa"), vec![]);
+        p = B5STimePattern::new("b");
+        assert_eq!(p.find_all("aaaaa"), vec![]);
 
-        // p = B5STimePattern::new("a");
-        // assert_eq!(p.find_all("a"), vec![0]);
+        p = B5STimePattern::new("a");
+        assert_eq!(p.find_all("a"), vec![0]);
 
         p = B5STimePattern::new("abcd");
         assert_eq!(p.find_all("abcdabcdabcabcd"), vec![0, 4, 11]);

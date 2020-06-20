@@ -3,7 +3,6 @@
 
 use rand::prelude::*;
 
-use core::arch::x86_64::_rdrand64_step;
 
 use std::ops::Range;
 use std::char;
@@ -31,21 +30,42 @@ const DNA_LIST:[char;4] = [
     'A', 'C', 'T', 'G'
 ];
 
+pub fn gen_square_periodic_dna_pattern(len_range:(Range<usize>, usize), n:usize) -> Vec<String> {
+    let mut result = vec![];
+    let __gen = |length| {
+        let mut s = String::with_capacity(length);
+        let period = (length as f64).sqrt().floor() as usize;
+        let mut period_vec = Vec::with_capacity(period);
+        for _ in 0..period {
+            let rand_value = rand::random::<usize>();
+            period_vec.push(random_dna_char(rand_value % 4));
+        }
+
+        for i in 0..length {
+            s.push(period_vec[i % 4]);
+        }
+
+        s
+    };
+
+    let (range, step) = len_range;
+
+    for len in range.step_by(step) {
+        for _ in 0..n {
+            result.push(__gen(len));
+        }
+    }
+
+    result
+}
 
 pub fn gen_pattern(len_range:(Range<usize>, usize), n:usize) -> Vec<String> {
     let mut result = vec![];
     let __gen = |length| {
-        let mut s = String::with_capacity(3 * length);
+        let mut s = String::with_capacity(length);
         for _ in 0..length {
-            let mut rand_value = 0;
-            unsafe {
-                match _rdrand64_step(&mut rand_value) {
-                    1 => {
-                        s.push(random_char((rand_value % 52) as usize))
-                    },
-                    _ => assert!(false),
-                }
-            }
+            let rand_value = rand::random::<usize>();
+            s.push(random_char(rand_value % 52));
         }
         s
     };
@@ -67,15 +87,8 @@ pub fn gen_dna_pattern(len_range:(Range<usize>, usize), n:usize) -> Vec<String> 
     let __gen = |length| {
         let mut s = String::with_capacity(length);
         for _ in 0..length {
-            let mut rand_value = 0;
-            unsafe {
-                match _rdrand64_step(&mut rand_value) {
-                    1 => {
-                        s.push(random_dna_char((rand_value % 4) as usize))
-                    },
-                    _ => assert!(false),
-                }
-            }
+            let rand_value = rand::random::<usize>();
+            s.push(random_char(rand_value % 4));
         }
         s
     };
@@ -178,6 +191,7 @@ mod tests {
     use test::Bencher;
 
     use super::*;
+    use super::super::super::algs::spm::compute_k;
 
     #[test]
     fn gen_pattern_works() {
@@ -200,6 +214,14 @@ mod tests {
         assert_eq!(brute_force_match("你好a", "aab你好a, 你好a,hahahah"), vec![3, 12]);
         assert_eq!(brute_force_match("k", "yka你"), vec![1]);
     }
+
+    #[test]
+    fn gen_square_periodic_dna_pattern_works() {
+        for pat in gen_square_periodic_dna_pattern((2..100, 1), 5) {
+            assert!(compute_k(pat.as_bytes()) > 0);
+        }
+    }
+
 
     #[bench]
     fn gen_some_random_text(b: &mut Bencher) {

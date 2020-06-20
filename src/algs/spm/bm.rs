@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::cmp::{max, min};
+use std::cmp::{ max, min };
 
 use super::{ compute_pi, compute_k };
 
@@ -362,6 +362,7 @@ impl<'a> BMPattern<'a> {
                 );
             }
         }
+
         result
     }
 }
