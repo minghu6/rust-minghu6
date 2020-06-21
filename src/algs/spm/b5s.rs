@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 ///! BMHBNFS (fast search algorithm from stringlib of Python)[http://effbot.org/zone/stringlib.htm#BMHBNFS]
 
-use super::super::super::collections::SimpleBloomFilter;
+use super::super::super::collections::bloom_filter::SimpleBloomFilter;
 use super::{ compute_k };
 
 pub struct B5STimePattern<'a> {
@@ -45,30 +45,6 @@ impl<'a> B5STimePattern<'a> {
         let mut string_index = pat_last_pos;
         let mut offset = pat_last_pos;
         let offset0 = self.k - 1;
-        #[derive(PartialEq)]
-        enum MatchState {
-            Goon, Break
-        }
-        let mut state;
-        let skip = #[inline] |string_index: &mut usize, state: MatchState| {
-            if *string_index + 1 == stringlen {
-                return false;
-            }
-
-            // Galil rule
-            if state == MatchState::Goon {
-                *string_index += self.k;
-                return true;
-            }
-
-            if !self.alphabet[string_bytes[*string_index+1] as usize] {
-                *string_index += patlen + 1;  // sunday
-            } else {
-                *string_index += self.bm_bc[string_bytes[*string_index] as usize];  // horspool
-            }
-
-            true
-        };
 
         while string_index < stringlen {
             if string_bytes[string_index] == self.pat_bytes[pat_last_pos] {
@@ -76,22 +52,23 @@ impl<'a> B5STimePattern<'a> {
                     result.push(string_index-pat_last_pos);
 
                     offset = offset0;
-                    state = MatchState::Goon;
-                } else {
-                    offset = pat_last_pos;
-                    state = MatchState::Break;
-                }
 
-                if !skip(&mut string_index, state) {
-                    break;
+                    // Galil rule
+                    string_index += self.k;
+                    continue;
                 }
+            }
+
+            if string_index + 1 == stringlen {
+                break;
+            }
+
+            offset = pat_last_pos;
+
+            if !self.alphabet[string_bytes[string_index+1] as usize] {
+                string_index += patlen + 1;  // sunday
             } else {
-                offset = pat_last_pos;
-                state = MatchState::Break;
-
-                if !skip(&mut string_index, state) {
-                    break;
-                }
+                string_index += self.bm_bc[string_bytes[string_index] as usize];  // horspool
             }
         }
 
@@ -124,14 +101,14 @@ impl<'a> B5SSpacePattern<'a> {
         let mut skip = p.len();
 
         for i in 0..p.len()-1 {
-            alphabet.add(&p[i]);
+            alphabet.insert(&p[i]);
 
             if p[i] == p[lastpos] {
                 skip = lastpos - i;
             }
         }
 
-        alphabet.add(&p[lastpos]);
+        alphabet.insert(&p[lastpos]);
 
         (alphabet, skip)
     }

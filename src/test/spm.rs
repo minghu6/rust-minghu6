@@ -42,7 +42,7 @@ pub fn gen_square_periodic_dna_pattern(len_range:(Range<usize>, usize), n:usize)
         }
 
         for i in 0..length {
-            s.push(period_vec[i % 4]);
+            s.push(period_vec[i % period]);
         }
 
         s

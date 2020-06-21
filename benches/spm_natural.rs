@@ -3,6 +3,7 @@
 use minghu6::algs::spm::ac::TrieTree;
 use minghu6::algs::spm::b5s::{ B5STimePattern, B5SSpacePattern };
 use minghu6::algs::spm::bm::{ BMPattern, SimplifiedBMPattern };
+use minghu6::algs::spm::bm_badimpl::BMPattern as BMBadImplPattern;
 use minghu6::algs::spm::horspool::HorspoolPattern;
 use minghu6::algs::spm::kmp::{ComputeNext, KMPPattern};
 use minghu6::algs::spm::sunday::SundayPattern;
@@ -97,6 +98,22 @@ fn bm_spm(b: &mut Bencher) {
         for text in &tested_texts {
             for pattern in &tested_patterns {
                 BMPattern::new(pattern.as_str()).find_all(text.as_str());
+            }
+        }
+    };
+
+    b.iter(|| gen())
+}
+
+#[ignore]
+#[bench]
+fn bmbadimpl_spm(b: &mut Bencher) {
+    let gen = || {
+        let tested_texts = gen_tested_text();
+        let tested_patterns = gen_tested_pattern();
+        for text in &tested_texts {
+            for pattern in &tested_patterns {
+                BMBadImplPattern::new(pattern.as_str()).find_all(text.as_str());
             }
         }
     };

@@ -31,6 +31,7 @@ pub fn compute_pi(s: &[impl PartialEq]) -> Vec<usize> {
 }
 
 /// AKA Galil rule
+/// k in 1..patlen+1
 pub fn compute_k(p: &[impl PartialEq]) -> usize {
     let patlen = p.len();
     let lastpos = patlen - 1;

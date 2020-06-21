@@ -36,8 +36,10 @@ impl<'a> SundayPattern<'a> {
         let mut string_index = pat_last_pos;
 
         while string_index < stringlen {
-            if &string_bytes[string_index - pat_last_pos..string_index + 1] == self.pat_bytes {
-                result.push(string_index - pat_last_pos);
+            if string_bytes[string_index] == self.pat_bytes[pat_last_pos] {
+                if &string_bytes[string_index - pat_last_pos..string_index] == &self.pat_bytes[..pat_last_pos] {
+                    result.push(string_index - pat_last_pos);
+                }
             }
 
             if string_index + 1 == stringlen {

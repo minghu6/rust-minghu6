@@ -348,11 +348,7 @@ impl<'a> BMPattern<'a> {
             if pat_index == l && string_bytes[string_index] == self.pat_bytes[pat_index] {
                 result.push(string_index - l);
 
-                if l == 0 {
-                    string_index += pat_last_pos;
-                }
-
-                string_index += self.k;
+                string_index += pat_last_pos - l + self.k;
                 l = l0;
             } else {
                 l = 0;
@@ -504,6 +500,20 @@ mod tests {
     #[test]
     fn bm_find_all_randomdata_works() {
         for (pat, text, result) in spm::gen_test_case() {
+            let r = BMPattern::new(pat.as_str()).find_all(text.as_str());
+            if r != result {
+                println!("pat:{}", pat);
+                println!("string:{:#?}", text);
+                println!("string len: {}", text.len());
+                println!("match:");
+                for pos in r {
+                    if let Some(youpat) = text.get(pos..pos+pat.len()) {
+                        println!("{} ",youpat);
+                    }
+                }
+
+                println!("\n\n");
+            }
             assert_eq!(BMPattern::new(pat.as_str()).find_all(text.as_str()), result)
         }
     }
