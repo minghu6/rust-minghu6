@@ -25,7 +25,7 @@ impl<'a> HorspoolPattern<'a> {
         bm_bc_table
     }
 
-    pub fn find_all(&self, string: &str) -> Vec<usize> {
+    pub fn find_all(&self, string: &'a str) -> Vec<usize> {
         let mut result = vec![];
         let string_bytes = string.as_bytes();
         let stringlen = string_bytes.len();

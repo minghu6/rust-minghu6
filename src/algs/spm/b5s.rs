@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 ///! BMHBNFS (fast search algorithm from stringlib of Python)[http://effbot.org/zone/stringlib.htm#BMHBNFS]
 
-use super::super::super::collections::bloom_filter::SimpleBloomFilter;
+use super::super::super::collections::bloom_filter::{ BloomFilter, BytesBloomFilter };
 use super::{ compute_k };
 
 pub struct B5STimePattern<'a> {
@@ -36,7 +36,7 @@ impl<'a> B5STimePattern<'a> {
         (alphabet, bm_bc, compute_k(p))
     }
 
-    pub fn find_all(&self, string: &str) -> Vec<usize> {
+    pub fn find_all(&self, string: &'a str) -> Vec<usize> {
         let mut result = vec![];
         let string_bytes = string.as_bytes();
         let pat_last_pos = self.pat_bytes.len() - 1;
@@ -79,7 +79,7 @@ impl<'a> B5STimePattern<'a> {
 
 pub struct B5SSpacePattern<'a> {
     pat_bytes: &'a [u8],
-    alphabet: SimpleBloomFilter,
+    alphabet: BytesBloomFilter,
     skip: usize,
 }
 
@@ -90,13 +90,12 @@ impl<'a> B5SSpacePattern<'a> {
         let pat_bytes = pat.as_bytes();
         let (alphabet, skip) = B5SSpacePattern::build(pat_bytes);
 
-        B5SSpacePattern { pat_bytes, alphabet, skip }
+        B5SSpacePattern { pat_bytes, alphabet, skip}
     }
 
-    fn build(p: &'a [u8]) -> (SimpleBloomFilter, usize)  {
-        //let mut alphabet = BloomFilter::with_rate(0.15, 256);  // 相对最合适的参数，m=126Byte, k=3
-
-        let mut alphabet = SimpleBloomFilter::new();  // 性能表现比BloomFilter::with_rate(0.15, 256)居然更好
+    fn build(p: &'a [u8]) -> (BytesBloomFilter, usize)  {
+        let mut alphabet = BytesBloomFilter::new();
+        //let mut alphabet = FastBloomFilter::with_rate(p.len(), 0.15);
         let lastpos = p.len() - 1;
         let mut skip = p.len();
 
@@ -113,7 +112,7 @@ impl<'a> B5SSpacePattern<'a> {
         (alphabet, skip)
     }
 
-    pub fn find_all(&self, string: &str) -> Vec<usize> {
+    pub fn find_all(&self, string: &'a str) -> Vec<usize> {
         let mut result = vec![];
         let string_bytes = string.as_bytes();
         let pat_last_pos = self.pat_bytes.len() - 1;
@@ -153,6 +152,7 @@ impl<'a> B5SSpacePattern<'a> {
         result
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::super::super::super::test::spm;

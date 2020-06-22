@@ -28,7 +28,7 @@ impl<'a> SundayPattern<'a> {
         sunday_bc_table
     }
 
-    pub fn find_all(&self, string: &str) -> Vec<usize> {
+    pub fn find_all(&self, string: &'a str) -> Vec<usize> {
         let mut result = vec![];
         let string_bytes = string.as_bytes();
         let pat_last_pos = self.pat_bytes.len() - 1;

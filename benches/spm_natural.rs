@@ -16,8 +16,8 @@ use test::Bencher;
 fn gen_tested_text() -> Vec<String> {
     let mut result = vec![];
     //result.push(gen_random_text(1_000_000));
-    result.push(gen_random_text(1_000_000));
-    // result.push(gen_random_text(500_000));
+    // result.push(gen_random_text(1_000_000));
+    result.push(gen_random_text(500_000));
 
     //result.push(gen_random_text(1_000));
 
@@ -27,7 +27,7 @@ fn gen_tested_text() -> Vec<String> {
 fn gen_tested_pattern() -> Vec<String> {
     let mut result = vec![];
 
-    for pattern in gen_pattern((1..40, 1), 3) {
+    for pattern in gen_pattern((1..100, 3), 10) {
         result.push(pattern)
     }
 
