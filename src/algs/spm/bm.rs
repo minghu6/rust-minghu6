@@ -330,13 +330,27 @@ impl<'a> BMPattern<'a> {
         let l0 =  patlen - self.k;
         let mut l = 0;
 
+        // let mut delta1_count = 0;
+        // let mut delta2_count = 0;
+        // let mut delta1_skip = 0;
+        // let mut delta2_skip = 0;
+        // let mut galil_count = 0;
+        // let mut galil_skip = 0;
+
+
         while string_index < stringlen {
             while string_index < stringlen {
+                // delta1_count += 1;
+                // delta1_skip += self.delta0(string_bytes[string_index]);
+
                 string_index += self.delta0(string_bytes[string_index]);
             }
             if string_index < LARGE {
                 break;
             }
+
+            // delta1_count -= 1;
+            // delta1_skip -= LARGE;
 
             string_index -= LARGE;
             pat_index = pat_last_pos;
@@ -350,14 +364,29 @@ impl<'a> BMPattern<'a> {
 
                 string_index += pat_last_pos - l + self.k;
                 l = l0;
+
+                // galil_count += 1;
+                // galil_skip += self.k;
             } else {
                 l = 0;
+
+                // if self.delta1[string_bytes[string_index] as usize] >= self.delta2[pat_index] {
+                //     delta1_count += 1;
+                //     delta1_skip += self.delta1[string_bytes[string_index] as usize] - (pat_last_pos - pat_index)
+                // } else {
+                //     delta2_count += 1;
+                //     delta2_skip += self.delta2[pat_index] - (pat_last_pos - pat_index);
+                // }
+
                 string_index += max(
                     self.delta1[string_bytes[string_index] as usize],
                     self.delta2[pat_index],
                 );
             }
         }
+
+        // println!("patlen: {}, delta1: ({}, {}), delta2:({}, {}), galil:({}, {})",
+        // patlen, delta1_count, delta1_skip, delta2_count, delta2_skip, galil_count, galil_skip);
 
         result
     }
@@ -515,6 +544,16 @@ mod tests {
                 println!("\n\n");
             }
             assert_eq!(BMPattern::new(pat.as_str()).find_all(text.as_str()), result)
+        }
+    }
+
+    #[test]
+    fn bm_dna_test() {
+        for pat in spm::gen_dna_pattern((100..200, 100), 1) {
+            //println!("pat: {}", pat);
+            let bmpat = BMPattern::new(pat.as_str());
+            let res = bmpat.find_all(spm::gen_random_dna_text(2_000_000).as_str());
+            println!("result: {:?}", res);
         }
     }
 

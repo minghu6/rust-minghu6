@@ -88,7 +88,7 @@ pub fn gen_dna_pattern(len_range:(Range<usize>, usize), n:usize) -> Vec<String> 
         let mut s = String::with_capacity(length);
         for _ in 0..length {
             let rand_value = rand::random::<usize>();
-            s.push(random_char(rand_value % 4));
+            s.push(random_dna_char(rand_value % 4));
         }
         s
     };
