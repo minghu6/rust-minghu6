@@ -1,4 +1,5 @@
 #![feature(test)]
+#![allow(dead_code)]
 
 use minghu6::algs::spm::sunday::SundayPattern;
 use minghu6::test::spm::{ brute_force_match, gen_square_periodic_dna_pattern, gen_random_dna_text };

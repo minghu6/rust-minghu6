@@ -5,6 +5,7 @@ pub mod bm_badimpl;
 pub mod horspool;
 pub mod sunday;
 pub mod b5s;
+pub mod z;
 
 use std::cmp::PartialEq;
 

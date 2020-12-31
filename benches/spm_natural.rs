@@ -27,7 +27,7 @@ fn gen_tested_text() -> Vec<String> {
 fn gen_tested_pattern() -> Vec<String> {
     let mut result = vec![];
 
-    for pattern in gen_pattern((1..100, 3), 20) {
+    for pattern in gen_pattern((1..20, 1), 20) {
         result.push(pattern)
     }
 
@@ -196,7 +196,6 @@ fn b5s_space_spm(b: &mut Bencher) {
     b.iter(|| gen())
 }
 
-#[ignore]
 #[bench]
 fn ac_automaton(b: &mut Bencher) {
     let gen = || {

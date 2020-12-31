@@ -224,7 +224,7 @@ mod test {
 
     #[test]
     fn simple_bloom_works() {
-        let mut sbf = BytesBloomFilter::new();
+        // let mut sbf = BytesBloomFilter::new();
         // sbf.insert(&0u8);
         // for i in 0..255u8 {
         //     sbf.insert(&(i+1));
@@ -258,7 +258,7 @@ mod test {
 
     #[test]
     fn bloom_filter_proper_params() {
-        let (k, m) = find_proper_params(30, 0.3);
+        // let (k, m) = find_proper_params(30, 0.3);
 
         // println!("capacity: {} Bytes, k: {}", m/8, k);
 

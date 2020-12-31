@@ -6,6 +6,7 @@ use rand::prelude::*;
 
 use std::ops::Range;
 use std::char;
+use std::collections::BTreeMap;
 
 
 const CN_ALPHA_LIST:[char;26] = [
@@ -179,6 +180,32 @@ pub fn gen_test_case() -> Vec<(String, String, Vec<usize>)>{
             let result = brute_force_match(pat.as_str(), text.as_str());
             cases.push((pat, text.clone(), result))
         }
+    }
+
+     cases
+}
+
+pub fn gen_test_case_multiple() -> Vec<(Vec<String>, String, BTreeMap<String, Vec<usize>>)>{
+    let mut cases = vec![];
+
+    let texts = vec![
+        gen_random_text(10000),
+        gen_random_text(1000),
+        gen_random_text(100),
+        gen_random_text(10),
+        gen_random_text(1),
+        gen_random_text(0)
+    ];
+
+    for text in texts {
+        let mut result = BTreeMap::new();
+        let patterns = gen_pattern((1..24, 1), 5);
+
+        for pat in patterns.iter() {
+            result.insert(pat.clone(), brute_force_match(pat.as_str(), text.as_str()));
+        }
+
+        cases.push((patterns, text.clone(), result))
     }
 
      cases

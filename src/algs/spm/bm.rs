@@ -337,12 +337,12 @@ impl<'a> BMPattern<'a> {
         // let mut galil_count = 0;
         // let mut galil_skip = 0;
 
-
         while string_index < stringlen {
+            let old_string_index = string_index;
+
             while string_index < stringlen {
                 // delta1_count += 1;
                 // delta1_skip += self.delta0(string_bytes[string_index]);
-
                 string_index += self.delta0(string_bytes[string_index]);
             }
             if string_index < LARGE {
@@ -353,6 +353,12 @@ impl<'a> BMPattern<'a> {
             // delta1_skip -= LARGE;
 
             string_index -= LARGE;
+
+            // means that at least one mismatch occurred after last pattern match
+            if old_string_index < string_index {
+                l = 0;
+            }
+
             pat_index = pat_last_pos;
             while pat_index > l && string_bytes[string_index] == self.pat_bytes[pat_index] {
                 string_index -= 1;
@@ -380,7 +386,7 @@ impl<'a> BMPattern<'a> {
 
                 string_index += max(
                     self.delta1[string_bytes[string_index] as usize],
-                    self.delta2[pat_index],
+                    self.delta2[pat_index]
                 );
             }
         }
@@ -431,7 +437,8 @@ impl<'a> SimplifiedBMPattern<'a> {
         let mut result = vec![];
         let string_bytes = string.as_bytes();
         let stringlen = string_bytes.len();
-        let pat_last_pos = self.pat_bytes.len() - 1;
+        let patlen = self.pat_bytes.len();
+        let pat_last_pos = patlen - 1;
         let mut string_index = pat_last_pos;
         let mut pat_index;
 
@@ -454,7 +461,7 @@ impl<'a> SimplifiedBMPattern<'a> {
             if pat_index == 0 && string_bytes[string_index] == self.pat_bytes[0] {
                 result.push(string_index);
 
-                string_index += self.pat_bytes.len();
+                string_index += patlen;
             } else {
                 string_index += max(
                     self.delta1[string_bytes[string_index] as usize],
@@ -524,6 +531,10 @@ mod tests {
 
         p = BMPattern::new("abcd");
         assert_eq!(p.find_all("abcdabcdabcabcd"), vec![0, 4, 11]);
+
+        p = BMPattern::new("aaa");
+        let text = "aaabbaaa";
+        assert_eq!(p.find_all(text), vec![0, 5]);
     }
 
     #[test]

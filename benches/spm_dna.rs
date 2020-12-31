@@ -1,4 +1,5 @@
 #![feature(test)]
+#![allow(dead_code)]
 
 use minghu6::algs::spm::ac::TrieTree;
 use minghu6::algs::spm::b5s::{B5SSpacePattern, B5STimePattern};
