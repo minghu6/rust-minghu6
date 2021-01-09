@@ -26,6 +26,7 @@ fn gen_some_random_pattern(b: &mut Bencher) {
     })
 }
 
+#[ignore]
 #[bench]
 fn compute_delta2_naive(b: &mut Bencher) {
     let gen = || {
