@@ -90,20 +90,6 @@ fn bm_dna_spm(b: &mut Bencher) {
 }
 
 #[bench]
-fn bm_gendelta2_dna_spm(b: &mut Bencher) {
-    let gen = || {
-        let tested_texts = gen_tested_text();
-        let tested_patterns = gen_tested_pattern();
-
-        for pattern in &tested_patterns {
-            BMPattern::build_delta2_table_improved_minghu6(pattern.as_bytes());
-        }
-    };
-
-    b.iter(|| gen())
-}
-
-#[bench]
 fn simplified_bm_dna_spm(b: &mut Bencher) {
     let gen = || {
         let tested_texts = gen_tested_text();

@@ -58,9 +58,9 @@ fn bitvec_bloom_filter_basic_op(b: &mut Bencher) {
             for i in 0..3 {
                 if let Some(v) = bits.get((b+i & 127) as usize) {
                     if v {
-                        let a = 1+1;
+                        let _ = 1+1;
                     } else{
-                        let b = 2+2;
+                        let _ = 2+2;
                     }
 
                 } else {

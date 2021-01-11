@@ -1,9 +1,7 @@
-use std::cmp::Ordering;
-use std::cmp::min;
+// use std::cmp::Ordering;
+// use std::cmp::min;
 
 // index start from 0
-
-
 pub fn compute_suffix_array_naive<'a>(pat: &'a [u8]) -> Vec<usize> {
     let patlen = pat.len();
     let mut sa = vec![0; patlen];
@@ -22,213 +20,258 @@ pub fn compute_suffix_array_naive<'a>(pat: &'a [u8]) -> Vec<usize> {
     sa
 }
 
+fn _cmp_rank(x: usize, y: usize, w: usize, old_rk: &Vec<usize>) -> bool {
+    old_rk[x] == old_rk[y] && old_rk[x + w] == old_rk[y + w]
+}
+
+fn _calc_extend_capacity(patlen: usize) -> usize {
+    2f32.powi((patlen as f32).log2().ceil() as i32) as usize
+}
+// fn _cmp_rank2( w: usize, patlen: usize, i:usize, old_rk: &Vec<usize>, sa: &Vec<usize>) -> bool {
+//     i+1<patlen && sa[i]+w <patlen && sa[i+1]+w <patlen && old_rk[sa[i]] == old_rk[sa[i+1]] && old_rk[sa[i] + w] == old_rk[sa[i+1] + w]
+// }
 
 pub fn compute_suffix_array_doubling<'a>(pat: &'a [u8]) -> Vec<usize> {
-    let patlen = pat.len();
-    let mut sa = vec![0; patlen];
-    let mut rk = vec![0; patlen];
+    // let patlen = pat.len();
+    // let mut sa = vec![0; patlen];
+    // let mut rk = vec![0usize; patlen];
 
-    for i in 0..patlen {
-        rk[i] = pat[i];
+    // for i in 0..patlen {
+    //     rk[i] = pat[i] as usize;
+    //     sa[i] = i;
+    // }
+
+    // // init w = 1
+    // sa.sort_unstable_by(|&x, &y|{
+    //     rk[x].cmp(&rk[y])
+    // });
+    // let old_rk = rk.clone();
+    // let mut p = 0;
+    // for i in 0..patlen {
+    //     rk[sa[i]] = p;
+
+    //     if i+1 < patlen && old_rk[sa[i]] != old_rk[sa[i+1]] {
+    //         p += 1;
+    //     }
+    // }
+
+    // let mut w = 1;
+    // while w < patlen {
+    //     sa.sort_unstable_by(|&x, &y| {
+    //         if rk[x] == rk[y] {
+    //             if x+w >= patlen {
+    //                 return Ordering::Less;
+    //             } else if y+w >= patlen {
+    //                 return Ordering::Greater;
+    //             } else {
+    //                 return rk[x+w].cmp(&rk[y+w]);
+    //             }
+    //         } else {
+    //             return rk[x].cmp(&rk[y]);
+    //         }
+    //     });
+
+    //     let old_rk = rk.clone();
+    //     p = 0;
+    //     (0..patlen).into_iter().for_each(|i| {
+    //         rk[sa[i]] = p;
+    //         if !_cmp_rank2( w, patlen, i, &old_rk, &sa) { p += 1; };
+    //     });
+
+    //     w *= 2;
+    // }
+    // sa
+
+    let patlen = pat.len();
+    let extend_capacity = _calc_extend_capacity(patlen);
+    let mut rk = vec![0usize; patlen + extend_capacity + 1];  // index start from 1； 0 代表越界无穷小
+    let mut sa = vec![0; patlen + extend_capacity + 1];  // index start from 1, 编号也从1开始
+
+    for i in 1..patlen + 1 {
+        rk[i] = pat[i - 1] as usize;
         sa[i] = i;
     }
 
     // init w = 1
-    sa.sort_unstable_by(|&x, &y|{
+    sa[1..patlen + 1].sort_unstable_by(|&x, &y|{
         rk[x].cmp(&rk[y])
     });
-    let old_rk = rk.clone();
+    let mut old_rk = rk.clone();
     let mut p = 0;
-    for i in 0..patlen {
-        rk[sa[i]] = p;
-
-        if i+1 < patlen && old_rk[sa[i]] != old_rk[sa[i+1]] {
+    for i in 1..patlen + 1 {
+        if old_rk[sa[i]] != old_rk[sa[i - 1]] {
             p += 1;
         }
+
+        rk[sa[i]] = p;
     }
 
     let mut w = 1;
     while w < patlen {
-        sa.sort_unstable_by(|&x, &y| {
-            if rk[x] == rk[y] {
-                if x+w >= patlen {
-                    return Ordering::Less;
-                } else if y+w >= patlen {
-                    return Ordering::Greater;
-                } else {
-                    return rk[x+w].cmp(&rk[y+w]);
-                }
-            } else {
-                return rk[x].cmp(&rk[y]);
-            }
+        sa[1..patlen + 1].sort_unstable_by(|&x, &y| {
+            if rk[x] == rk[y] { rk[x + w].cmp(&rk[y + w]) } else { rk[x].cmp(&rk[y]) }
         });
 
-        let old_rk = rk.clone();
-        let mut p = 0;
-        for i in 0..patlen {
-            rk[sa[i]] = p;
-
-            if i+1 < patlen && old_rk[sa[i]] == old_rk[sa[i+1]]
-            && sa[i] + w < patlen
-            && sa[i+1] + w < patlen
-            && old_rk[sa[i] + w] == old_rk[sa[i+1] + w] {
-                continue
-            }
-            p += 1;
-        }
+        old_rk = rk.clone();
+        p = 0;
+        (1..patlen + 1).into_iter().for_each(|i| {
+            rk[sa[i]] = if _cmp_rank(sa[i], sa[i - 1], w, &old_rk) { p } else { p += 1; p };
+        });
 
         w *= 2;
     }
 
-    sa
+    sa.into_iter()
+      .skip(1)
+      .take(patlen)
+      .map(|x| { x - 1 })
+      .collect::<Vec<usize>>()
 }
 
 
 pub fn compute_suffix_array_doubling_radix<'a>(pat: &'a [u8]) -> Vec<usize> {
     let patlen = pat.len();
-    let mut sa = vec![0; patlen];
-    let mut rk = vec![0; patlen];
-
-    for i in 0..patlen {
-        rk[i] = pat[i] as usize;
+    let extend_capacity = _calc_extend_capacity(patlen);
+    let mut rk = vec![0usize; patlen + extend_capacity + 1];
+    let mut sa = vec![0; patlen + extend_capacity + 1];
+    for i in 1..patlen + 1 {
+        rk[i] = pat[i - 1] as usize;
         sa[i] = i;
     }
 
     // init w = 1
-    sa.sort_unstable_by(|&x, &y|{
-        rk[x].cmp(&rk[y])
-    });
+    let mut cnt = vec![0; 256 + _calc_extend_capacity(256) + 1];
+    let mut old_sa = sa.clone();
+    for i in 1..patlen + 1 { cnt[rk[old_sa[i]]] += 1 }
+    for i in 1..256 + 1 { cnt[i] += cnt[i - 1] }
+    for i in (1..patlen + 1).rev() {
+        sa[cnt[rk[old_sa[i]]]] = old_sa[i];
+        cnt[rk[old_sa[i]]] -= 1;
+    }
     let mut old_rk = rk.clone();
     let mut p = 0;
-    for i in 0..patlen {
-        rk[sa[i]] = p;
-
-        if i + 1 < patlen && old_rk[sa[i]] != old_rk[sa[i + 1]] {
+    for i in 1..patlen + 1 {
+        if old_rk[sa[i]] != old_rk[sa[i - 1]] {
             p += 1;
         }
+
+        rk[sa[i]] = p;
     }
 
     let mut w = 1;
     while w < patlen {
         // 双关键字的基数排序
         // 第二关键字计数排序
-        let mut cnt = vec![0; patlen];
-        let mut old_sa = sa.clone();
-        for i in 0..patlen {
-            if old_sa[i] < patlen - w {
-                cnt[rk[old_sa[i] + w]] += 1;
-            }
+        cnt = vec![0; patlen + extend_capacity + 1];
+        old_sa = sa.clone();
+        for i in 1..patlen + 1 {
+            cnt[rk[old_sa[i] + w]] += 1;
         }
-        for i in 1..patlen { cnt[i] += cnt[i - 1] }
-        for i in 0..w {
-            sa[i] = patlen + i - w;
-        }
-        for i in (0..patlen).rev() {
-            if old_sa[i] < patlen - w {
-                sa[cnt[rk[old_sa[i] + w]] - 1 + w] = old_sa[i];
-                cnt[rk[old_sa[i] + w]] -= 1;
-            }
+        for i in 1..patlen + 1 { cnt[i] += cnt[i - 1] }
+        for i in (1..patlen + 1).rev() {
+            sa[cnt[rk[old_sa[i] + w]]] = old_sa[i];
+            cnt[rk[old_sa[i] + w]] -= 1;
         }
 
         // 第一关键字排序
         cnt.fill(0);
         old_sa = sa.clone();
-        for i in 0..patlen { cnt[rk[old_sa[i]]] += 1 }
-        for i in 1..patlen { cnt[i] += cnt[i - 1] }
-        for i in (0..patlen).rev() {
-            sa[cnt[rk[old_sa[i]]] - 1] = old_sa[i];
+        for i in 1..patlen + 1 { cnt[rk[old_sa[i]]] += 1 }
+        for i in 1..patlen + 1 { cnt[i] += cnt[i - 1] }
+        for i in (1..patlen + 1).rev() {
+            sa[cnt[rk[old_sa[i]]]] = old_sa[i];
             cnt[rk[old_sa[i]]] -= 1;
         }
 
         old_rk = rk.clone();
         p = 0;
-        for i in 0..patlen {
-            rk[sa[i]] = p;
-
-            if i+1 < patlen && old_rk[sa[i]] == old_rk[sa[i+1]]
-            && sa[i] + w < patlen
-            && sa[i+1] + w < patlen
-            && old_rk[sa[i] + w] == old_rk[sa[i+1] + w] {
-                continue
+        for i in 1..patlen + 1 {
+            if !(old_rk[sa[i]] == old_rk[sa[i - 1]] && old_rk[sa[i] + w] == old_rk[sa[i - 1] + w]) {
+                p += 1;
             }
-            p += 1;
+
+            rk[sa[i]] = p;
         }
 
         w *= 2;
     }
-    sa
+
+    sa.into_iter()
+    .skip(1)
+    .take(patlen)
+    .map(|x| { x - 1 })
+    .collect::<Vec<usize>>()
 }
 
 pub fn compute_suffix_array_doubling_radix_improved<'a>(pat: &'a [u8]) -> Vec<usize> {
     let patlen = pat.len();
-    let mut sa = vec![0; patlen];
-    let mut rk = vec![0; patlen];
-
-    for i in 0..patlen {
-        rk[i] = pat[i] as usize;
+    let extend_capacity = _calc_extend_capacity(patlen);
+    let mut rk = vec![0usize; patlen + extend_capacity + 1];
+    let mut sa = vec![0; patlen + extend_capacity + 1];
+    for i in 1..patlen + 1 {
+        rk[i] = pat[i - 1] as usize;
         sa[i] = i;
     }
 
     // init w = 1
-    sa.sort_unstable_by(|&x, &y|{
-        rk[x].cmp(&rk[y])
-    });
+    let mut cnt = vec![0; 256 + _calc_extend_capacity(256) + 1];
+    let mut old_sa = sa.clone();
+    for i in 1..patlen + 1 { cnt[rk[old_sa[i]]] += 1 }
+    for i in 1..256 + 1 { cnt[i] += cnt[i - 1] }
+    for i in (1..patlen + 1).rev() {
+        sa[cnt[rk[old_sa[i]]]] = old_sa[i];
+        cnt[rk[old_sa[i]]] -= 1;
+    }
     let mut old_rk = rk.clone();
     let mut p = 0;
-    for i in 0..patlen {
-        rk[sa[i]] = p;
-
-        if i + 1 < patlen && old_rk[sa[i]] != old_rk[sa[i + 1]] {
+    for i in 1..patlen + 1 {
+        if old_rk[sa[i]] != old_rk[sa[i - 1]] {
             p += 1;
         }
+
+        rk[sa[i]] = p;
     }
-    println!("sa: {:?}", sa);
+
     let mut w = 1;
     while w < patlen {
         // 双关键字的基数排序
         // 第二关键字计数排序的实质性内容
-        let mut cnt;
-        let mut old_sa = sa.clone();
-        for i in 0..w {
+        old_sa = sa.clone();
+        for i in 1..w + 1 {
             sa[i] = patlen + i - w;
         }
-        let mut k = w;
-        for i in 0..patlen {
-            if old_sa[i] >= w && k < patlen {
+        let mut k = w + 1;
+        for i in 1..patlen + 1 {
+            if old_sa[i] > w {
                 sa[k] = old_sa[i] - w;
                 k += 1;
             }
         }
 
         // 第一关键字排序
-        cnt = vec![0; patlen];
+        cnt = vec![0; patlen + extend_capacity + 1];
         old_sa = sa.clone();
-        let m = min(p + 1, patlen);
-        for i in 0..patlen { cnt[rk[old_sa[i]]] += 1 }
-        for i in 1..m { cnt[i] += cnt[i - 1] }
-        for i in (0..patlen).rev() {
-            sa[cnt[rk[old_sa[i]]] - 1] = old_sa[i];
+        for i in 1..patlen + 1 { cnt[rk[old_sa[i]]] += 1 }
+        for i in 1..patlen + 1 { cnt[i] += cnt[i - 1] }
+        for i in (1..patlen + 1).rev() {
+            sa[cnt[rk[old_sa[i]]]] = old_sa[i];
             cnt[rk[old_sa[i]]] -= 1;
         }
 
         old_rk = rk.clone();
         p = 0;
-        for i in 0..patlen {
-            rk[sa[i]] = p;
-
-            if i+1 < patlen && old_rk[sa[i]] == old_rk[sa[i+1]]
-            && sa[i] + w < patlen
-            && sa[i+1] + w < patlen
-            && old_rk[sa[i] + w] == old_rk[sa[i+1] + w] {
-                continue
-            }
-            p += 1;
-        }
+        (1..patlen + 1).into_iter().for_each(|i| {
+            rk[sa[i]] = if _cmp_rank(sa[i], sa[i - 1], w, &old_rk) { p } else { p += 1; p };
+        });
 
         w *= 2;
     }
 
-    sa
+    sa.into_iter()
+    .skip(1)
+    .take(patlen)
+    .map(|x| { x - 1 })
+    .collect::<Vec<usize>>()
 }
 
 #[cfg(test)]

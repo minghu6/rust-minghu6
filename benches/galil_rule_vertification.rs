@@ -2,7 +2,7 @@
 #![allow(dead_code)]
 
 use minghu6::algs::spm::sunday::SundayPattern;
-use minghu6::test::spm::{ brute_force_match, gen_square_periodic_dna_pattern, gen_random_dna_text };
+use minghu6::test::spm::{ gen_square_periodic_dna_pattern, gen_random_dna_text };
 use minghu6::algs::spm::b5s::B5STimePattern;
 use minghu6::algs::spm::bm::BMPattern;
 
