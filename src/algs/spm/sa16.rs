@@ -9,7 +9,7 @@ use std::slice::from_raw_parts_mut;
 
 const LTYPE: bool = false;
 const STYPE: bool = true;
-const MAX_SA_VALUE: usize = 1_000_000_000;
+const MAX_SA_VALUE: usize = usize::MAX / 2;
 const EMPTY: usize = MAX_SA_VALUE + 1;
 const UNIQUE: usize = MAX_SA_VALUE + 2;
 const MULTI: usize = MAX_SA_VALUE + 3;  // >= 258
