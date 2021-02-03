@@ -1,6 +1,8 @@
 #![feature(test)]
 
 use minghu6::algs::spm::sa::*;
+use minghu6::algs::spm::sais::suffix_array_sais;
+use minghu6::algs::spm::sa16::suffix_array_16;
 use minghu6::test::spm::gen_random_text;
 
 extern crate test;
@@ -10,7 +12,7 @@ use test::Bencher;
 
 fn gen_tested_text() -> Vec<String> {
     let mut result = vec![];
-    for i in 1..300 {
+    for i in 8000..8100 {
         result.push(gen_random_text(i));
     }
 
@@ -56,6 +58,24 @@ fn compute_sa_doubling_radix_improved(b: &mut Bencher) {
     b.iter(|| {
         for text in gen_tested_text() {
             compute_suffix_array_doubling_radix_improved(text.as_bytes());
+        }
+    })
+}
+
+#[bench]
+fn compute_sa_is(b: &mut Bencher) {
+    b.iter(|| {
+        for text in gen_tested_text() {
+            suffix_array_sais(text.as_bytes());
+        }
+    })
+}
+
+#[bench]
+fn compute_sa_16(b: &mut Bencher) {
+    b.iter(|| {
+        for text in gen_tested_text() {
+            suffix_array_16(text.as_bytes());
         }
     })
 }

@@ -277,19 +277,29 @@ pub fn compute_suffix_array_doubling_radix_improved<'a>(pat: &'a [u8]) -> Vec<us
 #[cfg(test)]
 mod tests {
     use super::*;
-
+    use super::super::super::super::test::spm::gen_sa_test_case;
     #[test]
     fn ensure_compute_sa_correctly_fixeddata() {
-        for (pat, res) in [("aabaaaab".as_bytes(), vec![3, 4, 5, 0, 6, 1, 7, 2]),
-                           ("abaab".as_bytes(), vec![2, 3, 0, 4, 1]),
-                           ("banana$".as_bytes(), vec![6, 5, 3, 1, 0, 4, 2]),
-                           ("ba".as_bytes(), vec![1, 0]),
-                           ("b".as_bytes(), vec![0])].iter() {
+        for (pat, res) in [("aabaaaab", vec![3, 4, 5, 0, 6, 1, 7, 2]),
+                           ("abaab", vec![2, 3, 0, 4, 1]),
+                           ("banana$", vec![6, 5, 3, 1, 0, 4, 2]),
+                           ("ba", vec![1, 0]),
+                           ("b", vec![0])].iter() {
 
-            assert_eq!(compute_suffix_array_naive(pat), res.clone());
-            assert_eq!(compute_suffix_array_doubling(pat), res.clone());
-            assert_eq!(compute_suffix_array_doubling_radix(pat), res.clone());
-            assert_eq!(compute_suffix_array_doubling_radix_improved(pat), res.clone());
+            assert_eq!(compute_suffix_array_naive(pat.as_bytes()), res.clone());
+            assert_eq!(compute_suffix_array_doubling(pat.as_bytes()), res.clone());
+            assert_eq!(compute_suffix_array_doubling_radix(pat.as_bytes()), res.clone());
+            assert_eq!(compute_suffix_array_doubling_radix_improved(pat.as_bytes()), res.clone());
+        }
+    }
+
+    #[test]
+    fn ensure_compute_sa_correctly_randomdata() {
+        for (pat, res) in gen_sa_test_case() {
+            assert_eq!(compute_suffix_array_naive(pat.as_bytes()), res.clone());
+            assert_eq!(compute_suffix_array_doubling(pat.as_bytes()), res.clone());
+            assert_eq!(compute_suffix_array_doubling_radix(pat.as_bytes()), res.clone());
+            assert_eq!(compute_suffix_array_doubling_radix_improved(pat.as_bytes()), res.clone());
         }
     }
 }

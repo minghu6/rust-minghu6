@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 pub mod ac;
 pub mod kmp;
 pub mod bm;
@@ -7,6 +9,8 @@ pub mod sunday;
 pub mod b5s;
 pub mod zfunction;
 pub mod sa;
+pub mod sais;
+pub mod sa16;
 
 use std::cmp::PartialEq;
 

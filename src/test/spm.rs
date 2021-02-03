@@ -8,6 +8,7 @@ use std::ops::Range;
 use std::char;
 use std::collections::BTreeMap;
 
+use super::super::algs::spm::sa::compute_suffix_array_naive;
 
 const CN_ALPHA_LIST:[char;26] = [
     '啊','吧','从','的','俄',
@@ -185,6 +186,7 @@ pub fn gen_test_case() -> Vec<(String, String, Vec<usize>)>{
      cases
 }
 
+/// 每份文本查找多个pattern
 pub fn gen_test_case_multiple() -> Vec<(Vec<String>, String, BTreeMap<String, Vec<usize>>)>{
     let mut cases = vec![];
 
@@ -210,6 +212,18 @@ pub fn gen_test_case_multiple() -> Vec<(Vec<String>, String, BTreeMap<String, Ve
 
      cases
 }
+
+/// <pat, sa>
+pub fn gen_sa_test_case() -> Vec<(String, Vec<usize>)> {
+    let mut cases = vec![];
+    for pat in gen_pattern((1..60000, 1000), 1) {
+        let sa = compute_suffix_array_naive(pat.as_bytes());
+        cases.push((pat, sa));
+    }
+
+     cases
+}
+
 
 #[cfg(test)]
 mod tests {
