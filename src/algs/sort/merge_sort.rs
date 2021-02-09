@@ -8,7 +8,7 @@ pub fn merge_sort<T: Ord + Clone + Copy>(pat: &mut [T]) {
     _merge_sort(pat, &mut temp[..], 0, patlen);
 }
 
-fn _merge_sort<T: Ord + Clone + Copy>(pat: &mut [T], temp: &mut [T], start: usize, end: usize) {
+pub fn _merge_sort<T: Ord + Clone + Copy>(pat: &mut [T], temp: &mut [T], start: usize, end: usize) {
     if start + 1 == end { return }
     let mid = start + (end - start) / 2;
     _merge_sort(pat, temp: &mut [T], start, mid);
