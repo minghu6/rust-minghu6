@@ -39,7 +39,7 @@ fn compute_sa_naive(b: &mut Bencher) {
 fn compute_sa_doubling(b: &mut Bencher) {
     b.iter(|| {
         for text in gen_tested_text() {
-            compute_suffix_array_doubling(text.as_bytes());
+            suffix_array_bl(text.as_bytes());
         }
     })
 }
@@ -48,7 +48,7 @@ fn compute_sa_doubling(b: &mut Bencher) {
 fn compute_sa_doubling_radix(b: &mut Bencher) {
     b.iter(|| {
         for text in gen_tested_text() {
-            compute_suffix_array_doubling_radix(text.as_bytes());
+            suffix_array_bl_radix(text.as_bytes());
         }
     })
 }
@@ -57,7 +57,7 @@ fn compute_sa_doubling_radix(b: &mut Bencher) {
 fn compute_sa_doubling_radix_improved(b: &mut Bencher) {
     b.iter(|| {
         for text in gen_tested_text() {
-            compute_suffix_array_doubling_radix_improved(text.as_bytes());
+            suffix_array_bl_radix_improved(text.as_bytes());
         }
     })
 }

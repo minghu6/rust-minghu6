@@ -31,7 +31,8 @@ fn _calc_extend_capacity(patlen: usize) -> usize {
 //     i+1<patlen && sa[i]+w <patlen && sa[i+1]+w <patlen && old_rk[sa[i]] == old_rk[sa[i+1]] && old_rk[sa[i] + w] == old_rk[sa[i+1] + w]
 // }
 
-pub fn compute_suffix_array_doubling<'a>(pat: &'a [u8]) -> Vec<usize> {
+// binary lifting
+pub fn suffix_array_bl<'a>(pat: &'a [u8]) -> Vec<usize> {
     // let patlen = pat.len();
     // let mut sa = vec![0; patlen];
     // let mut rk = vec![0usize; patlen];
@@ -129,7 +130,7 @@ pub fn compute_suffix_array_doubling<'a>(pat: &'a [u8]) -> Vec<usize> {
 }
 
 
-pub fn compute_suffix_array_doubling_radix<'a>(pat: &'a [u8]) -> Vec<usize> {
+pub fn suffix_array_bl_radix<'a>(pat: &'a [u8]) -> Vec<usize> {
     let patlen = pat.len();
     let extend_capacity = _calc_extend_capacity(patlen);
     let mut rk = vec![0usize; patlen + extend_capacity + 1];
@@ -203,7 +204,7 @@ pub fn compute_suffix_array_doubling_radix<'a>(pat: &'a [u8]) -> Vec<usize> {
     .collect::<Vec<usize>>()
 }
 
-pub fn compute_suffix_array_doubling_radix_improved<'a>(pat: &'a [u8]) -> Vec<usize> {
+pub fn suffix_array_bl_radix_improved<'a>(pat: &'a [u8]) -> Vec<usize> {
     let patlen = pat.len();
     let extend_capacity = _calc_extend_capacity(patlen);
     let mut rk = vec![0usize; patlen + extend_capacity + 1];
@@ -287,9 +288,9 @@ mod tests {
                            ("b", vec![0])].iter() {
 
             assert_eq!(compute_suffix_array_naive(pat.as_bytes()), res.clone());
-            assert_eq!(compute_suffix_array_doubling(pat.as_bytes()), res.clone());
-            assert_eq!(compute_suffix_array_doubling_radix(pat.as_bytes()), res.clone());
-            assert_eq!(compute_suffix_array_doubling_radix_improved(pat.as_bytes()), res.clone());
+            assert_eq!(suffix_array_bl(pat.as_bytes()), res.clone());
+            assert_eq!(suffix_array_bl_radix(pat.as_bytes()), res.clone());
+            assert_eq!(suffix_array_bl_radix_improved(pat.as_bytes()), res.clone());
         }
     }
 
@@ -297,9 +298,9 @@ mod tests {
     fn ensure_compute_sa_correctly_randomdata() {
         for (pat, res) in gen_sa_test_case() {
             assert_eq!(compute_suffix_array_naive(pat.as_bytes()), res.clone());
-            assert_eq!(compute_suffix_array_doubling(pat.as_bytes()), res.clone());
-            assert_eq!(compute_suffix_array_doubling_radix(pat.as_bytes()), res.clone());
-            assert_eq!(compute_suffix_array_doubling_radix_improved(pat.as_bytes()), res.clone());
+            assert_eq!(suffix_array_bl(pat.as_bytes()), res.clone());
+            assert_eq!(suffix_array_bl_radix(pat.as_bytes()), res.clone());
+            assert_eq!(suffix_array_bl_radix_improved(pat.as_bytes()), res.clone());
         }
     }
 }
