@@ -2,6 +2,7 @@
 
 pub mod spm;
 pub mod sort;
+pub mod math;
 
 use std::cmp::Ordering;
 

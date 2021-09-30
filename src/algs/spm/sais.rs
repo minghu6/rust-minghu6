@@ -134,7 +134,7 @@ fn _suffix_array_sais(pat: &[usize], sa: &mut [usize], alphabet: usize) {
     reset_sbucket(&mut sbucket, &prefix_sum);
     induced_sort(pat, sa, &suf_t, &mut lbucket, &mut sbucket, &prefix_sum);  // sort LMS prefix
 
-    // 从排好序的LMS前缀中按顺序提出LMS子串，并按照相对排名构建新的缩减的问题：pat1的后缀数组求解
+    // 从排好序的LMS前缀中按顺序提出LMS子串，并按照相对排名构建新的规模缩减的递归子问题：pat1的后缀数组求解
     // rename sortd LMS sub string, place into lmsname as pat order
     let mut rank = 1;
     let mut last_lms_i = 0;
@@ -178,6 +178,8 @@ fn _suffix_array_sais(pat: &[usize], sa: &mut [usize], alphabet: usize) {
     reset_sbucket(&mut sbucket, &prefix_sum);
     induced_sort(pat, sa, &suf_t, &mut lbucket, &mut sbucket, &prefix_sum);
 }
+
+
 // 最常见的求解字节串的后缀数组
 pub fn suffix_array_sais(pat: &[u8]) -> Vec<usize> {
     let mut pat = pat.into_iter().map(|x| *x as usize).collect::<Vec<usize>>();
