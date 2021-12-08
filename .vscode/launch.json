@@ -1,0 +1,179 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'minghu6'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=minghu6"
+                ],
+                "filter": {
+                    "name": "minghu6",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'text_test'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=text_test",
+                    "--package=minghu6"
+                ],
+                "filter": {
+                    "name": "text_test",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug benchmark 'bloom_filter'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bench=bloom_filter",
+                    "--package=minghu6"
+                ],
+                "filter": {
+                    "name": "bloom_filter",
+                    "kind": "bench"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug benchmark 'bm_compute_delta2'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bench=bm_compute_delta2",
+                    "--package=minghu6"
+                ],
+                "filter": {
+                    "name": "bm_compute_delta2",
+                    "kind": "bench"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug benchmark 'sa'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bench=sa",
+                    "--package=minghu6"
+                ],
+                "filter": {
+                    "name": "sa",
+                    "kind": "bench"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug benchmark 'spm_dna'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bench=spm_dna",
+                    "--package=minghu6"
+                ],
+                "filter": {
+                    "name": "spm_dna",
+                    "kind": "bench"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug benchmark 'dict'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bench=dict",
+                    "--package=minghu6"
+                ],
+                "filter": {
+                    "name": "dict",
+                    "kind": "bench"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug benchmark 'galil_rule_vertification'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bench=galil_rule_vertification",
+                    "--package=minghu6"
+                ],
+                "filter": {
+                    "name": "galil_rule_vertification",
+                    "kind": "bench"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug benchmark 'spm_natural'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bench=spm_natural",
+                    "--package=minghu6"
+                ],
+                "filter": {
+                    "name": "spm_natural",
+                    "kind": "bench"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

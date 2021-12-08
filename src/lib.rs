@@ -5,6 +5,8 @@
 #![feature(is_sorted)]
 #![feature(type_ascription)]
 #![feature(destructuring_assignment)]
+#![feature(trait_alias)]
+
 
 pub mod text;
 pub mod collections;

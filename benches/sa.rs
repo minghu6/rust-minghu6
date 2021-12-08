@@ -13,7 +13,6 @@ use minghu6::algs::math::*;
 
 extern crate test;
 
-use minghu6::text;
 use test::Bencher;
 
 
