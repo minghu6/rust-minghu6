@@ -1,4 +1,4 @@
-use std::{fmt::Debug, time::Instant};
+use std::{fmt::Debug};
 
 use crate::collections::{Adictionary, Dictionary};
 
@@ -20,16 +20,31 @@ where
     K: Eq + Copy + Debug,
 {
     fn test_dict(&self, dict: &mut dyn Dictionary<K, V>) {
-        let batch_num = 100;
+        let batch_num = 1000;
         let mut collected_elems = vec![];
+        let mut keys = vec![];
 
         // Create
-        for _ in 0..batch_num {
+        let mut i = 0;
+        while i < batch_num {
             let e = self.get_one();
             let k = e.get_key();
+            if keys.contains(&k) { continue; }
+
+            keys.push(k.clone());
             collected_elems.push(e.clone());
 
+            // dbg!(&k);
             assert!(dict.insert(k, e));
+            assert!(dict.lookup(
+                    &keys.last().unwrap()
+                ).is_some()
+            );
+
+            // dict.self_validate();
+            // println!("{}", i);
+
+            i += 1;
         }
 
         // Verify-> Update-> Reverify
@@ -61,52 +76,35 @@ where
         }
     }
 
-    fn test_adict(&self, dict: &mut dyn Adictionary<K, V>) {
-        let batch_num = 10;
-        let mut collected_elems = vec![];
+    fn prepare_batch(&self, batch_num: usize) -> Vec<(K, V)> {
 
-        // Create
+        // let mut fake_now = 0;
+        let mut res = Vec::with_capacity(batch_num);
+
         for _ in 0..batch_num {
             let e = self.get_one();
             let k = e.get_key();
-            collected_elems.push(e.clone());
 
-            // dbg!(&k);
-            assert!(dict.insert(k, e));
-            assert!(dict.lookup(
-                &collected_elems.last().unwrap().get_key()).is_some()
-            );
-
+            res.push((k, e));
         }
 
-        // Verify-> Update-> Reverify
-        for i in 0..batch_num {
-            let e = &collected_elems[i];
-            let k = &e.get_key();
-
-            assert!(dict.lookup(k).is_some());
-
-            assert_eq!(*dict.lookup(k).unwrap().as_ref(), *e);
-
-            let new_e = self.get_one();
-            assert!(dict.modify(k, new_e.clone()));
-
-            assert!(dict.lookup(k).is_some());
-
-            assert_eq!(*dict.lookup(k).unwrap(), new_e);
-        }
-
-
-        // Remove-> Verify
-        for i in 0..batch_num {
-            let e = &collected_elems[i];
-            let k = &e.get_key();
-
-            assert!(dict.remove(k).is_some());
-
-            assert!(dict.lookup(k).is_none())
-        }
+        res
     }
+
+    fn bench_adict_insert_remove(&self, adict: &mut dyn Adictionary<K, V>, batch: &[(K, V)]) {
+        let mut keys = Vec::with_capacity(batch.len());
+
+        for (k, v) in batch.into_iter() {
+            keys.push(k);
+            adict.insert(k.clone(), v.clone());
+        }
+
+        for k in keys.into_iter() {
+            adict.remove(&k);
+        }
+
+    }
+
 }
 
 

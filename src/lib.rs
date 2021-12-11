@@ -6,6 +6,7 @@
 #![feature(type_ascription)]
 #![feature(destructuring_assignment)]
 #![feature(trait_alias)]
+#![feature(box_syntax)]
 
 
 pub mod text;

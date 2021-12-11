@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc};
 
 pub mod bloom_filter;
 pub mod bst;
@@ -23,6 +23,9 @@ pub trait Dictionary<K, V> {
     fn modify(&mut self, key: &K, value: V) -> bool;
 
     fn lookup(&self, key: &K) -> Option<&V>;
+
+    fn self_validate(&self);
+
 }
 
 
@@ -37,10 +40,27 @@ pub trait Adictionary<K, V> {
     fn modify(&mut self, key: &K, value: V) -> bool;
 
     fn lookup(&self, key: &K) -> Option<Arc<V>>;
+
+    fn self_validate(&self);
+
 }
 
 
+/// Binary Tree
+pub trait ABT<K, V> {
+    fn left(& self) -> Option<&dyn ABT<K, V>>;
 
+
+}
+
+
+pub trait BT<'a, K, V> {
+    fn left(&self) -> *mut (dyn BT<'a, K, V> + 'a);
+    fn right(&self) -> *mut (dyn BT<'a, K, V> + 'a);
+    fn paren(&self) -> *mut (dyn BT<'a, K, V> + 'a);
+
+    fn key(&self) -> &K;
+}
 
 
 
