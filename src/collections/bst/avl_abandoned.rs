@@ -1,14 +1,12 @@
-use crate::collections::{Adictionary, ABT};
-use either::{self, Either};
-
-
 use std::cell::RefCell;
 use std::fmt::Debug;
 use std::sync;
 use std::sync::Arc;
 
+use either::{self, Either};
 
-use super::{BSTKey};
+use super::BSTKey;
+use crate::collections::Adictionary;
 
 
 /// ```no_run
@@ -446,17 +444,33 @@ fn aavl_validate<K: BSTKey, V>(x: &Option<AavlNodeRc<K, V>>) {
     let rh_h = aavl_height(&aavl_right_child(&x.as_ref().unwrap()));
 
     if aavl_bf(&x.as_ref().unwrap()) == BF::P1 {
-        assert_eq!(rh_h - lf_h, 1, "expect P1, found: lf: {} rh: {}", lf_h, rh_h);
+        assert_eq!(
+            rh_h - lf_h,
+            1,
+            "expect P1, found: lf: {} rh: {}",
+            lf_h,
+            rh_h
+        );
     } else if aavl_bf(&x.as_ref().unwrap()) == BF::Z {
-        assert_eq!(rh_h - lf_h, 0, "expect Z, found: lf: {} rh: {}", lf_h, rh_h);
+        assert_eq!(
+            rh_h - lf_h,
+            0,
+            "expect Z, found: lf: {} rh: {}",
+            lf_h,
+            rh_h
+        );
     } else {
-        assert_eq!(rh_h - lf_h, -1, "expect N1, found: lf: {} rh: {}", lf_h, rh_h);
+        assert_eq!(
+            rh_h - lf_h,
+            -1,
+            "expect N1, found: lf: {} rh: {}",
+            lf_h,
+            rh_h
+        );
     }
 
     aavl_validate(&aavl_left_child(&x.as_ref().unwrap()));
     aavl_validate(&aavl_right_child(&x.as_ref().unwrap()));
-
-
 }
 
 
@@ -481,28 +495,25 @@ impl<K: BSTKey, V> Debug for Aavlnode<K, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if f.alternate() {
             f.debug_struct("Aavlnode")
-            .field("left", &self.left)
-            .field("right", &self.right)
-            .field("paren", &self.paren)
-            .field("bf", &self.bf)
-            .field("key", &self.key)
-            .finish()
+                .field("left", &self.left)
+                .field("right", &self.right)
+                .field("paren", &self.paren)
+                .field("bf", &self.bf)
+                .field("key", &self.key)
+                .finish()
         } else {
             f.debug_struct("Aavlnode")
-            .field("left", &self.left)
-            .field("right", &self.right)
-            .field("bf", &self.bf)
-            .field("key", &self.key)
-            .finish()
-
+                .field("left", &self.left)
+                .field("right", &self.right)
+                .field("bf", &self.bf)
+                .field("key", &self.key)
+                .finish()
         }
-
     }
 }
 
 
 impl<K: BSTKey, V> Aavl<K, V> {
-
     fn subtree_shift(
         &mut self,
         u: &AavlNodeRc<K, V>,
@@ -654,7 +665,6 @@ impl<K: BSTKey, V> Aavl<K, V> {
             } else {
                 // n == aavl_right_child(&x_up)
                 if aavl_bf(&x_up) == BF::N1 {
-
                     z = aavl_left_child(&x_up).unwrap();
                     b = aavl_bf(&z);
 
@@ -825,7 +835,6 @@ impl<K: BSTKey, V> Adictionary<K, V> for Aavl<K, V> {
     /// Validate BF 'did' reflects the reality
     fn self_validate(&self) {
         aavl_validate(&self.root)
-
     }
 }
 

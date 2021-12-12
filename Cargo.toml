@@ -17,3 +17,12 @@ bit-vec = "^0.6.2"
 num_cpus = "1.0"
 itertools = "0.10.*"
 either = "1.6.1"
+
+
+[dependencies.proc_macros]
+package = "m6-proc-macros"
+path = "proc_macros"
+
+
+[workspace]
+members = ["proc_macros"]

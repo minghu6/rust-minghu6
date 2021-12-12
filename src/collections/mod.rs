@@ -1,5 +1,6 @@
 use std::{sync::Arc};
 
+
 pub mod bloom_filter;
 pub mod bst;
 
@@ -24,7 +25,7 @@ pub trait Dictionary<K, V> {
 
     fn lookup(&self, key: &K) -> Option<&V>;
 
-    fn self_validate(&self);
+    fn self_validate(&self) -> Result<(), Box<dyn std::error::Error>>;
 
 }
 

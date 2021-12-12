@@ -14,3 +14,5 @@ pub mod collections;
 pub mod algs;
 pub mod test;
 pub mod etc;
+pub mod error_code;
+

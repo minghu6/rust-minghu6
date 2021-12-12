@@ -40,24 +40,26 @@ pub trait BST<'a, K: BSTKey, V>: Dictionary<K, V> {
     }
 
     /// BFS Echo
-    fn echo_in_mm(&self, cache: &mut String) -> fmt::Result {
+    fn echo_in_mm(
+        &self,
+        cache: &mut String,
+        action: fn(*mut (dyn BSTNode<'a, K, V> + 'a), &mut String) -> fmt::Result
+    ) -> fmt::Result {
         if self.root().is_null() {
             writeln!(cache, "ROOT: null")
         } else {
             unsafe {
                 writeln!(cache, "ROOT: {:?}", (*self.root()).key() )?;
 
-                (*self.root()).echo_in_mm(cache)
+                (*self.root()).echo_in_mm(cache, action)
             }
         }
     }
 
-    fn echo_stdout(&self) {
-        let mut cache = String::new();
-
-        self.echo_in_mm(&mut cache).unwrap();
-
-        println!("{}", cache);
+    fn just_echo_stdout(&self) {
+        if !self.root().is_null() {
+            unsafe { (*self.root()).just_echo_stdout() }
+        }
     }
 
 }
@@ -123,8 +125,21 @@ pub trait BSTNode<'a, K: BSTKey, V> {
         }
     }
 
+
+    fn just_echo_stdout(&self) {
+        let mut cache = String::new();
+
+        self.echo_in_mm(&mut cache, |_, _| { Ok(()) } ).unwrap();
+
+        println!("{}", cache);
+    }
+
     /// BFS Echo
-    fn echo_in_mm(&self, cache: &mut String) -> fmt::Result {
+    fn echo_in_mm(
+        &self,
+        cache: &mut String,
+        action: fn(*mut (dyn BSTNode<'a, K, V> + 'a), &mut String) -> fmt::Result
+    ) -> fmt::Result {
         unsafe {
             writeln!(cache, "Entry: {:?}", self.key())?;
 
@@ -142,26 +157,22 @@ pub trait BSTNode<'a, K: BSTKey, V> {
                 while !this_level_queue.is_empty() {
                     let x = this_level_queue.pop_front().unwrap();
 
+                    action(x, cache)?;
+
                     if !(*x).left().is_null() {
                         writeln!(cache, "{:?} -L-> {:?}", (*x).key(), (*(*x).left()).key())?;
-                        // println!("{:?} -L-> {:?}", (*x).key(), (*(*x).left()).key());
 
                         nxt_level_queue.push_back((*x).left())
                     } else {
                         writeln!(cache, "{:?} -L-> null", (*x).key())?;
-                        // println!("{:?} -L-> null", (*x).key());
-
                     }
 
                     if !(*x).right().is_null() {
                         writeln!(cache, "{:?} -R-> {:?}", (*x).key(), (*(*x).right()).key() )?;
-                        // println!("{:?} -R-> {:?}", (*x).key(), (*(*x).right()).key() );
 
                         nxt_level_queue.push_back((*x).right())
                     } else {
                         writeln!(cache, "{:?} -R-> null", (*x).key())?;
-                        // println!("{:?} -R-> null", (*x).key());
-
                     }
 
                     writeln!(cache)?;

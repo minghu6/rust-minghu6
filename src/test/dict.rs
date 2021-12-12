@@ -34,15 +34,15 @@ where
             keys.push(k.clone());
             collected_elems.push(e.clone());
 
-            // dbg!(&k);
+            // println!("{}: {:?}", i, k);
+
             assert!(dict.insert(k, e));
             assert!(dict.lookup(
                     &keys.last().unwrap()
                 ).is_some()
             );
 
-            // dict.self_validate();
-            // println!("{}", i);
+            dict.self_validate().unwrap();
 
             i += 1;
         }
