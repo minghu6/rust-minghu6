@@ -54,6 +54,15 @@ enum BF {
     P1, // Positive one
 }
 
+impl BF {
+    fn reverse(&self) -> Self {
+        match self {
+            BF::N1 => BF::P1,
+            BF::Z => BF::Z,
+            BF::P1 => BF::N1,
+        }
+    }
+}
 
 
 
@@ -291,11 +300,11 @@ fn aavl_double_rotate<K: BSTKey, V>(
         };
 
         if aavl_bf(&y_node) == cond {
-            set_aavl_bf(&x_node, BF::N1);
+            set_aavl_bf(&x_node, cond.reverse());
             set_aavl_bf(&z_node, BF::Z);
         } else {
             set_aavl_bf(&x_node, BF::Z);
-            set_aavl_bf(&z_node, BF::P1);
+            set_aavl_bf(&z_node, cond);
         }
     }
 

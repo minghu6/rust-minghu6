@@ -43,7 +43,7 @@ pub fn _split<T: Clone>(plan: impl Fn(usize, usize) -> Vec<usize>, s: &[T], n: u
     let split_plan = plan(s.len(), n);
 
     let mut coll = vec![];
-    for (start, end) in ht![0 | sum_scan(&split_plan[..])].into_iter().tuple_windows() {
+    for (start, end) in ht![0, sum_scan(&split_plan[..])].into_iter().tuple_windows() {
         coll.push(s[start..end].iter().cloned().collect_vec())
     }
 
