@@ -71,8 +71,9 @@ where
             let k = &e.get_key();
 
             assert!(dict.remove(k).is_some());
+            assert!(!dict.lookup(k).is_some());
+            dict.self_validate().unwrap();
 
-            assert!(!dict.lookup(k).is_some())
         }
     }
 

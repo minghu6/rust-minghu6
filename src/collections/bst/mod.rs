@@ -37,6 +37,13 @@ pub trait BST<'a, K: BSTKey, V>: Dictionary<K, V> {
         }
     }
 
+    fn calc_height(&self) -> i32 {
+        if self.root().is_null() {
+            return -1;
+        }
+
+        unsafe { (*self.root()).calc_height() }
+    }
 
     fn height(&self) -> i32 {
         if self.root().is_null() {
@@ -187,6 +194,7 @@ pub trait BSTNode<'a, K: BSTKey, V> {
     fn paren(&self) -> *mut (dyn BSTNode<'a, K, V> + 'a);
     fn key(&self) -> &K;
     fn value(&self) -> &V;
+    fn height(&self) -> i32;
     fn itself(&self) -> *const (dyn BSTNode<'a, K, V> + 'a);
     fn itself_mut(&self) -> *mut (dyn BSTNode<'a, K, V> + 'a) {
         self.itself() as *mut (dyn BSTNode<'a, K, V> + 'a)
@@ -205,27 +213,49 @@ pub trait BSTNode<'a, K: BSTKey, V> {
         }
     }
 
-
+    fn child_height(&self, direction: Either<(), ()>) -> i32 {
+        if self.child(direction).is_null() {
+            -1
+        } else {
+            unsafe{ (*self.child(direction)).height() }
+        }
+    }
 
     fn assign_left(&mut self, left: *mut (dyn BSTNode<'a, K, V> + 'a));
     fn assign_right(&mut self, right: *mut (dyn BSTNode<'a, K, V> + 'a));
     fn assign_paren(&mut self, paren: *mut (dyn BSTNode<'a, K, V> + 'a));
     fn assign_value(&mut self, value: V);
 
-    fn height(&self) -> i32 {
+    fn calc_height(&self) -> i32 {
         let h_lf = if self.left().is_null() {
             -1
         } else {
-            unsafe { (*self.left()).height() }
+            unsafe { (*self.left()).calc_height() }
         };
 
         let h_rh = if self.right().is_null() {
             -1
         } else {
-            unsafe { (*self.right()).height() }
+            unsafe { (*self.right()).calc_height() }
         };
 
         i32::max(h_lf, h_rh) + 1
+    }
+
+    fn calc_left_height(&self) -> i32 {
+        if !self.left().is_null() {
+            unsafe { (*self.left()).calc_height() }
+        } else {
+            -1
+        }
+    }
+
+    fn calc_right_height(&self) -> i32 {
+        if !self.right().is_null() {
+            unsafe { (*self.right()).calc_height() }
+        } else {
+            -1
+        }
     }
 
     fn left_height(&self) -> i32 {

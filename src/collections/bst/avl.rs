@@ -7,6 +7,7 @@
 //!
 
 
+use std::cmp::max;
 use std::fmt::Write;
 use std::fmt::{self, Display};
 use std::ptr::{null, null_mut};
@@ -15,6 +16,7 @@ use either::Either;
 
 use super::{BSTKey, BSTNode, BST};
 use crate::collections::Dictionary;
+use crate::error_code::ValidateFailedError;
 use crate::etc::Reverse;
 
 
@@ -31,62 +33,15 @@ struct AVLNode<K: BSTKey, V> {
     left: *mut AVLNode<K, V>,
     right: *mut AVLNode<K, V>,
     paren: *mut AVLNode<K, V>,
-    bf: BF, // BF = H(right) - H(left)
+    height: i32, // using C style int, as it's default for Rust
     key: *const K,
     value: *mut V,
-}
-
-#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
-#[repr(u8)]
-enum BF {
-    N1, // Negative one
-    Z,  // Zero
-    P1, // Positive one
-}
-
-#[allow(unused)]
-#[derive(Debug)]
-pub struct BFValidateResult {
-    h_lf: i32,
-    h_rh: i32,
-    bf: BF,
 }
 
 
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Implement
-
-impl TryFrom<i32> for BF {
-    type Error = ();
-
-    fn try_from(value: i32) -> Result<Self, Self::Error> {
-        Ok(match value {
-            -1 => BF::N1,
-            0 => BF::Z,
-            1 => BF::P1,
-            _ => return Err(()),
-        })
-    }
-}
-
-impl Display for BFValidateResult {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self)
-    }
-}
-impl std::error::Error for BFValidateResult {}
-
-
-impl BF {
-    fn reverse(&self) -> Self {
-        match self {
-            BF::N1 => BF::P1,
-            BF::Z => BF::Z,
-            BF::P1 => BF::N1,
-        }
-    }
-}
 
 
 impl<'a, K: BSTKey + 'a, V: 'a> AVLNode<K, V> {
@@ -95,7 +50,7 @@ impl<'a, K: BSTKey + 'a, V: 'a> AVLNode<K, V> {
             left: null_mut(),
             right: null_mut(),
             paren: null_mut(),
-            bf: BF::Z,
+            height: 0,
             key: Box::into_raw(box key) as *const K,
             value: Box::into_raw(box value),
         })
@@ -105,19 +60,20 @@ impl<'a, K: BSTKey + 'a, V: 'a> AVLNode<K, V> {
         unsafe { *Box::from_raw(self.value) }
     }
 
+    fn bf(&self) -> i32 {
+        self.right_height() - self.left_height()
+    }
+
+    fn calc_bf(&self) -> i32 {
+        self.calc_right_height() - self.calc_left_height()
+    }
+
     pub fn self_validate(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let h_lf = self.left_height();
-        let h_rh = self.right_height();
-
-        let bf_res = BF::try_from(h_rh - h_lf);
-        let validateres = BFValidateResult {
-            h_lf,
-            h_rh,
-            bf: self.bf,
-        };
-
-        if bf_res.is_err() || bf_res.unwrap() != self.bf {
-            return Err((box validateres) as Box<dyn std::error::Error>);
+        if self.calc_bf().abs() >= 2 {
+            return Err(ValidateFailedError::new_box_err(&format!(
+                "BF: {}",
+                self.calc_bf()
+            )));
         }
 
         Ok(())
@@ -128,37 +84,21 @@ impl<'a, K: BSTKey + 'a, V: 'a> AVLNode<K, V> {
             (*self.itself()).echo_in_mm(cache, |x, cache| {
                 let x_self = x as *mut AVLNode<K, V>;
 
-                let h_lf = if !(*x).left().is_null() {
-                    (*(*x).left()).height()
+
+                let check_res = if (*x_self).calc_bf().abs() >= 2 {
+                    "failed"
                 } else {
-                    -1
+                    "pass"
                 };
-
-                let h_rh = if !(*x).right().is_null() {
-                    (*(*x).right()).height()
-                } else {
-                    -1
-                };
-
-                let bf_res = BF::try_from(h_rh - h_lf);
-
-                let check_res =
-                    if bf_res.is_err() || bf_res.unwrap() != (*x_self).bf {
-                        "failed"
-                    } else {
-                        "pass"
-                    };
 
                 writeln!(
                     cache,
                     "BF: {:?}, H(LF): {}, H(RH): {},  {}",
-                    (*x_self).bf,
-                    h_lf,
-                    h_rh,
+                    (*x_self).calc_bf(),
+                    (*x).calc_left_height(),
+                    (*x).calc_right_height(),
                     check_res
-                )?;
-
-                Ok(())
+                )
             })
         }
     }
@@ -192,6 +132,10 @@ impl<'a, K: BSTKey + 'a, V: 'a> BSTNode<'a, K, V> for AVLNode<K, V> {
 
     fn value(&self) -> &V {
         unsafe { &*self.value }
+    }
+
+    fn height(&self) -> i32 {
+        self.height
     }
 
     fn itself(&self) -> *const (dyn BSTNode<'a, K, V> + 'a) {
@@ -248,9 +192,14 @@ impl<'a, K: BSTKey + 'a, V: 'a> AVL<K, V> {
     unsafe fn rotate(
         &mut self,
         x: *mut AVLNode<K, V>,
-        z: *mut AVLNode<K, V>,
         rotation: Either<(), ()>, // rotate to left = from right rotation
     ) -> *mut AVLNode<K, V> {
+        let z = if rotation.is_left() {
+            (*x).right
+        } else {
+            (*x).left
+        };
+
         let t23 = if rotation.is_left() {
             (*z).left
         } else {
@@ -272,23 +221,8 @@ impl<'a, K: BSTKey + 'a, V: 'a> AVL<K, V> {
         self.subtree_shift(x, z);
         (*x).assign_paren(z);
 
-        /* adjust BF */
-        // case-1. only happens with deletion
-        if (*z).bf == BF::Z {
-            // t23 has been of same height as t4
-            if rotation.is_left() {
-                (*x).bf = BF::P1;
-                (*z).bf = BF::N1;
-            } else {
-                (*x).bf = BF::N1;
-                (*z).bf = BF::P1;
-            }
-        }
-        // case-2 happends with both insertion and deletion
-        else {
-            (*x).bf = BF::Z;
-            (*z).bf = BF::Z;
-        }
+        (*x).height = 1 + max((*x).left_height(), (*x).right_height());
+        (*z).height = 1 + max((*z).left_height(), (*z).right_height());
 
         z
     }
@@ -309,246 +243,141 @@ impl<'a, K: BSTKey + 'a, V: 'a> AVL<K, V> {
     unsafe fn double_rotate(
         &mut self,
         x: *mut AVLNode<K, V>,
-        z: *mut AVLNode<K, V>,
         snd_rotation: Either<(), ()>,
     ) -> *mut AVLNode<K, V> {
-        /* FIRST ROTATION */
-        // z is by 2 higher than its sibing(t1)
-        // y is by 1 higher than its sibling(t4) (thereis shouldn't be empty)
-        let y = if snd_rotation.is_left() {
-            (*z).left
+        let z = if snd_rotation.is_left() {
+            (*x).right
         } else {
-            (*z).right
+            (*x).left
         };
 
-        let (t2, t3) = if snd_rotation.is_left() {
-            ((*y).left, (*y).right)
-        } else {
-            ((*y).right, (*y).left)
-        };
+        self.rotate(z, snd_rotation.reverse());
+        self.rotate(x, snd_rotation)
 
-        if !t3.is_null() {
-            (*t3).assign_paren(z);
-        }
-        (*z).assign_paren(y);
+        // // Manualy Implements
+        // /* FIRST ROTATION */
+        // // z is by 2 higher than its sibing(t1)
+        // // y is by 1 higher than its sibling(t4) (thereis shouldn't be empty)
+        // let z = if snd_rotation.is_left() {
+        //     (*x).right
+        // } else {
+        //     (*x).left
+        // };
 
-        if snd_rotation.is_left() {
-            (*z).assign_left(t3);
-            (*y).assign_right(z);
-        } else {
-            (*z).assign_right(t3);
-            (*y).assign_left(z);
-        }
+        // let y = if snd_rotation.is_left() {
+        //     (*z).left
+        // } else {
+        //     (*z).right
+        // };
 
-        // skip x-R->z => x-R->y for it would be overrided by second rotation
+        // let (t2, t3) = if snd_rotation.is_left() {
+        //     ((*y).left, (*y).right)
+        // } else {
+        //     ((*y).right, (*y).left)
+        // };
 
-        /* SECOND ROTATION */
-        if snd_rotation.is_left() {
-            (*x).assign_right(t2);
-            (*y).assign_left(x);
-        } else {
-            (*x).assign_left(t2);
-            (*y).assign_right(x);
-        }
-        if !t2.is_null() {
-            (*t2).assign_paren(x);
-        }
+        // if !t3.is_null() {
+        //     (*t3).assign_paren(z);
+        // }
+        // (*z).assign_paren(y);
 
-        self.subtree_shift(x, y);
-        (*x).assign_paren(y);
+        // if snd_rotation.is_left() {
+        //     (*z).assign_left(t3);
+        //     (*y).assign_right(z);
+        // } else {
+        //     (*z).assign_right(t3);
+        //     (*y).assign_left(z);
+        // }
 
-        /* Adjust BF */
-        // h(t1) = h(t4) = max(h(t2), h(t3))
-        if (*y).bf == BF::Z {
-            (*x).bf = BF::Z;
-            (*z).bf = BF::Z;
-        } else {
-            // double symmetry
-            let cond = if snd_rotation.is_left() {
-                BF::P1
-            } else {
-                BF::N1
-            };
+        // // skip x-R->z => x-R->y for it would be overrided by second rotation
 
-            if (*y).bf == cond {
-                // t3 is heigher
-                (*x).bf = cond.reverse();
-                (*z).bf = BF::Z;
-            } else {
-                (*x).bf = BF::Z;
-                (*z).bf = cond;
-            }
-        }
-        (*y).bf = BF::Z;
+        // /* SECOND ROTATION */
+        // if snd_rotation.is_left() {
+        //     (*x).assign_right(t2);
+        //     (*y).assign_left(x);
+        // } else {
+        //     (*x).assign_left(t2);
+        //     (*y).assign_right(x);
+        // }
+        // if !t2.is_null() {
+        //     (*t2).assign_paren(x);
+        // }
 
-        y
+        // self.subtree_shift(x, y);
+        // (*x).assign_paren(y);
+
+        // y
     }
 
 
     unsafe fn insert_retracing(&mut self, new_node: *mut AVLNode<K, V>) {
-        let mut z = new_node;
-        let mut x = (*z).paren;
+        let mut y = new_node;
+        let mut z = (*y).paren;
 
-        while !x.is_null() {
-            let g;
-            let n;
+        while !z.is_null() {
+            (*z).height = 1 + max((*z).left_height(), (*z).right_height());
 
-            let (fst_rotation, snd_rotation, cond) = if z == (*x).right {
-                (Either::Left(()), Either::Left(()), BF::P1)
-            } else {
-                (Either::Right(()), Either::Right(()), BF::N1)
-            };
+            let x = (*z).paren;
 
-            if (*x).bf == cond {
-                g = (*x).paren;
-
-                n = if (*z).bf == cond {
-                    self.rotate(x, z, fst_rotation)
+            if !x.is_null() && (*x).bf().abs() > 1 {
+                let direction = if z == (*x).right {
+                    Either::Left(())
                 } else {
-                    self.double_rotate(x, z, snd_rotation)
+                    Either::Right(())
                 };
-            } else {
-                if (*x).bf == BF::Z {
-                    (*x).bf = cond;
-                    z = x;
-                    x = (*z).paren;
-                    continue;
+
+                if y == (*(*x)
+                    .child(direction.reverse()))
+                    .child(direction.reverse())
+                    as *mut AVLNode<K, V>
+                {
+                    self.rotate(x, direction);
                 } else {
-                    (*x).bf = BF::Z;
-                    break;
+                    self.double_rotate(x, direction);
                 }
             }
 
-            (*n).assign_paren(g);
-            if !g.is_null() {
-                if x == (*g).left {
-                    (*g).assign_left(n);
-                } else {
-                    (*g).assign_right(n);
-                }
-            } else {
-                self.assign_root(n);
-            }
-            break;
+            y = z;
+            z = x;
         }
     }
 
     unsafe fn remove_retracing(
         &mut self,
-        unbalanced_entry: *mut AVLNode<K, V>,
+        unbalanced_root: *mut AVLNode<K, V>,
     ) {
-        let mut p = unbalanced_entry;
-
-        // self.echo_stdout();
+        let mut p = unbalanced_root;
 
         while !p.is_null() {
-            let p_rh =  (*p).right;
-            let p_lf = (*p).left;
-            let p_paren = (*p).paren;
+            (*p).height = 1 + max((*p).left_height(), (*p).right_height());
 
-            let h_p_lf = (*p).left_height();
-            let h_p_rh = (*p).right_height();
-
-            if (h_p_rh - h_p_lf).abs() >= 2 {
+            if (*p).bf().abs() > 1 {
                 let x = p;
 
-                let y = if h_p_lf > h_p_rh {
-                    (*x).left
+                let direction = if (*x).right_height() > (*x).left_height() {
+                    Either::Left(())
                 } else {
-                    (*x).right
+                    Either::Right(())
                 };
 
-                let z = if (*y).bf == BF::N1 {
-                    (*y).left
-                } else if (*y).bf == BF::P1  {
-                    (*y).right
+                let same_direction_height = (*(*x)
+                    .child(direction.reverse()))
+                    .child_height(direction.reverse());
+
+                let reverse_direction_height = (*(*x)
+                    .child(direction.reverse()))
+                    .child_height(direction);
+
+                if same_direction_height >= reverse_direction_height {
+                    self.rotate(x, direction);
                 } else {
-                    if y == (*x).left {
-                        (*y).left
-                    } else {
-                        (*y).right
-                    }
-                };
-
-
-                if y == (*x).left {
-                    if z == (*(*x).left).left {
-                        self.rotate(x, y, Either::Right(()));
-                    } else if z == (*(*x).left).right {
-                        self.double_rotate(x, y, Either::Right(()));
-                    }
-                } else if y == (*x).right {
-                    if z == (*(*x).right).right {
-                        self.rotate(x, y, Either::Left(()));
-                    } else if z == (*(*x).right).left {
-                        self.double_rotate(x, y, Either::Left(()));
-                    }
-                } else {
-
+                    self.double_rotate(x, direction);
                 }
 
-
-            } else {
-                (*p).bf = BF::try_from(h_p_rh - h_p_lf).unwrap();
             }
-
-            let p_rh =  (*p).right;
-            let p_lf = (*p).left;
-            let p_paren = (*p).paren;
 
             p = (*p).paren;
         }
-
-        // let mut n = unbalanced_entry;
-        // let mut x = (*n).paren;
-
-        // while !x.is_null() {
-        //     let b;
-        //     let z;
-        //     let g = (*x).paren;
-
-        //     let (direction, cond) = if n == (*x).left {
-        //         (Either::Left(()), BF::P1)
-        //     } else {
-        //         (Either::Right(()), BF::N1)
-        //     };
-
-        //     if (*x).bf == cond {
-        //         z = (*x).child(direction.reverse()) as *mut AVLNode<K, V>;
-        //         b = (*z).bf;
-
-        //         n = if b == cond.reverse() {
-        //             Self::double_rotate(x, z, direction)
-        //         } else {
-        //             Self::rotate(x, z, direction)
-        //         };
-        //     } else {
-        //         if (*x).bf == BF::Z {
-        //             (*x).bf = cond;
-        //             break;
-        //         } else {
-        //             (*x).bf = BF::Z;
-        //             n = x;
-        //             x = g;
-        //             continue;
-        //         }
-        //     }
-
-        //     (*n).assign_paren(g);
-        //     if !g.is_null() {
-        //         if x == (*g).left {
-        //             (*g).assign_left(n);
-        //         } else {
-        //             (*g).assign_right(n);
-        //         }
-        //     } else {
-        //         self.assign_root(n);
-        //     }
-
-        //     if b == BF::Z {
-        //         break;
-        //     }
-        // }
     }
 }
 
@@ -588,30 +417,20 @@ impl<'a, K: BSTKey + 'a, V: 'a> Dictionary<K, V> for AVL<K, V> {
                 return None;
             }
 
-            if (*z).left.is_null() && (*z).right.is_null() {
+            if (*z).left().is_null() {
                 let retracing_entry = (*z).paren;
-
-                self.subtree_shift(z, (*z).null_mut());
-
-                self.remove_retracing(retracing_entry);
-            } else if (*z).left().is_null() {
-                let retracing_entry = (*z).right;
                 self.subtree_shift(z, (*z).right());
 
                 self.remove_retracing(retracing_entry);
-
             } else if (*z).right().is_null() {
-                let retracing_entry = (*z).left;
+                let retracing_entry = (*z).paren;
                 self.subtree_shift(z, (*z).left());
 
                 self.remove_retracing(retracing_entry);
             } else {
                 let y = (*z).successor();
-                let retracing_entry = if (*y).paren() != z {
-                    (*y).paren()
-                } else {
-                    y
-                };
+                let retracing_entry =
+                    if (*y).paren() != z { (*z).right() } else { y };
 
                 if (*y).paren() != z {
                     self.subtree_shift(y, (*y).right());
@@ -673,18 +492,12 @@ impl<'a, K: BSTKey + 'a, V: 'a> BST<'a, K, V> for AVL<K, V> {
 #[cfg(test)]
 mod tests {
 
-    use itertools::Itertools;
-
     use super::AVL;
     use crate::{
-        collections::{bst::avl::BF, Dictionary},
+        collections::Dictionary,
         test::dict::{DictProvider, Inode, InodeProvider},
     };
 
-    #[test]
-    fn test_avl_bf() {
-        assert!(BF::Z == BF::Z)
-    }
 
     #[test]
     fn test_avl_randomdata() {
@@ -726,44 +539,55 @@ mod tests {
         dict.self_validate().unwrap();
 
         dict.insert(11, ());
-        // dict.self_validate().unwrap();
+        dict.self_validate().unwrap();
 
-        // dict.insert(22, ());
-        // dict.self_validate().unwrap();
+        dict.insert(22, ());
+        dict.self_validate().unwrap();
 
 
-        // assert!(dict.lookup(&10).is_some());
-        // assert!(dict.lookup(&5).is_some());
-        // assert!(dict.lookup(&12).is_some());
-        // assert!(dict.lookup(&13).is_some());
-        // assert!(dict.lookup(&14).is_some());
-        // assert!(dict.lookup(&18).is_some());
-        // assert!(dict.lookup(&7).is_some());
-        // assert!(dict.lookup(&9).is_some());
-        // assert!(dict.lookup(&11).is_some());
-        // assert!(dict.lookup(&22).is_some());
+        assert!(dict.lookup(&10).is_some());
+        assert!(dict.lookup(&5).is_some());
+        assert!(dict.lookup(&12).is_some());
+        assert!(dict.lookup(&13).is_some());
+        assert!(dict.lookup(&14).is_some());
+        assert!(dict.lookup(&18).is_some());
+        assert!(dict.lookup(&7).is_some());
+        assert!(dict.lookup(&9).is_some());
+        assert!(dict.lookup(&11).is_some());
+        assert!(dict.lookup(&22).is_some());
 
-        // // avl.echo_stdout();
-        // let dict = &mut avl as &mut dyn Dictionary<i32, ()>;
+        assert!(dict.remove(&10).is_some());
+        assert!(dict.lookup(&10).is_none());
+        dict.self_validate().unwrap();
 
-        // assert!(dict.remove(&10).is_some());
-        // assert!(dict.lookup(&10).is_none());
+        assert!(dict.remove(&5).is_some());
+        assert!(dict.lookup(&5).is_none());
+        dict.self_validate().unwrap();
 
-        // assert!(dict.remove(&5).is_some());
-        // assert!(dict.lookup(&5).is_none());
+        assert!(dict.remove(&12).is_some());
+        dict.self_validate().unwrap();
 
-        // assert!(dict.remove(&12).is_some());
+        assert!(dict.remove(&13).is_some());
+        dict.self_validate().unwrap();
 
-        // assert!(dict.remove(&13).is_some());
+        assert!(dict.remove(&14).is_some());
+        dict.self_validate().unwrap();
 
-        // assert!(dict.remove(&14).is_some());
-        // assert!(dict.remove(&18).is_some());
-        // assert!(dict.remove(&7).is_some());
-        // assert!(dict.remove(&9).is_some());
-        // assert!(dict.remove(&11).is_some());
-        // assert!(dict.remove(&22).is_some());
+        assert!(dict.remove(&18).is_some());
+        dict.self_validate().unwrap();
 
-        // avl.self_validate().unwrap();
+        assert!(dict.remove(&7).is_some());
+        dict.self_validate().unwrap();
+
+        assert!(dict.remove(&9).is_some());
+        dict.self_validate().unwrap();
+
+        assert!(dict.remove(&11).is_some());
+        dict.self_validate().unwrap();
+
+        assert!(dict.remove(&22).is_some());
+
+        avl.self_validate().unwrap();
         avl.echo_stdout();
     }
 
@@ -774,22 +598,21 @@ mod tests {
         let dict = &mut avl as &mut dyn Dictionary<u16, ()>;
 
         dict.insert(52, ());
-        // assert!(dict.lookup(&52).is_some());
+        assert!(dict.lookup(&52).is_some());
 
         dict.insert(47, ());
-        // assert!(dict.lookup(&47).is_some());
+        assert!(dict.lookup(&47).is_some());
 
         dict.insert(3, ());
-        // assert!(dict.lookup(&3).is_some());
+        assert!(dict.lookup(&3).is_some());
 
         dict.insert(35, ());
-        // assert!(dict.lookup(&35).is_some());
+        assert!(dict.lookup(&35).is_some());
 
         dict.insert(24, ());
-        // // assert!(dict.lookup(&24).is_some());
+        assert!(dict.lookup(&24).is_some());
 
-
-        avl.echo_stdout();
+        // avl.echo_stdout();
     }
 
     #[test]
@@ -806,7 +629,6 @@ mod tests {
         dict.insert(18, ());
         dict.insert(12, ());
 
-
-        avl.echo_stdout();
+        // avl.echo_stdout();
     }
 }
