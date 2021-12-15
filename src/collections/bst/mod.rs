@@ -1,16 +1,18 @@
-pub mod avl_abandoned;
 pub mod avl;
 
 
-use std::{fmt::{Debug, self, Write}, collections::VecDeque};
+use std::{
+    collections::VecDeque,
+    fmt::{self, Write},
+};
 
 use either::Either;
 
-use super::{Dictionary, Adictionary};
+use super::{DictKey, Dictionary};
 
 
 /// LF(key) < MID(key) < RH(key)
-pub trait BST<'a, K: BSTKey, V>: Dictionary<K, V> {
+pub trait BST<'a, K: DictKey, V>: Dictionary<K, V> {
     fn itself(&self) -> *const (dyn BST<'a, K, V> + 'a);
     fn itself_mut(&self) -> *mut (dyn BST<'a, K, V> + 'a) {
         self.itself() as *mut (dyn BST<'a, K, V> + 'a)
@@ -21,7 +23,11 @@ pub trait BST<'a, K: BSTKey, V>: Dictionary<K, V> {
     fn assign_root(&mut self, root: *mut (dyn BSTNode<'a, K, V> + 'a));
 
     /// alias as transplant
-    fn subtree_shift(&mut self, u: *mut (dyn BSTNode<'a, K, V> + 'a), v: *mut (dyn BSTNode<'a, K, V> + 'a)) {
+    fn subtree_shift(
+        &mut self,
+        u: *mut (dyn BSTNode<'a, K, V> + 'a),
+        v: *mut (dyn BSTNode<'a, K, V> + 'a),
+    ) {
         unsafe {
             if (*u).paren().is_null() {
                 self.assign_root(v)
@@ -64,7 +70,10 @@ pub trait BST<'a, K: BSTKey, V>: Dictionary<K, V> {
         }
     }
 
-    fn basic_insert(&mut self, new_node: *mut (dyn BSTNode<'a, K, V> + 'a)) -> bool {
+    fn basic_insert(
+        &mut self,
+        new_node: *mut (dyn BSTNode<'a, K, V> + 'a),
+    ) -> bool {
         unsafe {
             let key = (*new_node).key();
             let approxi_node = self.search_approximately(&key);
@@ -107,7 +116,10 @@ pub trait BST<'a, K: BSTKey, V>: Dictionary<K, V> {
         }
     }
 
-    fn basic_lookup(&self, income_key: &K) -> Option<*mut (dyn BSTNode<'a, K, V> + 'a)> {
+    fn basic_lookup(
+        &self,
+        income_key: &K,
+    ) -> Option<*mut (dyn BSTNode<'a, K, V> + 'a)> {
         let app_node = self.search_approximately(income_key);
 
         unsafe {
@@ -121,7 +133,10 @@ pub trait BST<'a, K: BSTKey, V>: Dictionary<K, V> {
         }
     }
 
-    fn basic_remove(&mut self, key: &K) -> Option<*mut (dyn BSTNode<'a, K, V> + 'a)> {
+    fn basic_remove(
+        &mut self,
+        key: &K,
+    ) -> Option<*mut (dyn BSTNode<'a, K, V> + 'a)> {
         let approxi_node = self.search_approximately(&key);
         if approxi_node.is_null() {
             return None;
@@ -159,13 +174,16 @@ pub trait BST<'a, K: BSTKey, V>: Dictionary<K, V> {
     fn echo_in_mm(
         &self,
         cache: &mut String,
-        action: fn(*mut (dyn BSTNode<'a, K, V> + 'a), &mut String) -> fmt::Result
+        action: fn(
+            *mut (dyn BSTNode<'a, K, V> + 'a),
+            &mut String,
+        ) -> fmt::Result,
     ) -> fmt::Result {
         if self.root().is_null() {
             writeln!(cache, "ROOT: null")
         } else {
             unsafe {
-                writeln!(cache, "ROOT: {:?}", (*self.root()).key() )?;
+                writeln!(cache, "ROOT: {:?}", (*self.root()).key())?;
 
                 (*self.root()).echo_in_mm(cache, action)
             }
@@ -177,7 +195,6 @@ pub trait BST<'a, K: BSTKey, V>: Dictionary<K, V> {
             unsafe { (*self.root()).just_echo_stdout() }
         }
     }
-
 }
 
 
@@ -188,7 +205,7 @@ pub trait BST<'a, K: BSTKey, V>: Dictionary<K, V> {
 // }
 
 
-pub trait BSTNode<'a, K: BSTKey, V> {
+pub trait BSTNode<'a, K: DictKey, V> {
     fn left(&self) -> *mut (dyn BSTNode<'a, K, V> + 'a);
     fn right(&self) -> *mut (dyn BSTNode<'a, K, V> + 'a);
     fn paren(&self) -> *mut (dyn BSTNode<'a, K, V> + 'a);
@@ -205,7 +222,10 @@ pub trait BSTNode<'a, K: BSTKey, V> {
         self.null() as *mut (dyn BSTNode<'a, K, V> + 'a)
     }
 
-    fn child(&self, direction: Either<(), ()>) -> *mut (dyn BSTNode<'a, K, V> + 'a) {
+    fn child(
+        &self,
+        direction: Either<(), ()>,
+    ) -> *mut (dyn BSTNode<'a, K, V> + 'a) {
         if direction.is_left() {
             self.left()
         } else {
@@ -217,7 +237,7 @@ pub trait BSTNode<'a, K: BSTKey, V> {
         if self.child(direction).is_null() {
             -1
         } else {
-            unsafe{ (*self.child(direction)).height() }
+            unsafe { (*self.child(direction)).height() }
         }
     }
 
@@ -268,7 +288,7 @@ pub trait BSTNode<'a, K: BSTKey, V> {
 
     fn right_height(&self) -> i32 {
         if !self.right().is_null() {
-            unsafe{ (*self.right()).height() }
+            unsafe { (*self.right()).height() }
         } else {
             -1
         }
@@ -341,7 +361,7 @@ pub trait BSTNode<'a, K: BSTKey, V> {
     fn just_echo_stdout(&self) {
         let mut cache = String::new();
 
-        self.echo_in_mm(&mut cache, |_, _| { Ok(()) } ).unwrap();
+        self.echo_in_mm(&mut cache, |_, _| Ok(())).unwrap();
 
         println!("{}", cache);
     }
@@ -350,21 +370,33 @@ pub trait BSTNode<'a, K: BSTKey, V> {
     fn echo_in_mm(
         &self,
         cache: &mut String,
-        action: fn(*mut (dyn BSTNode<'a, K, V> + 'a), &mut String) -> fmt::Result
+        action: fn(
+            *mut (dyn BSTNode<'a, K, V> + 'a),
+            &mut String,
+        ) -> fmt::Result,
     ) -> fmt::Result {
         unsafe {
             writeln!(cache, "Entry: {:?}", self.key())?;
 
-            let mut this_level_queue: VecDeque<*mut (dyn BSTNode<'a, K, V> + 'a)> = VecDeque::new();
-            this_level_queue.push_back(self.itself() as *mut (dyn BSTNode<'a, K, V> + 'a));
+            let mut this_level_queue: VecDeque<
+                *mut (dyn BSTNode<'a, K, V> + 'a),
+            > = VecDeque::new();
+            this_level_queue
+                .push_back(self.itself() as *mut (dyn BSTNode<'a, K, V> + 'a));
             let mut level = 0;
 
             while !this_level_queue.is_empty() {
                 writeln!(cache)?;
-                writeln!(cache, "############ Level: {} #############", level)?;
+                writeln!(
+                    cache,
+                    "############ Level: {} #############",
+                    level
+                )?;
                 writeln!(cache)?;
 
-                let mut nxt_level_queue: VecDeque<*mut (dyn BSTNode<'a, K, V> + 'a)> = VecDeque::new();
+                let mut nxt_level_queue: VecDeque<
+                    *mut (dyn BSTNode<'a, K, V> + 'a),
+                > = VecDeque::new();
 
                 while !this_level_queue.is_empty() {
                     let x = this_level_queue.pop_front().unwrap();
@@ -374,7 +406,12 @@ pub trait BSTNode<'a, K: BSTKey, V> {
                     action(x, cache)?;
 
                     if !(*x).left().is_null() {
-                        writeln!(cache, "{:?} -L-> {:?}", (*x).key(), (*(*x).left()).key())?;
+                        writeln!(
+                            cache,
+                            "{:?} -L-> {:?}",
+                            (*x).key(),
+                            (*(*x).left()).key()
+                        )?;
 
                         nxt_level_queue.push_back((*x).left())
                     } else {
@@ -382,7 +419,12 @@ pub trait BSTNode<'a, K: BSTKey, V> {
                     }
 
                     if !(*x).right().is_null() {
-                        writeln!(cache, "{:?} -R-> {:?}", (*x).key(), (*(*x).right()).key() )?;
+                        writeln!(
+                            cache,
+                            "{:?} -R-> {:?}",
+                            (*x).key(),
+                            (*(*x).right()).key()
+                        )?;
 
                         nxt_level_queue.push_back((*x).right())
                     } else {
@@ -398,18 +440,9 @@ pub trait BSTNode<'a, K: BSTKey, V> {
 
             writeln!(cache, "{}", "------------- end --------------")?;
             writeln!(cache)?;
-
-
         }
 
 
         Ok(())
     }
-
 }
-
-pub trait ABST<K: BSTKey, V>: Adictionary<K, V> {
-    fn self_validate(&self);
-}
-
-pub trait BSTKey = Eq + Ord + Debug;

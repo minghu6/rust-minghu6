@@ -9,13 +9,13 @@
 
 use std::cmp::max;
 use std::fmt::Write;
-use std::fmt::{self, Display};
+use std::fmt;
 use std::ptr::{null, null_mut};
 
 use either::Either;
 
-use super::{BSTKey, BSTNode, BST};
-use crate::collections::Dictionary;
+use super::{ BSTNode, BST};
+use crate::collections::{Dictionary, DictKey};
 use crate::error_code::ValidateFailedError;
 use crate::etc::Reverse;
 
@@ -24,12 +24,12 @@ use crate::etc::Reverse;
 //// Struct
 ////
 
-pub struct AVL<K: BSTKey, V> {
+pub struct AVL<K, V> {
     root: *mut AVLNode<K, V>,
 }
 
 
-struct AVLNode<K: BSTKey, V> {
+struct AVLNode<K, V> {
     left: *mut AVLNode<K, V>,
     right: *mut AVLNode<K, V>,
     paren: *mut AVLNode<K, V>,
@@ -44,7 +44,7 @@ struct AVLNode<K: BSTKey, V> {
 //// Implement
 
 
-impl<'a, K: BSTKey + 'a, V: 'a> AVLNode<K, V> {
+impl<'a, K: DictKey + 'a, V: 'a> AVLNode<K, V> {
     pub fn new(key: K, value: V) -> *mut Self {
         Box::into_raw(box Self {
             left: null_mut(),
@@ -113,7 +113,7 @@ impl<'a, K: BSTKey + 'a, V: 'a> AVLNode<K, V> {
 }
 
 
-impl<'a, K: BSTKey + 'a, V: 'a> BSTNode<'a, K, V> for AVLNode<K, V> {
+impl<'a, K: DictKey + 'a, V: 'a> BSTNode<'a, K, V> for AVLNode<K, V> {
     fn left(&self) -> *mut (dyn BSTNode<'a, K, V> + 'a) {
         self.left as *mut (dyn BSTNode<K, V> + 'a)
     }
@@ -166,8 +166,8 @@ impl<'a, K: BSTKey + 'a, V: 'a> BSTNode<'a, K, V> for AVLNode<K, V> {
 
 
 
-impl<'a, K: BSTKey + 'a, V: 'a> AVL<K, V> {
-    fn new() -> Self {
+impl<'a, K: DictKey + 'a, V: 'a> AVL<K, V> {
+    pub fn new() -> Self {
         Self { root: null_mut() }
     }
 
@@ -382,7 +382,7 @@ impl<'a, K: BSTKey + 'a, V: 'a> AVL<K, V> {
 }
 
 
-impl<'a, K: BSTKey + 'a, V: 'a> Dictionary<K, V> for AVL<K, V> {
+impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for AVL<K, V> {
     fn insert(&mut self, key: K, value: V) -> bool {
         let new_node = AVLNode::new(key, value);
 
@@ -474,7 +474,7 @@ impl<'a, K: BSTKey + 'a, V: 'a> Dictionary<K, V> for AVL<K, V> {
     }
 }
 
-impl<'a, K: BSTKey + 'a, V: 'a> BST<'a, K, V> for AVL<K, V> {
+impl<'a, K: DictKey + 'a, V: 'a> BST<'a, K, V> for AVL<K, V> {
     fn itself(&self) -> *const (dyn BST<'a, K, V> + 'a) {
         self as *const Self
     }
@@ -501,11 +501,11 @@ mod tests {
 
     #[test]
     fn test_avl_randomdata() {
-        let mut dict = AVL::<u16, Inode>::new();
+        let mut dict = AVL::new();
 
         let provider = InodeProvider {};
 
-        (&provider as &dyn DictProvider<u16, Inode>).test_dict(&mut dict);
+        (&provider as &dyn DictProvider<u32, Inode>).test_dict(&mut dict);
     }
 
     #[test]

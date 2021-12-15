@@ -1,10 +1,10 @@
-use std::{fmt::Debug};
+use std::fmt::Debug;
 
-use crate::collections::{Adictionary, Dictionary};
+use itertools::Itertools;
+use rand::random;
 
 use super::Provider;
-
-use rand::random;
+use crate::collections::{DictKey, Dictionary};
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Traits
@@ -13,11 +13,15 @@ pub trait GetKey<T> {
     fn get_key(&self) -> T;
 }
 
+pub trait SetKey<T> {
+    fn set_key(&mut self, key: T);
+}
+
 
 pub trait DictProvider<K, V>: Provider<V>
 where
     V: GetKey<K> + Eq + Clone + Debug,
-    K: Eq + Copy + Debug,
+    K: DictKey + Clone,
 {
     fn test_dict(&self, dict: &mut dyn Dictionary<K, V>) {
         let batch_num = 1000;
@@ -29,7 +33,9 @@ where
         while i < batch_num {
             let e = self.get_one();
             let k = e.get_key();
-            if keys.contains(&k) { continue; }
+            if keys.contains(&k) {
+                continue;
+            }
 
             keys.push(k.clone());
             collected_elems.push(e.clone());
@@ -37,10 +43,7 @@ where
             // println!("{}: {:?}", i, k);
 
             assert!(dict.insert(k, e));
-            assert!(dict.lookup(
-                    &keys.last().unwrap()
-                ).is_some()
-            );
+            assert!(dict.lookup(&keys.last().unwrap()).is_some());
 
             dict.self_validate().unwrap();
 
@@ -53,15 +56,18 @@ where
             let k = &e.get_key();
 
             assert!(dict.lookup(k).is_some());
-
             assert_eq!(dict.lookup(k).unwrap(), e);
 
             let new_e = self.get_one();
             assert!(dict.modify(k, new_e.clone()));
 
-            assert!(dict.lookup(k).is_some());
+            // for key maybe exist from value.
+            // key is co-variant with value
+            collected_elems[i] = new_e;
+            let k = &collected_elems[i].get_key();
 
-            assert_eq!(*dict.lookup(k).unwrap(), new_e);
+            assert!(dict.lookup(k).is_some());
+            assert_eq!(*dict.lookup(k).unwrap(), collected_elems[i]);
         }
 
 
@@ -73,12 +79,10 @@ where
             assert!(dict.remove(k).is_some());
             assert!(!dict.lookup(k).is_some());
             dict.self_validate().unwrap();
-
         }
     }
 
     fn prepare_batch(&self, batch_num: usize) -> Vec<(K, V)> {
-
         // let mut fake_now = 0;
         let mut res = Vec::with_capacity(batch_num);
 
@@ -92,20 +96,35 @@ where
         res
     }
 
-    fn bench_adict_insert_remove(&self, adict: &mut dyn Adictionary<K, V>, batch: &[(K, V)]) {
-        let mut keys = Vec::with_capacity(batch.len());
-
+    fn bench_dict_insert(
+        &self,
+        dict: &mut dyn Dictionary<K, V>,
+        batch: Vec<(K, V)>,
+    ) {
         for (k, v) in batch.into_iter() {
-            keys.push(k);
-            adict.insert(k.clone(), v.clone());
+            dict.insert(k, v);
         }
-
-        for k in keys.into_iter() {
-            adict.remove(&k);
-        }
-
     }
 
+    fn bench_dict_lookup(
+        &self,
+        dict: &dyn Dictionary<K, V>,
+        keys: &Vec<K>,
+    ) {
+        for k in keys.iter() {
+            dict.lookup(k);
+        }
+    }
+
+    fn bench_dict_remove(
+        &self,
+        dict: &mut dyn Dictionary<K, V>,
+        keys: &Vec<K>,
+    ) {
+        for k in keys.iter() {
+            dict.remove(k);
+        }
+    }
 }
 
 
@@ -128,14 +147,27 @@ pub struct Inode {
     pub zones: [u32; 10],
 }
 
-impl GetKey<u16> for Inode {
-    fn get_key(&self) -> u16 {
-        self.uid
+
+pub struct InodeProvider {}
+
+
+////////////////////////////////////////////////////////////////////////////////
+//// Implements
+
+impl GetKey<u32> for Inode {
+    fn get_key(&self) -> u32 {
+        let uid_u32 = self.uid as u32;
+        let gid_u32 = self.gid as u32;
+
+        (gid_u32 << 16) + uid_u32
     }
 }
 
-
-pub struct InodeProvider {}
+// impl SetKey<u16> for Inode {
+//     fn set_key(&mut self, key: u16) {
+//         self.uid = key;
+//     }
+// }
 
 
 impl Provider<Inode> for InodeProvider {
@@ -154,7 +186,54 @@ impl Provider<Inode> for InodeProvider {
     }
 }
 
-impl DictProvider<u16, Inode> for InodeProvider {}
+impl DictProvider<u32, Inode> for InodeProvider {}
+
+
+impl<K: DictKey + Clone, V: GetKey<K>> Dictionary<K, V> for Vec<V> {
+    fn insert(&mut self, _key: K, value: V) -> bool {
+        self.push(value);
+        true
+    }
+
+    fn remove(&mut self, key: &K) -> Option<V> {
+        if let Some((idx, _v)) =
+            self.iter_mut().find_position(|x| x.get_key() == *key)
+        {
+            Some(self.remove(idx))
+        } else {
+            None
+        }
+    }
+
+    fn modify(&mut self, key: &K, value: V) -> bool {
+        if let Some((idx, _v)) =
+            self.iter_mut().find_position(|x| x.get_key() == *key)
+        {
+            let updated_value = value;
+            // updated_value.set_key(key.clone());
+
+            self[idx] = updated_value;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn lookup(&self, key: &K) -> Option<&V> {
+        if let Some(v) =
+            self.iter().find(|x| x.get_key() == *key)
+        {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    fn self_validate(&self) -> Result<(), Box<dyn std::error::Error>> {
+        Ok(())
+    }
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Common Utils
@@ -162,4 +241,21 @@ impl DictProvider<u16, Inode> for InodeProvider {}
 #[inline]
 fn now_secs() -> u64 {
     random::<u32>() as u64
+}
+
+
+#[cfg(test)]
+mod test {
+    use super::{DictProvider, InodeProvider, Inode};
+
+
+    #[test]
+    fn test_vec_behav_dict() {
+        let mut dict = Vec::new();
+
+        let provider = InodeProvider {};
+
+        (&provider as &dyn DictProvider<u32, Inode>).test_dict(&mut dict);
+    }
+
 }
