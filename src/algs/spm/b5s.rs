@@ -168,7 +168,7 @@ mod tests {
         assert_eq!(p.find_all("aaaaa"), vec![0, 1, 2]);
 
         p = B5STimePattern::new("b");
-        assert_eq!(p.find_all("aaaaa"), vec![]);
+        assert!(p.find_all("aaaaa").is_empty());
 
         p = B5STimePattern::new("a");
         assert_eq!(p.find_all("a"), vec![0]);
@@ -186,7 +186,7 @@ mod tests {
         assert_eq!(p2.find_all("aaaaa"), vec![0, 1, 2]);
 
         let p3 = B5SSpacePattern::new("b");
-        assert_eq!(p3.find_all("aaaaa"), vec![]);
+        assert!(p3.find_all("aaaaa").is_empty());
     }
 
     #[test]

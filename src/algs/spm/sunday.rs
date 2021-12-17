@@ -64,7 +64,7 @@ mod tests {
         assert_eq!(p2.find_all("aaaaa"), vec![0, 1, 2]);
 
         let p3 = SundayPattern::new("b");
-        assert_eq!(p3.find_all("aaaaa"), vec![]);
+        assert!(p3.find_all("aaaaa").is_empty());
     }
 
     #[test]

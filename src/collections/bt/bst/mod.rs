@@ -1,3 +1,6 @@
+//! Binary Search Tree (BST)
+
+
 pub mod avl;
 
 
@@ -8,7 +11,7 @@ use std::{
 
 use either::Either;
 
-use super::{DictKey, Dictionary};
+use super::{super::{DictKey, Dictionary}, BTNode};
 
 
 /// LF(key) < MID(key) < RH(key)
@@ -31,14 +34,14 @@ pub trait BST<'a, K: DictKey, V>: Dictionary<K, V> {
         unsafe {
             if (*u).paren().is_null() {
                 self.assign_root(v)
-            } else if u == (*(*u).paren()).left() {
-                (*(*u).paren()).assign_left(v);
+            } else if u == (*(*u).paren_bst()).left() {
+                (*(*u).paren_bst()).assign_left(v);
             } else {
-                (*(*u).paren()).assign_right(v);
+                (*(*u).paren_bst()).assign_right(v);
             }
 
             if !v.is_null() {
-                (*v).assign_paren((*u).paren())
+                (*v).assign_paren((*u).paren_bst())
             }
         }
     }
@@ -59,6 +62,14 @@ pub trait BST<'a, K: DictKey, V>: Dictionary<K, V> {
         unsafe { (*self.root()).height() }
     }
 
+    fn total(&self) -> usize {
+        if self.root().is_null() {
+            0
+        } else {
+            unsafe { (*self.root()).total() }
+        }
+    }
+
     fn search_approximately(
         &self,
         income_key: &K,
@@ -75,10 +86,10 @@ pub trait BST<'a, K: DictKey, V>: Dictionary<K, V> {
         new_node: *mut (dyn BSTNode<'a, K, V> + 'a),
     ) -> bool {
         unsafe {
-            let key = (*new_node).key();
+            let key = BSTNode::key(&*new_node);
             let approxi_node = self.search_approximately(&key);
 
-            if !approxi_node.is_null() && (*approxi_node).key() == key {
+            if !approxi_node.is_null() && BSTNode::key(&*approxi_node) == key {
                 return false;
             }
 
@@ -87,7 +98,7 @@ pub trait BST<'a, K: DictKey, V>: Dictionary<K, V> {
                 (*new_node).assign_paren(approxi_node);
 
                 self.assign_root(new_node)
-            } else if key < (*approxi_node).key() {
+            } else if key < BSTNode::key(&*approxi_node) {
                 (*new_node).assign_paren(approxi_node);
 
                 (*approxi_node).assign_left(new_node)
@@ -107,7 +118,7 @@ pub trait BST<'a, K: DictKey, V>: Dictionary<K, V> {
         unsafe {
             if app_node.is_null() {
                 false
-            } else if (*app_node).key() == key {
+            } else if BSTNode::key(&*app_node) == key {
                 (*app_node).assign_value(value);
                 true
             } else {
@@ -125,7 +136,7 @@ pub trait BST<'a, K: DictKey, V>: Dictionary<K, V> {
         unsafe {
             if app_node.is_null() {
                 None
-            } else if (*app_node).key() == income_key {
+            } else if BSTNode::key(&*app_node) == income_key {
                 Some(app_node)
             } else {
                 None
@@ -143,7 +154,7 @@ pub trait BST<'a, K: DictKey, V>: Dictionary<K, V> {
         }
 
         unsafe {
-            if (*approxi_node).key() != key {
+            if BSTNode::key(&*approxi_node) != key {
                 return None;
             }
 
@@ -152,10 +163,10 @@ pub trait BST<'a, K: DictKey, V>: Dictionary<K, V> {
             } else if (*approxi_node).right().is_null() {
                 self.subtree_shift(approxi_node, (*approxi_node).left())
             } else {
-                let y = (*approxi_node).successor();
+                let y = (*approxi_node).successor() ;
                 // y should be leaf.
 
-                if (*y).paren() != approxi_node {
+                if (*y).paren_bst() != approxi_node {
                     self.subtree_shift(y, (*y).right());
                     (*y).assign_right((*approxi_node).right());
                     (*(*y).right()).assign_paren(y);
@@ -183,11 +194,23 @@ pub trait BST<'a, K: DictKey, V>: Dictionary<K, V> {
             writeln!(cache, "ROOT: null")
         } else {
             unsafe {
-                writeln!(cache, "ROOT: {:?}", (*self.root()).key())?;
+                writeln!(cache, "ROOT: {:?}", BSTNode::key(&*self.root()))?;
 
                 (*self.root()).echo_in_mm(cache, action)
             }
         }
+    }
+
+    fn bfs_do(
+        &self,
+        action: fn(
+            *mut (dyn BSTNode<'a, K, V> + 'a),
+        )
+    ) {
+        if !self.root().is_null() {
+            unsafe{ (*self.root()).bfs_do(action) }
+        }
+
     }
 
     fn just_echo_stdout(&self) {
@@ -200,18 +223,26 @@ pub trait BST<'a, K: DictKey, V>: Dictionary<K, V> {
 
 // /// BST Helper function for DRY.
 // impl<'a, K: BSTKey, V> dyn BST<'a, K, V> + 'a {
-
-
 // }
 
 
-pub trait BSTNode<'a, K: DictKey, V> {
-    fn left(&self) -> *mut (dyn BSTNode<'a, K, V> + 'a);
-    fn right(&self) -> *mut (dyn BSTNode<'a, K, V> + 'a);
-    fn paren(&self) -> *mut (dyn BSTNode<'a, K, V> + 'a);
-    fn key(&self) -> &K;
-    fn value(&self) -> &V;
-    fn height(&self) -> i32;
+pub trait BSTNode<'a, K: DictKey, V>: BTNode<'a, K, V> {
+    fn left(&self) -> *mut (dyn BSTNode<'a, K, V> + 'a) {
+        unsafe { (*BTNode::child(self, 0)).try_as_bst_mut().unwrap() }
+    }
+    fn right(&self) -> *mut (dyn BSTNode<'a, K, V> + 'a) {
+        unsafe{ (*BTNode::child(self, 1)).try_as_bst_mut().unwrap() }
+    }
+    fn key(&self) -> &K {
+        BTNode::key(self, 0)
+    }
+    fn value(&self) -> &V {
+        BTNode::value(self, 0)
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
+    //// Introspection
+
     fn itself(&self) -> *const (dyn BSTNode<'a, K, V> + 'a);
     fn itself_mut(&self) -> *mut (dyn BSTNode<'a, K, V> + 'a) {
         self.itself() as *mut (dyn BSTNode<'a, K, V> + 'a)
@@ -234,10 +265,10 @@ pub trait BSTNode<'a, K: DictKey, V> {
     }
 
     fn child_height(&self, direction: Either<(), ()>) -> i32 {
-        if self.child(direction).is_null() {
+        if BSTNode::child(self, direction).is_null() {
             -1
         } else {
-            unsafe { (*self.child(direction)).height() }
+            unsafe { (*BSTNode::child(self, direction)).height() }
         }
     }
 
@@ -245,22 +276,6 @@ pub trait BSTNode<'a, K: DictKey, V> {
     fn assign_right(&mut self, right: *mut (dyn BSTNode<'a, K, V> + 'a));
     fn assign_paren(&mut self, paren: *mut (dyn BSTNode<'a, K, V> + 'a));
     fn assign_value(&mut self, value: V);
-
-    fn calc_height(&self) -> i32 {
-        let h_lf = if self.left().is_null() {
-            -1
-        } else {
-            unsafe { (*self.left()).calc_height() }
-        };
-
-        let h_rh = if self.right().is_null() {
-            -1
-        } else {
-            unsafe { (*self.right()).calc_height() }
-        };
-
-        i32::max(h_lf, h_rh) + 1
-    }
 
     fn calc_left_height(&self) -> i32 {
         if !self.left().is_null() {
@@ -294,6 +309,7 @@ pub trait BSTNode<'a, K: DictKey, V> {
         }
     }
 
+
     fn minimum(&self) -> *mut (dyn BSTNode<'a, K, V> + 'a) {
         let mut x = self.itself_mut();
 
@@ -322,17 +338,16 @@ pub trait BSTNode<'a, K: DictKey, V> {
                 return (*(*x).right()).minimum();
             }
 
-            let mut y = (*x).paren();
+            let mut y = (*(*x).paren()).try_as_bst_mut().unwrap();
 
             while !y.is_null() && x == (*y).right() {
                 x = y;
-                y = (*y).paren();
+                y = (*(*y).paren()).try_as_bst_mut().unwrap();
             }
 
             y
         }
     }
-
 
     fn search_approximately(
         &self,
@@ -344,9 +359,9 @@ pub trait BSTNode<'a, K: DictKey, V> {
         unsafe {
             while !x.is_null() {
                 y = x;
-                if income_key < (*x).key() {
+                if income_key < BSTNode::key(&*x) {
                     x = (*x).left();
-                } else if income_key > (*x).key() {
+                } else if income_key > BSTNode::key(&*x) {
                     x = (*x).right();
                 } else {
                     return x;
@@ -376,7 +391,7 @@ pub trait BSTNode<'a, K: DictKey, V> {
         ) -> fmt::Result,
     ) -> fmt::Result {
         unsafe {
-            writeln!(cache, "Entry: {:?}", self.key())?;
+            writeln!(cache, "Entry: {:?}", BSTNode::key(self))?;
 
             let mut this_level_queue: VecDeque<
                 *mut (dyn BSTNode<'a, K, V> + 'a),
@@ -409,26 +424,26 @@ pub trait BSTNode<'a, K: DictKey, V> {
                         writeln!(
                             cache,
                             "{:?} -L-> {:?}",
-                            (*x).key(),
-                            (*(*x).left()).key()
+                            BSTNode::key(&*x),
+                            BSTNode::key(&*(*x).left())
                         )?;
 
                         nxt_level_queue.push_back((*x).left())
                     } else {
-                        writeln!(cache, "{:?} -L-> null", (*x).key())?;
+                        writeln!(cache, "{:?} -L-> null", BSTNode::key(&*x))?;
                     }
 
                     if !(*x).right().is_null() {
                         writeln!(
                             cache,
                             "{:?} -R-> {:?}",
-                            (*x).key(),
-                            (*(*x).right()).key()
+                            BSTNode::key(&*x),
+                            BSTNode::key(&*(*x).right())
                         )?;
 
                         nxt_level_queue.push_back((*x).right())
                     } else {
-                        writeln!(cache, "{:?} -R-> null", (*x).key())?;
+                        writeln!(cache, "{:?} -R-> null", BSTNode::key(&*x))?;
                     }
 
                     writeln!(cache)?;
@@ -444,5 +459,47 @@ pub trait BSTNode<'a, K: DictKey, V> {
 
 
         Ok(())
+    }
+
+
+    fn bfs_do(
+        &self,
+        action: fn(
+            *mut (dyn BSTNode<'a, K, V> + 'a),
+        )
+    ) {
+        let mut queue= VecDeque::new();
+
+        queue.push_back(self.itself() as *mut (dyn BSTNode<'a, K, V> + 'a));
+        while !queue.is_empty() {
+            let x = queue.pop_front().unwrap();
+
+            action(x);
+
+            unsafe {
+                if !(*x).left().is_null() {
+                    queue.push_back((*x).left());
+                }
+
+                if !(*x).right().is_null() {
+                    queue.push_back((*x).right());
+                }
+            }
+
+        }
+    }
+
+    fn total(&self) -> usize {
+        let mut total = 1;
+
+        if !self.left().is_null() {
+            total += unsafe{ (*self.left()).total() };
+        }
+
+        if !self.right().is_null() {
+            total += unsafe{ (*self.right()).total() };
+        }
+
+        total
     }
 }

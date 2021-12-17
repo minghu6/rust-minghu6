@@ -3,7 +3,7 @@
 #![allow(unused_imports)]
 
 use itertools::Itertools;
-use minghu6::collections::bst::*;
+use minghu6::collections::bt::bst::*;
 use minghu6::collections::Dictionary;
 use minghu6::test::dict::*;
 use minghu6::test::Provider;

@@ -8,14 +8,17 @@
 
 
 use std::cmp::max;
-use std::fmt::Write;
 use std::fmt;
+use std::fmt::Write;
 use std::ptr::{null, null_mut};
 
 use either::Either;
+use serde::de::DeserializeSeed;
+use serde::{ Serialize, Deserialize, Deserializer };
 
-use super::{ BSTNode, BST};
-use crate::collections::{Dictionary, DictKey};
+use super::{BSTNode, BST};
+use crate::collections::bt::BTNode;
+use crate::collections::{DictKey, Dictionary};
 use crate::error_code::ValidateFailedError;
 use crate::etc::Reverse;
 
@@ -69,10 +72,11 @@ impl<'a, K: DictKey + 'a, V: 'a> AVLNode<K, V> {
     }
 
     pub fn self_validate(&self) -> Result<(), Box<dyn std::error::Error>> {
-        if self.calc_bf().abs() >= 2 {
+        let bf = self.calc_bf();
+        if bf.abs() >= 2 {
             return Err(ValidateFailedError::new_box_err(&format!(
                 "BF: {}",
-                self.calc_bf()
+                bf
             )));
         }
 
@@ -113,29 +117,82 @@ impl<'a, K: DictKey + 'a, V: 'a> AVLNode<K, V> {
 }
 
 
+impl<'a, K: DictKey + Clone + 'a, V: Clone + 'a> Clone for AVLNode<K, V> {
+    /// Expensive Implements.
+    ///
+    /// **WARNING: The Field `paren` isn't set!, it should be set manually!**
+    fn clone(&self) -> Self {
+        unsafe {
+            let key = Box::into_raw(box (*self.key).clone());
+            let value = Box::into_raw(box (*self.value).clone());
+            let height = self.height;
+
+            // let paren = self.paren;
+            let paren = null_mut();
+            let left = if self.left.is_null() {
+                null_mut()
+            } else {
+                Box::into_raw(box (*self.left).clone())
+            };
+            let right = if self.right.is_null() {
+                null_mut()
+            } else {
+                Box::into_raw(box (*self.right).clone())
+            };
+
+
+            Self { left, right, paren, height, key, value }
+        }
+
+    }
+}
+
+
+
+impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for AVLNode<K, V> {
+    fn order(&self) -> usize {
+        2
+    }
+
+    fn child(&self, idx: usize) -> *mut (dyn BTNode<'a, K, V> + 'a) {
+        if idx == 0 {
+            self.left
+        } else {
+            self.right
+        }
+    }
+
+    fn paren(&self) -> *mut (dyn BTNode<'a, K, V> + 'a) {
+        self.paren as *mut (dyn BTNode<K, V> + 'a)
+    }
+
+    fn key(&self, _idx: usize) -> &K {
+        unsafe { &*self.key }
+    }
+
+    fn value(&self, _idx: usize) -> &V {
+        unsafe { &*self.value }
+    }
+
+
+    fn height(&self) -> i32 {
+        self.height
+    }
+
+    fn try_as_bst(&self) -> Result<*const (dyn BSTNode<'a, K, V> + 'a), ()> {
+        Ok(self as *const Self)
+    }
+}
+
+
+
 impl<'a, K: DictKey + 'a, V: 'a> BSTNode<'a, K, V> for AVLNode<K, V> {
-    fn left(&self) -> *mut (dyn BSTNode<'a, K, V> + 'a) {
-        self.left as *mut (dyn BSTNode<K, V> + 'a)
-    }
-
-    fn right(&self) -> *mut (dyn BSTNode<'a, K, V> + 'a) {
-        self.right as *mut (dyn BSTNode<K, V> + 'a)
-    }
-
-    fn paren(&self) -> *mut (dyn BSTNode<'a, K, V> + 'a) {
-        self.paren as *mut (dyn BSTNode<K, V> + 'a)
-    }
-
     fn key(&self) -> &K {
         unsafe { &*self.key }
     }
 
     fn value(&self) -> &V {
         unsafe { &*self.value }
-    }
-
-    fn height(&self) -> i32 {
-        self.height
     }
 
     fn itself(&self) -> *const (dyn BSTNode<'a, K, V> + 'a) {
@@ -162,7 +219,6 @@ impl<'a, K: DictKey + 'a, V: 'a> BSTNode<'a, K, V> for AVLNode<K, V> {
         self.value = Box::into_raw(box value);
     }
 }
-
 
 
 
@@ -326,10 +382,10 @@ impl<'a, K: DictKey + 'a, V: 'a> AVL<K, V> {
                     Either::Right(())
                 };
 
-                if y == (*(*x)
-                    .child(direction.reverse()))
-                    .child(direction.reverse())
-                    as *mut AVLNode<K, V>
+                if y == BSTNode::child(
+                    &*BSTNode::child(&*x, direction.reverse()),
+                    direction.reverse(),
+                ) as *mut AVLNode<K, V>
                 {
                     self.rotate(x, direction);
                 } else {
@@ -360,23 +416,48 @@ impl<'a, K: DictKey + 'a, V: 'a> AVL<K, V> {
                     Either::Right(())
                 };
 
-                let same_direction_height = (*(*x)
-                    .child(direction.reverse()))
-                    .child_height(direction.reverse());
+                let same_direction_height =
+                    (*BSTNode::child(&*x, direction.reverse()))
+                        .child_height(direction.reverse());
 
-                let reverse_direction_height = (*(*x)
-                    .child(direction.reverse()))
-                    .child_height(direction);
+                let reverse_direction_height =
+                    (*BSTNode::child(&*x, direction.reverse()))
+                        .child_height(direction);
 
-                if same_direction_height >= reverse_direction_height {
-                    self.rotate(x, direction);
+                p = if same_direction_height >= reverse_direction_height {
+                    self.rotate(x, direction)
                 } else {
-                    self.double_rotate(x, direction);
+                    self.double_rotate(x, direction)
                 }
-
             }
 
             p = (*p).paren;
+        }
+    }
+}
+
+
+impl<'a, K: DictKey + Clone + 'a, V: Clone + 'a> Clone for AVL<K, V> {
+    fn clone(&self) -> Self {
+        if self.root.is_null() {
+            return Self { root: null_mut() }
+        }
+
+        unsafe {
+            let root = Box::into_raw(box (*self.root).clone());
+
+            (*root).bfs_do(|x| {
+                if !(*x).left().is_null() {
+                    (*(*x).left()).assign_paren((*x).itself_mut());
+                }
+
+                if !(*x).right().is_null() {
+                    (*(*x).right()).assign_paren((*x).itself_mut());
+                }
+
+            });
+
+            Self { root }
         }
     }
 }
@@ -413,24 +494,22 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for AVL<K, V> {
         }
 
         unsafe {
-            if (*z).key() != key {
+            if BSTNode::key(&*z) != key {
                 return None;
             }
 
+            let retracing_entry;
             if (*z).left().is_null() {
-                let retracing_entry = (*z).paren;
+                retracing_entry = (*z).paren;
                 self.subtree_shift(z, (*z).right());
-
-                self.remove_retracing(retracing_entry);
             } else if (*z).right().is_null() {
-                let retracing_entry = (*z).paren;
+                retracing_entry = (*z).paren;
                 self.subtree_shift(z, (*z).left());
-
-                self.remove_retracing(retracing_entry);
             } else {
                 let y = (*z).successor();
-                let retracing_entry =
-                    if (*y).paren() != z { (*z).right() } else { y };
+                retracing_entry =
+                    if (*y).paren() != z { (*y).paren_bst() } else { y }
+                        as *mut AVLNode<K, V>;
 
                 if (*y).paren() != z {
                     self.subtree_shift(y, (*y).right());
@@ -443,8 +522,8 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for AVL<K, V> {
                 (*y).assign_left((*z).left());
                 (*(*y).left()).assign_paren(y);
 
-                self.remove_retracing(retracing_entry as *mut AVLNode<K, V>);
             }
+            self.remove_retracing(retracing_entry);
 
 
             let origin_node = Box::from_raw(z as *mut AVLNode<K, V>);
@@ -459,7 +538,7 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for AVL<K, V> {
 
     fn lookup(&self, income_key: &K) -> Option<&V> {
         if let Some(e) = self.basic_lookup(income_key) {
-            unsafe { Some((*(e as *mut AVLNode<K, V>)).value()) }
+            unsafe { Some(BSTNode::value(&*(e as *mut AVLNode<K, V>))) }
         } else {
             None
         }
@@ -492,10 +571,17 @@ impl<'a, K: DictKey + 'a, V: 'a> BST<'a, K, V> for AVL<K, V> {
 #[cfg(test)]
 mod tests {
 
+    use itertools::Itertools;
+    use rand::{prelude::SliceRandom, thread_rng};
+    use serde_json;
+
     use super::AVL;
     use crate::{
-        collections::Dictionary,
-        test::dict::{DictProvider, Inode, InodeProvider},
+        collections::{Dictionary, bt::bst::BST},
+        test::{
+            dict::{DictProvider, GetKey, Inode, InodeProvider},
+            Provider,
+        },
     };
 
 
@@ -506,6 +592,85 @@ mod tests {
         let provider = InodeProvider {};
 
         (&provider as &dyn DictProvider<u32, Inode>).test_dict(&mut dict);
+    }
+
+    ///
+    /// Debug AVL entry
+    ///
+    #[test]
+    fn hack_avl() {
+        for _ in 0..20 {
+        let batch_num = 55;
+        let mut collected_elems = vec![];
+        let mut keys = vec![];
+        let provider = InodeProvider {};
+        let mut dict = AVL::new();
+
+        // Create
+        let mut i = 0;
+        while i < batch_num {
+            let e = provider.get_one();
+            let k = e.get_key();
+            if keys.contains(&k) {
+                continue;
+            }
+
+            keys.push(k.clone());
+            collected_elems.push(e.clone());
+
+            assert!(dict.insert(k, e));
+            assert!(dict.lookup(&keys.last().unwrap()).is_some());
+
+            dict.self_validate().unwrap();
+
+            i += 1;
+        }
+
+        let mut dict_debug = dict.clone();
+
+        collected_elems.shuffle(&mut thread_rng());
+
+        // Remove-> Verify
+        for i in 0..batch_num {
+            let e = &collected_elems[i];
+            let k = &e.get_key();
+
+            assert!(dict.remove(k).is_some());
+            assert!(!dict.lookup(k).is_some());
+
+            if let Ok(_res) = dict.self_validate() {
+            } else {
+                // restore the scene
+                println!("{}", i);
+
+                println!("DEBUG: {}", dict_debug.total());
+                // dict_debug.echo_stdout();
+
+                println!("ORIGIN: {}", dict.total());
+                // dict.echo_stdout();
+
+
+                for j in 0..i {
+                    let e = &collected_elems[j];
+                    let k = &e.get_key();
+
+                    assert!(dict_debug.remove(k).is_some());
+                    assert!(!dict_debug.lookup(k).is_some());
+                    dict_debug.self_validate().unwrap();
+                }
+
+                unsafe {
+                    let target = dict_debug.search_approximately(k);
+                    let target_paren = (*target).paren_bst();
+
+                    println!("Target: {:?}", k);
+                    (*target_paren).just_echo_stdout();
+                }
+
+                dict_debug.remove(k).unwrap();
+                dict_debug.self_validate().unwrap();
+            }
+        }}
     }
 
     #[test]
@@ -543,7 +708,6 @@ mod tests {
 
         dict.insert(22, ());
         dict.self_validate().unwrap();
-
 
         assert!(dict.lookup(&10).is_some());
         assert!(dict.lookup(&5).is_some());

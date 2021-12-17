@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use itertools::Itertools;
-use rand::random;
+use rand::{random, prelude::SliceRandom, thread_rng};
 
 use super::Provider;
 use crate::collections::{DictKey, Dictionary};
@@ -23,7 +23,8 @@ where
     V: GetKey<K> + Eq + Clone + Debug,
     K: DictKey + Clone,
 {
-    fn test_dict(&self, dict: &mut dyn Dictionary<K, V>) {
+    fn test_dict(&self, dict: &mut (dyn Dictionary<K, V>)) {
+        for _ in 0..20 {
         let batch_num = 1000;
         let mut collected_elems = vec![];
         let mut keys = vec![];
@@ -61,15 +62,20 @@ where
             let new_e = self.get_one();
             assert!(dict.modify(k, new_e.clone()));
 
-            // for key maybe exist from value.
-            // key is co-variant with value
-            collected_elems[i] = new_e;
-            let k = &collected_elems[i].get_key();
 
-            assert!(dict.lookup(k).is_some());
-            assert_eq!(*dict.lookup(k).unwrap(), collected_elems[i]);
+            let co_var_key = new_e.get_key();
+
+            if dict.lookup(k).is_some() && *dict.lookup(k).unwrap() == new_e {
+                // just skip
+            } else if dict.lookup(&co_var_key).is_some()
+                && *dict.lookup(&co_var_key).unwrap() == new_e
+            {
+                // key is co-variant with value
+                collected_elems[i] = new_e;
+            }
         }
 
+        collected_elems.shuffle(&mut thread_rng());
 
         // Remove-> Verify
         for i in 0..batch_num {
@@ -78,8 +84,14 @@ where
 
             assert!(dict.remove(k).is_some());
             assert!(!dict.lookup(k).is_some());
-            dict.self_validate().unwrap();
-        }
+            println!("{}", i);
+            if let Ok(_res) = dict.self_validate() {
+
+            } else {
+
+                unreachable!()
+            }
+        }}
     }
 
     fn prepare_batch(&self, batch_num: usize) -> Vec<(K, V)> {
@@ -106,11 +118,7 @@ where
         }
     }
 
-    fn bench_dict_lookup(
-        &self,
-        dict: &dyn Dictionary<K, V>,
-        keys: &Vec<K>,
-    ) {
+    fn bench_dict_lookup(&self, dict: &dyn Dictionary<K, V>, keys: &Vec<K>) {
         for k in keys.iter() {
             dict.lookup(k);
         }
@@ -159,7 +167,7 @@ impl GetKey<u32> for Inode {
         let uid_u32 = self.uid as u32;
         let gid_u32 = self.gid as u32;
 
-        (gid_u32 << 16) + uid_u32
+        ((gid_u32 << 16) + uid_u32) % 1000
     }
 }
 
@@ -220,9 +228,7 @@ impl<K: DictKey + Clone, V: GetKey<K>> Dictionary<K, V> for Vec<V> {
     }
 
     fn lookup(&self, key: &K) -> Option<&V> {
-        if let Some(v) =
-            self.iter().find(|x| x.get_key() == *key)
-        {
+        if let Some(v) = self.iter().find(|x| x.get_key() == *key) {
             Some(v)
         } else {
             None
@@ -246,7 +252,7 @@ fn now_secs() -> u64 {
 
 #[cfg(test)]
 mod test {
-    use super::{DictProvider, InodeProvider, Inode};
+    use super::{DictProvider, Inode, InodeProvider};
 
 
     #[test]
@@ -257,5 +263,4 @@ mod test {
 
         (&provider as &dyn DictProvider<u32, Inode>).test_dict(&mut dict);
     }
-
 }

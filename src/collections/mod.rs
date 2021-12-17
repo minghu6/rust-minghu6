@@ -1,7 +1,7 @@
 
 
 pub mod bloom_filter;
-pub mod bst;
+pub mod bt;
 pub mod compact;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -47,17 +47,6 @@ pub trait DictKey = Eq + Ord + std::fmt::Debug;
 //     fn self_validate(&self);
 
 // }
-
-
-
-
-pub trait BT<'a, K, V> {
-    fn left(&self) -> *mut (dyn BT<'a, K, V> + 'a);
-    fn right(&self) -> *mut (dyn BT<'a, K, V> + 'a);
-    fn paren(&self) -> *mut (dyn BT<'a, K, V> + 'a);
-
-    fn key(&self) -> &K;
-}
 
 
 
