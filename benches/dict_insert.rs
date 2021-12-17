@@ -2,6 +2,8 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 
+use std::collections::HashMap;
+
 use minghu6::collections::bt::bst::*;
 use minghu6::test::dict::*;
 use minghu6::test::Provider;
@@ -41,10 +43,25 @@ fn bench_avl_insert(b: &mut Bencher) {
     })
 }
 
+
 #[bench]
 fn bench_vecdict_insert(b: &mut Bencher) {
     let provider = InodeProvider {};
     let mut dict =  Vec::new();
+    let mut batch = provider.prepare_batch(BATCH_NUM);
+    let mut rng = thread_rng();
+
+    b.iter( || {
+        batch.shuffle(&mut rng);
+        provider.bench_dict_insert(&mut dict, batch.clone())
+    })
+}
+
+
+#[bench]
+fn bench_hashmapdict_insert(b: &mut Bencher) {
+    let provider = InodeProvider {};
+    let mut dict =  HashMap::new();
     let mut batch = provider.prepare_batch(BATCH_NUM);
     let mut rng = thread_rng();
 

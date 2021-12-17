@@ -239,6 +239,9 @@ pub trait BSTNode<'a, K: DictKey, V>: BTNode<'a, K, V> {
     fn value(&self) -> &V {
         BTNode::value(self, 0)
     }
+    fn value_mut(&self) -> &mut V {
+        BTNode::value_mut(self, 0)
+    }
 
     ////////////////////////////////////////////////////////////////////////////
     //// Introspection

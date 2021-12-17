@@ -1,4 +1,5 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, collections::HashMap};
+use std::hash::Hash;
 
 use itertools::Itertools;
 use rand::{random, prelude::SliceRandom, thread_rng};
@@ -84,13 +85,7 @@ where
 
             assert!(dict.remove(k).is_some());
             assert!(!dict.lookup(k).is_some());
-            println!("{}", i);
-            if let Ok(_res) = dict.self_validate() {
-
-            } else {
-
-                unreachable!()
-            }
+            dict.self_validate().unwrap();
         }}
     }
 
@@ -235,6 +230,41 @@ impl<K: DictKey + Clone, V: GetKey<K>> Dictionary<K, V> for Vec<V> {
         }
     }
 
+    fn lookup_mut(&mut self, key: &K) -> Option<&mut V> {
+        if let Some(v) = self.iter_mut().find(|x| x.get_key() == *key) {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    fn self_validate(&self) -> Result<(), Box<dyn std::error::Error>> {
+        Ok(())
+    }
+}
+
+
+impl<K: DictKey + Clone + Hash, V: GetKey<K>> Dictionary<K, V> for HashMap<K, V> {
+    fn insert(&mut self, key: K, value: V) -> bool {
+        Self::insert(self, key, value).is_none()
+    }
+
+    fn remove(&mut self, key: &K) -> Option<V> {
+        self.remove(key)
+    }
+
+    fn modify(&mut self, key: &K, value: V) -> bool {
+        self.insert(key.clone(), value).is_some()
+    }
+
+    fn lookup(&self, key: &K) -> Option<&V> {
+        self.get(key)
+    }
+
+    fn lookup_mut(&mut self, key: &K) -> Option<&mut V> {
+        self.get_mut(key)
+    }
+
     fn self_validate(&self) -> Result<(), Box<dyn std::error::Error>> {
         Ok(())
     }
@@ -252,12 +282,23 @@ fn now_secs() -> u64 {
 
 #[cfg(test)]
 mod test {
+    use std::collections::HashMap;
+
     use super::{DictProvider, Inode, InodeProvider};
 
 
     #[test]
     fn test_vec_behav_dict() {
         let mut dict = Vec::new();
+
+        let provider = InodeProvider {};
+
+        (&provider as &dyn DictProvider<u32, Inode>).test_dict(&mut dict);
+    }
+
+    #[test]
+    fn test_hashmap_behav_dict() {
+        let mut dict = HashMap::new();
 
         let provider = InodeProvider {};
 

@@ -2,6 +2,8 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 
+use std::collections::HashMap;
+
 use itertools::Itertools;
 use minghu6::collections::bt::bst::*;
 use minghu6::collections::Dictionary;
@@ -56,6 +58,25 @@ fn bench_vecdict_lookup(b: &mut Bencher) {
     let mut keys = batch.iter().map(|(k, _)| k.clone()).collect_vec();
 
     let dict = &mut Vec::new() as &mut (dyn Dictionary<u32, Inode>);
+
+    for (k, v) in batch.into_iter() {
+        dict.insert(k, v);
+    }
+
+    b.iter(|| {
+        keys.shuffle(&mut rng);
+        provider.bench_dict_lookup(dict, &keys)
+    })
+}
+
+#[bench]
+fn bench_hashmapdict_lookup(b: &mut Bencher) {
+    let provider = InodeProvider {};
+    let mut rng = thread_rng();
+    let batch = provider.prepare_batch(BATCH_NUM);
+    let mut keys = batch.iter().map(|(k, _)| k.clone()).collect_vec();
+
+    let dict = &mut HashMap::new() as &mut (dyn Dictionary<u32, Inode>);
 
     for (k, v) in batch.into_iter() {
         dict.insert(k, v);

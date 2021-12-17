@@ -62,6 +62,8 @@ pub trait BTNode<'a, K: DictKey, V> {
 
     fn key(&self, idx: usize) -> &K;
     fn value(&self, idx: usize) -> &V;
+    fn value_mut(&self, idx: usize) -> &mut V;
+
     fn height(&self) -> i32;
 
 

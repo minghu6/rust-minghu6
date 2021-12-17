@@ -24,6 +24,9 @@ pub trait Dictionary<K: DictKey, V> {
 
     fn lookup(&self, key: &K) -> Option<&V>;
 
+    fn lookup_mut(&mut self, key: &K) -> Option<&mut V>;
+
+
     // check if dict's structure looks like it's expected.
     fn self_validate(&self) -> Result<(), Box<dyn std::error::Error>>;
 
