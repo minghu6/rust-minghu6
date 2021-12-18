@@ -1,10 +1,10 @@
 //! AKA 2-3 tree, order 3 of B Tree, so call it B3.
 
-use std::ptr::null;
+use std::ptr::{null, null_mut};
 
 use crate::collections::{DictKey, Dictionary};
 
-use super::{BT, BTNode};
+use super::{BT, BTNode, bst::rawst::RawSTNode};
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,7 +30,17 @@ pub struct B3Node<K, V> {
 //// Implement
 
 impl<'a, K: DictKey + 'a, V: 'a> B3Node<K, V> {
+    pub fn new(key: K, value: V) -> *mut Self {
+        let key = Box::into_raw(box key);
+        let value = Box::into_raw(box value);
 
+        Box::into_raw(box Self {
+            keys: [key, null_mut()],
+            values: [value, null_mut()],
+            paren: null_mut(),
+            children: [null_mut(); 3],
+        })
+    }
 }
 
 
@@ -105,6 +115,12 @@ impl<'a, K: DictKey + 'a, V: 'a> B3<K, V> {
 
 impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for B3<K, V> {
     fn insert(&mut self, key: K, value: V) -> bool {
+        let new_node = B3Node::new(key, value);
+
+        if self.root.is_null() {
+
+        }
+
         todo!()
     }
 
@@ -137,6 +153,10 @@ impl<'a, K: DictKey + 'a, V: 'a> BT<'a, K, V> for B3<K, V> {
 
     fn root(&self) -> *mut (dyn BTNode<'a, K, V> + 'a) {
         self.root
+    }
+
+    fn assign_root(&mut self, root: *mut (dyn BTNode<'a, K, V> + 'a)) {
+        self.root = root as *mut B3Node<K, V>;
     }
 }
 

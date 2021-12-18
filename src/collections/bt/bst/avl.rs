@@ -37,7 +37,7 @@ struct AVLNode<K, V> {
     right: *mut Self,
     paren: *mut Self,
     height: i32, // using C style int, as it's default for Rust
-    key: *const K,
+    key: *mut K,
     value: *mut V,
 }
 
@@ -54,7 +54,7 @@ impl<'a, K: DictKey + 'a, V: 'a> AVLNode<K, V> {
             right: null_mut(),
             paren: null_mut(),
             height: 0,
-            key: Box::into_raw(box key) as *const K,
+            key: Box::into_raw(box key),
             value: Box::into_raw(box value),
         })
     }
@@ -580,22 +580,20 @@ impl<'a, K: DictKey + 'a, V: 'a> BT<'a, K, V> for AVL<K, V> {
     fn root(&self) -> *mut (dyn BTNode<'a, K, V> + 'a) {
         self.root
     }
-}
 
-
-impl<'a, K: DictKey + 'a, V: 'a> BST<'a, K, V> for AVL<K, V> {
-    fn itself(&self) -> *const (dyn BST<'a, K, V> + 'a) {
-        self as *const Self
-    }
-
-    fn assign_root(&mut self, root: *mut (dyn BSTNode<'a, K, V> + 'a)) {
+    fn assign_root(&mut self, root: *mut (dyn BTNode<'a, K, V> + 'a)) {
         self.root = root as *mut AVLNode<K, V>;
     }
 }
 
 
+impl<'a, K: DictKey + 'a, V: 'a> BST<'a, K, V> for AVL<K, V> {
+}
+
+
+
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
 
     use itertools::Itertools;
     use rand::{prelude::SliceRandom, thread_rng};
@@ -612,7 +610,7 @@ mod tests {
 
 
     #[test]
-    fn test_avl_randomdata() {
+    pub(crate) fn test_avl_randomdata() {
         let mut dict = AVL::new();
 
         let provider = InodeProvider {};

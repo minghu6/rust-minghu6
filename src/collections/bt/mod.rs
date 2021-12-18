@@ -26,6 +26,7 @@ pub mod b3;
 pub trait BT<'a, K: DictKey, V>: Dictionary<K, V> {
     fn order(&self) -> usize;  // >= 2
     fn root(&self) -> *mut (dyn BTNode<'a, K, V> + 'a);
+    fn assign_root(&mut self, root: *mut (dyn BTNode<'a, K, V> + 'a));
 
     // ////////////////////////////////////////////////////////////////////////////
     // //// Introspection
@@ -91,7 +92,29 @@ pub trait BT<'a, K: DictKey, V>: Dictionary<K, V> {
         }
     }
 
+    fn calc_height(&self) -> i32 {
+        if self.root().is_null() {
+            return -1;
+        }
 
+        unsafe { (*self.root()).calc_height() }
+    }
+
+    fn height(&self) -> i32 {
+        if self.root().is_null() {
+            return -1;
+        }
+
+        unsafe { (*self.root()).height() }
+    }
+
+    fn total(&self) -> usize {
+        if self.root().is_null() {
+            0
+        } else {
+            unsafe { (*self.root()).total() }
+        }
+    }
 
 }
 
@@ -175,6 +198,21 @@ pub trait BTNode<'a, K: DictKey, V> {
             }
         }).max().unwrap() + 1
 
+    }
+
+
+    fn total(&self) -> usize {
+        let mut total = 1;
+
+        for i in 0..self.order() {
+            let child = self.child(i);
+
+            if !child.is_null() {
+                unsafe{ total += (*child).total() + 1; }
+            }
+        }
+
+        total
     }
 
     #[inline]
@@ -314,5 +352,18 @@ pub trait BTNode<'a, K: DictKey, V> {
     }
 
 
+}
+
+
+
+#[cfg(test)]
+mod tests {
+
+    #[test]
+    fn test_bt() {
+        use super::bst::tests::test_bst;
+
+        test_bst()
+    }
 }
 

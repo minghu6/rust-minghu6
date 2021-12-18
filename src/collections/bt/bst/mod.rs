@@ -2,6 +2,7 @@
 
 
 pub mod avl;
+pub mod rawst;
 
 
 use std::{
@@ -16,13 +17,6 @@ use super::{super::{DictKey, Dictionary}, BTNode, BT};
 
 /// LF(key) < MID(key) < RH(key)
 pub trait BST<'a, K: DictKey, V>: BT<'a, K, V> {
-    fn itself(&self) -> *const (dyn BST<'a, K, V> + 'a);
-    fn itself_mut(&self) -> *mut (dyn BST<'a, K, V> + 'a) {
-        self.itself() as *mut (dyn BST<'a, K, V> + 'a)
-    }
-
-    fn assign_root(&mut self, root: *mut (dyn BSTNode<'a, K, V> + 'a));
-
     /// alias as transplant
     fn subtree_shift(
         &mut self,
@@ -41,30 +35,6 @@ pub trait BST<'a, K: DictKey, V>: BT<'a, K, V> {
             if !v.is_null() {
                 (*v).assign_paren((*u).paren_bst())
             }
-        }
-    }
-
-    fn calc_height(&self) -> i32 {
-        if self.root().is_null() {
-            return -1;
-        }
-
-        unsafe { (*self.root()).calc_height() }
-    }
-
-    fn height(&self) -> i32 {
-        if self.root().is_null() {
-            return -1;
-        }
-
-        unsafe { (*self.root()).height() }
-    }
-
-    fn total(&self) -> usize {
-        if self.root().is_null() {
-            0
-        } else {
-            unsafe { (*self.root_bst()).total() }
         }
     }
 
@@ -452,18 +422,18 @@ pub trait BSTNode<'a, K: DictKey, V>: BTNode<'a, K, V> {
 
         }
     }
+}
 
-    fn total(&self) -> usize {
-        let mut total = 1;
 
-        if !self.left().is_null() {
-            total += unsafe{ (*self.left()).total() };
-        }
+#[cfg(test)]
+pub(crate) mod tests {
 
-        if !self.right().is_null() {
-            total += unsafe{ (*self.right()).total() };
-        }
+    #[test]
+    pub(crate) fn test_bst() {
+        use super::avl::tests::test_avl_randomdata;
 
-        total
+        test_avl_randomdata();
+
     }
+
 }
