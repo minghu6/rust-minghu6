@@ -7,6 +7,7 @@
 #![feature(destructuring_assignment)]
 #![feature(trait_alias)]
 #![feature(box_syntax)]
+#![feature(trait_upcasting)]
 
 
 pub mod text;

@@ -17,7 +17,7 @@ use serde::de::DeserializeSeed;
 use serde::{ Serialize, Deserialize, Deserializer };
 
 use super::{BSTNode, BST};
-use crate::collections::bt::BTNode;
+use crate::collections::bt::{BTNode, BT};
 use crate::collections::{DictKey, Dictionary};
 use crate::error_code::ValidateFailedError;
 use crate::etc::Reverse;
@@ -33,9 +33,9 @@ pub struct AVL<K, V> {
 
 
 struct AVLNode<K, V> {
-    left: *mut AVLNode<K, V>,
-    right: *mut AVLNode<K, V>,
-    paren: *mut AVLNode<K, V>,
+    left: *mut Self,
+    right: *mut Self,
+    paren: *mut Self,
     height: i32, // using C style int, as it's default for Rust
     key: *const K,
     value: *mut V,
@@ -85,7 +85,7 @@ impl<'a, K: DictKey + 'a, V: 'a> AVLNode<K, V> {
 
     pub fn echo_in_mm(&self, cache: &mut String) -> fmt::Result {
         unsafe {
-            (*self.itself()).echo_in_mm(cache, |x, cache| {
+            BSTNode::echo_in_mm (self, cache, |x, cache| {
                 let x_self = x as *mut AVLNode<K, V>;
 
 
@@ -150,6 +150,18 @@ impl<'a, K: DictKey + Clone + 'a, V: Clone + 'a> Clone for AVLNode<K, V> {
 
 
 impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for AVLNode<K, V> {
+    fn itself(&self) -> *const (dyn BTNode<'a, K, V> + 'a) {
+        self as *const Self
+    }
+
+    fn null(&self) -> *const (dyn BTNode<'a, K, V> + 'a) {
+        null::<Self>()
+    }
+
+    fn try_as_bst(&self) -> Result<*const (dyn BSTNode<'a, K, V> + 'a), ()> {
+        Ok(self as *const Self)
+    }
+
     fn order(&self) -> usize {
         2
     }
@@ -162,12 +174,36 @@ impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for AVLNode<K, V> {
         }
     }
 
+    fn assign_child(&mut self, child: *mut (dyn BTNode<'a, K, V> + 'a), idx: usize) {
+        match idx {
+            0 => {
+                self.left = child as *mut Self;
+            }
+            1 => {
+                self.right = child as *mut Self;
+            }
+            _ => unreachable!()
+        }
+    }
+
+    fn assign_paren(&mut self, paren: *mut (dyn BTNode<'a, K, V> + 'a)) {
+        self.paren = paren as *mut Self;
+    }
+
+    fn assign_value(&mut self, value: V, _idx: usize) {
+        self.value = Box::into_raw(box value);
+    }
+
     fn paren(&self) -> *mut (dyn BTNode<'a, K, V> + 'a) {
         self.paren as *mut (dyn BTNode<K, V> + 'a)
     }
 
-    fn key(&self, _idx: usize) -> &K {
-        unsafe { &*self.key }
+    fn key(&self, idx: usize) -> Option<&K> {
+        if idx == 0 {
+            unsafe { Some(&*self.key) }
+        } else {
+            None
+        }
     }
 
     fn value(&self, _idx: usize) -> &V {
@@ -181,10 +217,6 @@ impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for AVLNode<K, V> {
     fn height(&self) -> i32 {
         self.height
     }
-
-    fn try_as_bst(&self) -> Result<*const (dyn BSTNode<'a, K, V> + 'a), ()> {
-        Ok(self as *const Self)
-    }
 }
 
 
@@ -196,30 +228,6 @@ impl<'a, K: DictKey + 'a, V: 'a> BSTNode<'a, K, V> for AVLNode<K, V> {
 
     fn value(&self) -> &V {
         unsafe { &*self.value }
-    }
-
-    fn itself(&self) -> *const (dyn BSTNode<'a, K, V> + 'a) {
-        self as *const Self
-    }
-
-    fn null(&self) -> *const (dyn BSTNode<'a, K, V> + 'a) {
-        null::<Self>()
-    }
-
-    fn assign_left(&mut self, left: *mut (dyn BSTNode<'a, K, V> + 'a)) {
-        self.left = left as *mut Self;
-    }
-
-    fn assign_right(&mut self, right: *mut (dyn BSTNode<'a, K, V> + 'a)) {
-        self.right = right as *mut Self;
-    }
-
-    fn assign_paren(&mut self, paren: *mut (dyn BSTNode<'a, K, V> + 'a)) {
-        self.paren = paren as *mut Self;
-    }
-
-    fn assign_value(&mut self, value: V) {
-        self.value = Box::into_raw(box value);
     }
 }
 
@@ -564,13 +572,20 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for AVL<K, V> {
     }
 }
 
+impl<'a, K: DictKey + 'a, V: 'a> BT<'a, K, V> for AVL<K, V> {
+    fn order(&self) -> usize {
+        2
+    }
+
+    fn root(&self) -> *mut (dyn BTNode<'a, K, V> + 'a) {
+        self.root
+    }
+}
+
+
 impl<'a, K: DictKey + 'a, V: 'a> BST<'a, K, V> for AVL<K, V> {
     fn itself(&self) -> *const (dyn BST<'a, K, V> + 'a) {
         self as *const Self
-    }
-
-    fn root(&self) -> *mut (dyn BSTNode<'a, K, V> + 'a) {
-        self.root
     }
 
     fn assign_root(&mut self, root: *mut (dyn BSTNode<'a, K, V> + 'a)) {
@@ -588,7 +603,7 @@ mod tests {
 
     use super::AVL;
     use crate::{
-        collections::{Dictionary, bt::bst::BST},
+        collections::{Dictionary, bt::{bst::{BST, BSTNode}, BTNode, BT}},
         test::{
             dict::{DictProvider, GetKey, Inode, InodeProvider},
             Provider,
@@ -608,6 +623,7 @@ mod tests {
     ///
     /// Debug AVL entry
     ///
+    #[ignore]
     #[test]
     fn hack_avl() {
         for _ in 0..20 {
@@ -671,11 +687,11 @@ mod tests {
                 }
 
                 unsafe {
-                    let target = dict_debug.search_approximately(k);
+                    let target = (*dict_debug.search_approximately(k)).try_as_bst_mut().unwrap();
                     let target_paren = (*target).paren_bst();
 
                     println!("Target: {:?}", k);
-                    (*target_paren).just_echo_stdout();
+                    BSTNode::just_echo_stdout(&*target_paren);
                 }
 
                 dict_debug.remove(k).unwrap();
