@@ -1,14 +1,16 @@
 //! Unbalanced Search Tree
 //!
 
-use std::ptr::{null_mut, null};
-
-use crate::collections::{DictKey, bt::{BTNode, BT}, Dictionary};
+use std::ptr::{null, null_mut};
 
 use super::{BSTNode, BST};
+use crate::collections::{
+    bt::{BTNode, BT},
+    DictKey, Dictionary,
+};
 
 pub struct RawST<K, V> {
-    root: *mut RawSTNode<K, V>
+    root: *mut RawSTNode<K, V>,
 }
 
 pub struct RawSTNode<K, V> {
@@ -16,7 +18,7 @@ pub struct RawSTNode<K, V> {
     left: *mut Self,
     right: *mut Self,
     key: *mut K,
-    value: *mut V
+    value: *mut V,
 }
 
 
@@ -38,9 +40,6 @@ impl<'a, K: DictKey + 'a, V: 'a> RawSTNode<K, V> {
     pub fn into_value(self) -> V {
         unsafe { *Box::from_raw(self.value) }
     }
-
-
-
 }
 
 
@@ -69,7 +68,11 @@ impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for RawSTNode<K, V> {
         }
     }
 
-    fn assign_child(&mut self, child: *mut (dyn BTNode<'a, K, V> + 'a), idx: usize) {
+    fn assign_child(
+        &mut self,
+        child: *mut (dyn BTNode<'a, K, V> + 'a),
+        idx: usize,
+    ) {
         match idx {
             0 => {
                 self.left = child as *mut Self;
@@ -77,7 +80,7 @@ impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for RawSTNode<K, V> {
             1 => {
                 self.right = child as *mut Self;
             }
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 
@@ -105,7 +108,7 @@ impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for RawSTNode<K, V> {
         unsafe { &*self.value }
     }
 
-    fn value_mut(&self, _idx: usize) -> &mut V {
+    fn value_mut(&mut self, _idx: usize) -> &mut V {
         unsafe { &mut *self.value }
     }
 
@@ -129,7 +132,6 @@ impl<'a, K: DictKey + 'a, V: 'a> RawST<K, V> {
     pub fn new() -> Self {
         Self { root: null_mut() }
     }
-
 }
 
 impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for RawST<K, V> {
@@ -155,9 +157,7 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for RawST<K, V> {
 
     fn lookup(&self, key: &K) -> Option<&V> {
         if let Some(node) = self.basic_lookup(key) {
-            Some(unsafe {
-                &*(*(node as *mut RawSTNode<K, V>)).value
-            })
+            Some(unsafe { &*(*(node as *mut RawSTNode<K, V>)).value })
         } else {
             None
         }
@@ -165,9 +165,7 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for RawST<K, V> {
 
     fn lookup_mut(&mut self, key: &K) -> Option<&mut V> {
         if let Some(node) = self.basic_lookup(key) {
-            Some(unsafe {
-                &mut *(*(node as *mut RawSTNode<K, V>)).value
-            })
+            Some(unsafe { &mut *(*(node as *mut RawSTNode<K, V>)).value })
         } else {
             None
         }
@@ -195,8 +193,7 @@ impl<'a, K: DictKey + 'a, V: 'a> BT<'a, K, V> for RawST<K, V> {
 }
 
 
-impl<'a, K: DictKey + 'a, V: 'a> BST<'a, K, V> for RawST<K, V> {
-}
+impl<'a, K: DictKey + 'a, V: 'a> BST<'a, K, V> for RawST<K, V> {}
 
 
 
@@ -208,7 +205,13 @@ pub(crate) mod tests {
 
     use super::RawST;
     use crate::{
-        collections::{Dictionary, bt::{bst::{BST, BSTNode}, BTNode, BT}},
+        collections::{
+            bt::{
+                bst::{BSTNode, BST},
+                BTNode, BT,
+            },
+            Dictionary,
+        },
         test::{
             dict::{DictProvider, GetKey, Inode, InodeProvider},
             Provider,
@@ -218,12 +221,10 @@ pub(crate) mod tests {
 
     #[test]
     pub(crate) fn test_rawst_randomdata() {
-        let mut dict = RawST::new();
-
         let provider = InodeProvider {};
 
-        (&provider as &dyn DictProvider<u32, Inode>).test_dict(&mut dict);
+        (&provider as &dyn DictProvider<u32, Inode>).test_dict(|| {
+            box RawST::new()
+        });
     }
-
 }
-

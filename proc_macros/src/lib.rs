@@ -52,17 +52,22 @@ pub fn make_vec_macro_rules(input: TokenStream) -> TokenStream {
     TokenStream::from(quote! {
         #[macro_export]
         macro_rules! #name {
-            ( $($value:expr),* ) => {
+            ( $($value:expr),+ ) => {
                 {
                     let mut vec_like = #path::new();
 
                     $(
                         vec_like.#inc_op($value);
-                    )*
+                    )+
 
                     vec_like
                 }
             };
+            () => {
+                {
+                    #path::new()
+                }
+            }
         }
     })
 }

@@ -9,6 +9,8 @@
 #![feature(box_syntax)]
 #![feature(trait_upcasting)]
 
+use proc_macros::make_vec_macro_rules;
+
 
 pub mod text;
 pub mod collections;
@@ -17,3 +19,5 @@ pub mod test;
 pub mod etc;
 pub mod error_code;
 
+
+make_vec_macro_rules!(vecdeq , std::collections::VecDeque, push_back);

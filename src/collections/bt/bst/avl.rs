@@ -14,7 +14,7 @@ use std::ptr::{null, null_mut};
 
 use either::Either;
 use serde::de::DeserializeSeed;
-use serde::{ Serialize, Deserialize, Deserializer };
+use serde::{Deserialize, Deserializer, Serialize};
 
 use super::{BSTNode, BST};
 use crate::collections::bt::{BTNode, BT};
@@ -85,7 +85,7 @@ impl<'a, K: DictKey + 'a, V: 'a> AVLNode<K, V> {
 
     pub fn echo_in_mm(&self, cache: &mut String) -> fmt::Result {
         unsafe {
-            BSTNode::echo_in_mm (self, cache, |x, cache| {
+            BSTNode::echo_in_mm(self, cache, |x, cache| {
                 let x_self = x as *mut AVLNode<K, V>;
 
 
@@ -141,9 +141,15 @@ impl<'a, K: DictKey + Clone + 'a, V: Clone + 'a> Clone for AVLNode<K, V> {
             };
 
 
-            Self { left, right, paren, height, key, value }
+            Self {
+                left,
+                right,
+                paren,
+                height,
+                key,
+                value,
+            }
         }
-
     }
 }
 
@@ -174,7 +180,11 @@ impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for AVLNode<K, V> {
         }
     }
 
-    fn assign_child(&mut self, child: *mut (dyn BTNode<'a, K, V> + 'a), idx: usize) {
+    fn assign_child(
+        &mut self,
+        child: *mut (dyn BTNode<'a, K, V> + 'a),
+        idx: usize,
+    ) {
         match idx {
             0 => {
                 self.left = child as *mut Self;
@@ -182,7 +192,7 @@ impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for AVLNode<K, V> {
             1 => {
                 self.right = child as *mut Self;
             }
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 
@@ -210,7 +220,7 @@ impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for AVLNode<K, V> {
         unsafe { &*self.value }
     }
 
-    fn value_mut(&self, _idx: usize) -> &mut V {
+    fn value_mut(&mut self, _idx: usize) -> &mut V {
         unsafe { &mut *self.value }
     }
 
@@ -451,7 +461,7 @@ impl<'a, K: DictKey + 'a, V: 'a> AVL<K, V> {
 impl<'a, K: DictKey + Clone + 'a, V: Clone + 'a> Clone for AVL<K, V> {
     fn clone(&self) -> Self {
         if self.root.is_null() {
-            return Self { root: null_mut() }
+            return Self { root: null_mut() };
         }
 
         unsafe {
@@ -465,7 +475,6 @@ impl<'a, K: DictKey + Clone + 'a, V: Clone + 'a> Clone for AVL<K, V> {
                 if !(*x).right().is_null() {
                     (*(*x).right()).assign_paren((*x).itself_mut());
                 }
-
             });
 
             Self { root }
@@ -518,9 +527,11 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for AVL<K, V> {
                 self.subtree_shift(z, (*z).left());
             } else {
                 let y = (*z).successor();
-                retracing_entry =
-                    if (*y).paren() != z { (*y).paren_bst() } else { y }
-                        as *mut AVLNode<K, V>;
+                retracing_entry = if (*y).paren() != z {
+                    (*y).paren_bst()
+                } else {
+                    y
+                } as *mut AVLNode<K, V>;
 
                 if (*y).paren() != z {
                     self.subtree_shift(y, (*y).right());
@@ -532,7 +543,6 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for AVL<K, V> {
                 self.subtree_shift(z, y);
                 (*y).assign_left((*z).left());
                 (*(*y).left()).assign_paren(y);
-
             }
             self.remove_retracing(retracing_entry);
 
@@ -557,7 +567,9 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for AVL<K, V> {
 
     fn lookup_mut(&mut self, income_key: &K) -> Option<&mut V> {
         if let Some(e) = self.basic_lookup(income_key) {
-            unsafe { Some(BSTNode::value_mut(&*(e as *mut AVLNode<K, V>))) }
+            unsafe {
+                Some(BSTNode::value_mut(&mut *(e as *mut AVLNode<K, V>)))
+            }
         } else {
             None
         }
@@ -587,8 +599,7 @@ impl<'a, K: DictKey + 'a, V: 'a> BT<'a, K, V> for AVL<K, V> {
 }
 
 
-impl<'a, K: DictKey + 'a, V: 'a> BST<'a, K, V> for AVL<K, V> {
-}
+impl<'a, K: DictKey + 'a, V: 'a> BST<'a, K, V> for AVL<K, V> {}
 
 
 
@@ -601,7 +612,13 @@ pub(crate) mod tests {
 
     use super::AVL;
     use crate::{
-        collections::{Dictionary, bt::{bst::{BST, BSTNode}, BTNode, BT}},
+        collections::{
+            bt::{
+                bst::{BSTNode, BST},
+                BTNode, BT,
+            },
+            Dictionary,
+        },
         test::{
             dict::{DictProvider, GetKey, Inode, InodeProvider},
             Provider,
@@ -611,11 +628,10 @@ pub(crate) mod tests {
 
     #[test]
     pub(crate) fn test_avl_randomdata() {
-        let mut dict = AVL::new();
-
         let provider = InodeProvider {};
 
-        (&provider as &dyn DictProvider<u32, Inode>).test_dict(&mut dict);
+        (&provider as &dyn DictProvider<u32, Inode>)
+            .test_dict(|| box AVL::new());
     }
 
     ///
@@ -625,77 +641,80 @@ pub(crate) mod tests {
     #[test]
     fn hack_avl() {
         for _ in 0..20 {
-        let batch_num = 55;
-        let mut collected_elems = vec![];
-        let mut keys = vec![];
-        let provider = InodeProvider {};
-        let mut dict = AVL::new();
+            let batch_num = 55;
+            let mut collected_elems = vec![];
+            let mut keys = vec![];
+            let provider = InodeProvider {};
+            let mut dict = AVL::new();
 
-        // Create
-        let mut i = 0;
-        while i < batch_num {
-            let e = provider.get_one();
-            let k = e.get_key();
-            if keys.contains(&k) {
-                continue;
+            // Create
+            let mut i = 0;
+            while i < batch_num {
+                let e = provider.get_one();
+                let k = e.get_key();
+                if keys.contains(&k) {
+                    continue;
+                }
+
+                keys.push(k.clone());
+                collected_elems.push(e.clone());
+
+                assert!(dict.insert(k, e));
+                assert!(dict.lookup(&keys.last().unwrap()).is_some());
+
+                dict.self_validate().unwrap();
+
+                i += 1;
             }
 
-            keys.push(k.clone());
-            collected_elems.push(e.clone());
+            let mut dict_debug = dict.clone();
 
-            assert!(dict.insert(k, e));
-            assert!(dict.lookup(&keys.last().unwrap()).is_some());
+            collected_elems.shuffle(&mut thread_rng());
 
-            dict.self_validate().unwrap();
+            // Remove-> Verify
+            for i in 0..batch_num {
+                let e = &collected_elems[i];
+                let k = &e.get_key();
 
-            i += 1;
-        }
+                assert!(dict.remove(k).is_some());
+                assert!(!dict.lookup(k).is_some());
 
-        let mut dict_debug = dict.clone();
+                if let Ok(_res) = dict.self_validate() {
+                } else {
+                    // restore the scene
+                    println!("{}", i);
 
-        collected_elems.shuffle(&mut thread_rng());
+                    println!("DEBUG: {}", dict_debug.total());
+                    // dict_debug.echo_stdout();
 
-        // Remove-> Verify
-        for i in 0..batch_num {
-            let e = &collected_elems[i];
-            let k = &e.get_key();
-
-            assert!(dict.remove(k).is_some());
-            assert!(!dict.lookup(k).is_some());
-
-            if let Ok(_res) = dict.self_validate() {
-            } else {
-                // restore the scene
-                println!("{}", i);
-
-                println!("DEBUG: {}", dict_debug.total());
-                // dict_debug.echo_stdout();
-
-                println!("ORIGIN: {}", dict.total());
-                // dict.echo_stdout();
+                    println!("ORIGIN: {}", dict.total());
+                    // dict.echo_stdout();
 
 
-                for j in 0..i {
-                    let e = &collected_elems[j];
-                    let k = &e.get_key();
+                    for j in 0..i {
+                        let e = &collected_elems[j];
+                        let k = &e.get_key();
 
-                    assert!(dict_debug.remove(k).is_some());
-                    assert!(!dict_debug.lookup(k).is_some());
+                        assert!(dict_debug.remove(k).is_some());
+                        assert!(!dict_debug.lookup(k).is_some());
+                        dict_debug.self_validate().unwrap();
+                    }
+
+                    unsafe {
+                        let target = (*dict_debug.search_approximately(k))
+                            .try_as_bst_mut()
+                            .unwrap();
+                        let target_paren = (*target).paren_bst();
+
+                        println!("Target: {:?}", k);
+                        BSTNode::just_echo_stdout(&*target_paren);
+                    }
+
+                    dict_debug.remove(k).unwrap();
                     dict_debug.self_validate().unwrap();
                 }
-
-                unsafe {
-                    let target = (*dict_debug.search_approximately(k)).try_as_bst_mut().unwrap();
-                    let target_paren = (*target).paren_bst();
-
-                    println!("Target: {:?}", k);
-                    BSTNode::just_echo_stdout(&*target_paren);
-                }
-
-                dict_debug.remove(k).unwrap();
-                dict_debug.self_validate().unwrap();
             }
-        }}
+        }
     }
 
     #[test]

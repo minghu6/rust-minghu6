@@ -1,8 +1,8 @@
-use std::{fmt::Debug, collections::HashMap};
 use std::hash::Hash;
+use std::{collections::HashMap, fmt::Debug};
 
 use itertools::Itertools;
-use rand::{random, prelude::SliceRandom, thread_rng};
+use rand::{prelude::SliceRandom, random, thread_rng};
 
 use super::Provider;
 use crate::collections::{DictKey, Dictionary};
@@ -24,69 +24,73 @@ where
     V: GetKey<K> + Eq + Clone + Debug,
     K: DictKey + Clone,
 {
-    fn test_dict(&self, dict: &mut (dyn Dictionary<K, V>)) {
+    fn test_dict<'a>(&self, dict_new: fn() -> Box<(dyn Dictionary<K, V>)> ) {
         for _ in 0..20 {
-        let batch_num = 1000;
-        let mut collected_elems = vec![];
-        let mut keys = vec![];
+            let mut dict = dict_new();
+            let batch_num = 1000;
+            let mut collected_elems = vec![];
+            let mut keys = vec![];
 
-        // Create
-        let mut i = 0;
-        while i < batch_num {
-            let e = self.get_one();
-            let k = e.get_key();
-            if keys.contains(&k) {
-                continue;
+            // Create
+            let mut i = 0;
+            while i < batch_num {
+                let e = self.get_one();
+                let k = e.get_key();
+                if keys.contains(&k) {
+                    continue;
+                }
+
+                keys.push(k.clone());
+                collected_elems.push(e.clone());
+
+                // println!("{}: {:?}", i, k);
+
+                assert!(dict.insert(k, e));
+                assert!(dict.lookup(&keys.last().unwrap()).is_some());
+
+                dict.self_validate().unwrap();
+
+                i += 1;
             }
 
-            keys.push(k.clone());
-            collected_elems.push(e.clone());
+            // Verify-> Update-> Reverify
+            for i in 0..batch_num {
+                let e = &collected_elems[i];
+                let k = &e.get_key();
 
-            // println!("{}: {:?}", i, k);
+                assert!(dict.lookup(k).is_some());
+                assert_eq!(dict.lookup(k).unwrap(), e);
 
-            assert!(dict.insert(k, e));
-            assert!(dict.lookup(&keys.last().unwrap()).is_some());
-
-            dict.self_validate().unwrap();
-
-            i += 1;
-        }
-
-        // Verify-> Update-> Reverify
-        for i in 0..batch_num {
-            let e = &collected_elems[i];
-            let k = &e.get_key();
-
-            assert!(dict.lookup(k).is_some());
-            assert_eq!(dict.lookup(k).unwrap(), e);
-
-            let new_e = self.get_one();
-            assert!(dict.modify(k, new_e.clone()));
+                let new_e = self.get_one();
+                assert!(dict.modify(k, new_e.clone()));
 
 
-            let co_var_key = new_e.get_key();
+                let co_var_key = new_e.get_key();
 
-            if dict.lookup(k).is_some() && *dict.lookup(k).unwrap() == new_e {
-                // just skip
-            } else if dict.lookup(&co_var_key).is_some()
-                && *dict.lookup(&co_var_key).unwrap() == new_e
-            {
-                // key is co-variant with value
-                collected_elems[i] = new_e;
+                if dict.lookup(k).is_some()
+                    && *dict.lookup(k).unwrap() == new_e
+                {
+                    // just skip
+                } else if dict.lookup(&co_var_key).is_some()
+                    && *dict.lookup(&co_var_key).unwrap() == new_e
+                {
+                    // key is co-variant with value
+                    collected_elems[i] = new_e;
+                }
             }
+
+            collected_elems.shuffle(&mut thread_rng());
+
+            // // Remove-> Verify
+            // for i in 0..batch_num {
+            //     let e = &collected_elems[i];
+            //     let k = &e.get_key();
+
+            //     assert!(dict.remove(k).is_some());
+            //     assert!(!dict.lookup(k).is_some());
+            //     dict.self_validate().unwrap();
+            // }
         }
-
-        collected_elems.shuffle(&mut thread_rng());
-
-        // Remove-> Verify
-        for i in 0..batch_num {
-            let e = &collected_elems[i];
-            let k = &e.get_key();
-
-            assert!(dict.remove(k).is_some());
-            assert!(!dict.lookup(k).is_some());
-            dict.self_validate().unwrap();
-        }}
     }
 
     fn prepare_batch(&self, batch_num: usize) -> Vec<(K, V)> {
@@ -244,7 +248,9 @@ impl<K: DictKey + Clone, V: GetKey<K>> Dictionary<K, V> for Vec<V> {
 }
 
 
-impl<K: DictKey + Clone + Hash, V: GetKey<K>> Dictionary<K, V> for HashMap<K, V> {
+impl<K: DictKey + Clone + Hash, V: GetKey<K>> Dictionary<K, V>
+    for HashMap<K, V>
+{
     fn insert(&mut self, key: K, value: V) -> bool {
         Self::insert(self, key, value).is_none()
     }
@@ -289,19 +295,18 @@ mod test {
 
     #[test]
     fn test_vec_behav_dict() {
-        let mut dict = Vec::new();
-
         let provider = InodeProvider {};
 
-        (&provider as &dyn DictProvider<u32, Inode>).test_dict(&mut dict);
+        (&provider as &dyn DictProvider<u32, Inode>)
+            .test_dict(|| box Vec::new());
     }
 
     #[test]
     fn test_hashmap_behav_dict() {
-        let mut dict = HashMap::new();
-
         let provider = InodeProvider {};
 
-        (&provider as &dyn DictProvider<u32, Inode>).test_dict(&mut dict);
+        (&provider as &dyn DictProvider<u32, Inode>).test_dict(|| {
+            box HashMap::new()
+        });
     }
 }

@@ -1,10 +1,16 @@
 #![allow(unused_imports)]
 
-//! B-Tree
+//! B-Tree alias as M-ary Tree,
 //! Bayer and McCreight never explained what, if anything, the B stands for: Boeing, balanced, broad, bushy, and Bayer have been suggested.
 //! McCreight has said that "the more you think about what the B in B-trees means, the better you understand B-trees.
+/// According to Knuth's definition, a B-tree of order m is a tree which satisfies the following properties:
+/// 1. Every node has at most m children.
+/// 1. Every non-leaf node (except root) has at least ⌈m/2⌉ child nodes.
+/// 1. The root has at least two children if it is not a leaf node.
+/// 1. A non-leaf node with k children contains k − 1 keys.
+/// 1. All leaves appear in the same level and carry no information.
 
-use std::{ops::Bound, fmt, fmt::Write, collections::VecDeque};
+use std::{ops::Bound, fmt, fmt::Write, collections::VecDeque, ptr};
 
 use itertools::Itertools;
 
@@ -16,17 +22,33 @@ pub mod bst;
 pub mod b3;
 
 
-/// B-Tree, alias as M-ary Tree
-/// According to Knuth's definition, a B-tree of order m is a tree which satisfies the following properties:
-/// 1. Every node has at most m children.
-/// 1. Every non-leaf node (except root) has at least ⌈m/2⌉ child nodes.
-/// 1. The root has at least two children if it is not a leaf node.
-/// 1. A non-leaf node with k children contains k − 1 keys.
-/// 1. All leaves appear in the same level and carry no information.
+/// B-Tree
 pub trait BT<'a, K: DictKey, V>: Dictionary<K, V> {
     fn order(&self) -> usize;  // >= 2
     fn root(&self) -> *mut (dyn BTNode<'a, K, V> + 'a);
     fn assign_root(&mut self, root: *mut (dyn BTNode<'a, K, V> + 'a));
+
+    /// alias as transplant
+    fn subtree_shift(
+        &mut self,
+        u: *mut (dyn BTNode<'a, K, V> + 'a),
+        v: *mut (dyn BTNode<'a, K, V> + 'a),
+    ) {
+        unsafe {
+            let u_paren = (*u).paren();
+
+            if u_paren.is_null() {
+                self.assign_root(v);
+            } else {
+                let u_idx = (*u_paren).index_of_child(u);
+                (*u_paren).assign_child(v, u_idx);
+            }
+
+            if !v.is_null() {
+                (*v).assign_paren(u_paren)
+            }
+        }
+    }
 
     // ////////////////////////////////////////////////////////////////////////////
     // //// Introspection
@@ -40,8 +62,30 @@ pub trait BT<'a, K: DictKey, V>: Dictionary<K, V> {
     // }
 
     fn root_bst(&self) -> *mut (dyn BSTNode<'a, K, V> + 'a) {
-        unsafe{ (*self.root()).try_as_bst_mut().unwrap() }
+        unsafe { (*self.root()).try_as_bst_mut().unwrap() }
     }
+
+    fn minimum(&self) -> *mut (dyn BTNode<'a, K, V> + 'a) {
+        unsafe{
+            if self.root().is_null() {
+                self.root()
+            } else {
+                (*self.root()).minimum()
+            }
+        }
+    }
+
+
+    fn maximum(&self) -> *mut (dyn BTNode<'a, K, V> + 'a) {
+        unsafe {
+            if self.root().is_null() {
+                self.root()
+            } else {
+                (*self.root()).maximum()
+            }
+        }
+    }
+
 
     fn search_approximately(
         &self,
@@ -121,8 +165,10 @@ pub trait BT<'a, K: DictKey, V>: Dictionary<K, V> {
 
 /// B-Tree Node
 pub trait BTNode<'a, K: DictKey, V> {
+
     ////////////////////////////////////////////////////////////////////////////
     //// Introspection
+
     fn itself(&self) -> *const (dyn BTNode<'a, K, V> + 'a);
     fn itself_mut(&self) -> *mut (dyn BTNode<'a, K, V> + 'a) {
         self.itself() as *mut (dyn BTNode<'a, K, V> + 'a)
@@ -149,14 +195,25 @@ pub trait BTNode<'a, K: DictKey, V> {
     }
 
     fn order(&self) -> usize;  // >= 2
-    fn last_order(&self) -> usize {
-        self.order() - 1
-    }
 
+    /// 0 <= idx <= order, child(order) is temporary case.
     fn child(&self, idx: usize) -> *mut (dyn BTNode<'a, K, V> + 'a);
     fn child_first(&self) -> *mut (dyn BTNode<'a, K, V> + 'a) {
         self.child(0)
     }
+    fn child_last(&self) -> *mut (dyn BTNode<'a, K, V> + 'a) {
+        for i in 0..self.order() - 1 {
+            // as *const () just to ignore the vtable variant from the fat pointer
+            if self.child(i + 1).is_null() {
+                return self.child(i);
+            }
+
+        }
+
+        self.child(self.order() - 1)
+    }
+
+    /// 0 <= idx <= order, child(order) is temporary case.
     fn assign_child(&mut self, child: *mut (dyn BTNode<'a, K, V> + 'a), idx: usize);
     fn assign_value(&mut self, value: V, idx: usize);
     fn assign_paren(&mut self, paren: *mut (dyn BTNode<'a, K, V> + 'a));
@@ -167,6 +224,18 @@ pub trait BTNode<'a, K: DictKey, V> {
     }
 
     fn key(&self, idx: usize) -> Option<&K>;
+
+    fn index_of_child(&self, child: *mut (dyn BTNode<'a, K, V> + 'a)) -> usize {
+        for i in 0..self.order() {
+            // as *const () just to ignore the vtable variant from the fat pointer
+            if self.child(i) as *const () == child as *const () {
+                return i;
+            }
+
+        }
+
+        unreachable!()
+    }
 
     /// If this node contains key (exclude the subtree)
     #[inline]
@@ -181,8 +250,24 @@ pub trait BTNode<'a, K: DictKey, V> {
         false
     }
 
+    /// How many key-values does this node contains?
+    fn node_size(&self) -> usize {
+        for i in 0..self.order() {
+            if self.key(i).is_none() {
+                return i;  // i must be greater than one in this case.
+            }
+        }
+
+        self.order()
+    }
+
+    fn node_is_overfilled(&self) -> bool {
+        self.node_size() >= self.order()
+    }
+
+
     fn value(&self, idx: usize) -> &V;
-    fn value_mut(&self, idx: usize) -> &mut V;
+    fn value_mut(&mut self, idx: usize) -> &mut V;
 
     fn height(&self) -> i32;
 
@@ -215,6 +300,29 @@ pub trait BTNode<'a, K: DictKey, V> {
         total
     }
 
+
+    fn minimum(&self) -> *mut (dyn BTNode<'a, K, V> + 'a) {
+        let mut x = self.itself_mut();
+
+        while unsafe { !(*x).child_first().is_null() } {
+            unsafe { x = (*x).child_first() }
+        }
+
+        x
+    }
+
+
+    fn maximum(&self) -> *mut (dyn BTNode<'a, K, V> + 'a) {
+        let mut x = self.itself_mut();
+
+        while unsafe { !(*x).child_last().is_null() } {
+            unsafe { x = (*x).child_last() }
+        }
+
+        x
+    }
+
+
     #[inline]
     fn search_approximately(
         &self,
@@ -232,19 +340,24 @@ pub trait BTNode<'a, K: DictKey, V> {
                 }
 
                 let mut i = 0;
+                let mut encountered = false;
                 while i < self.order() {
                     if let Some(key) = (*x).key(i) {
                         if income_key < key {
                             x = (*x).child(i);
+                            encountered = true;
+
                             break;
                         }
+                    } else {
+                        break;
                     }
 
                     i += 1;
                 }
 
-                if i == self.order() {
-                    x = (*x).child(self.last_order());
+                if !encountered {
+                    x = (*x).child_last();
                 }
             }
         }
@@ -269,13 +382,13 @@ pub trait BTNode<'a, K: DictKey, V> {
             let key_s = if let Some(key) = self.key(i) {
                format!("{:?}", key)
             } else {
-                "null".to_owned()
+                break;
             };
 
             keys_s.push(key_s)
         }
 
-        keys_s.join(" ,")
+        format!("({})", keys_s.join(", "))
     }
 
     /// BFS Echo
@@ -288,14 +401,14 @@ pub trait BTNode<'a, K: DictKey, V> {
         ) -> fmt::Result,
     ) -> fmt::Result {
         unsafe {
-            writeln!(cache, "Entry: {:?}", self.format_keys())?;
+            writeln!(cache, "Entry: {}", self.format_keys())?;
 
             let mut this_level_queue: VecDeque<
                 *mut (dyn BTNode<'a, K, V> + 'a),
             > = VecDeque::new();
 
             this_level_queue
-                .push_back(self.itself_bst_mut());
+                .push_back(self.itself_mut());
             let mut level = 0;
 
             while !this_level_queue.is_empty() {
@@ -314,17 +427,17 @@ pub trait BTNode<'a, K: DictKey, V> {
                 while !this_level_queue.is_empty() {
                     let x = this_level_queue.pop_front().unwrap();
 
-                    // writeln!(cache, "{:?}", (*x).key() )?;
 
                     action(x, cache)?;
 
+                    writeln!(cache, "{}", (*x).format_keys() )?;
                     for i in 0..self.order() {
                         let child = (*x).child(i);
 
                         if !child.is_null() {
                             writeln!(
                                 cache,
-                                "{:?} -({})-> {:?}",
+                                "{} -({})-> {}",
                                 "  |",
                                 i,
                                 (*child).format_keys(),
@@ -332,7 +445,7 @@ pub trait BTNode<'a, K: DictKey, V> {
 
                             nxt_level_queue.push_back(child)
                         } else {
-                            writeln!(cache, "{:?} -({})-> null", "  |", i)?;
+                            writeln!(cache, "{} -({})-> null", "  |", i)?;
                         }
                     }
 

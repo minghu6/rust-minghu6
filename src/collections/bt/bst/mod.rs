@@ -17,27 +17,6 @@ use super::{super::{DictKey, Dictionary}, BTNode, BT};
 
 /// LF(key) < MID(key) < RH(key)
 pub trait BST<'a, K: DictKey, V>: BT<'a, K, V> {
-    /// alias as transplant
-    fn subtree_shift(
-        &mut self,
-        u: *mut (dyn BSTNode<'a, K, V> + 'a),
-        v: *mut (dyn BSTNode<'a, K, V> + 'a),
-    ) {
-        unsafe {
-            if (*u).paren().is_null() {
-                self.assign_root(v)
-            } else if u == (*(*u).paren_bst()).left() {
-                (*(*u).paren_bst()).assign_left(v);
-            } else {
-                (*(*u).paren_bst()).assign_right(v);
-            }
-
-            if !v.is_null() {
-                (*v).assign_paren((*u).paren_bst())
-            }
-        }
-    }
-
     fn basic_insert(
         &mut self,
         new_node: *mut (dyn BSTNode<'a, K, V> + 'a),
@@ -201,7 +180,7 @@ pub trait BSTNode<'a, K: DictKey, V>: BTNode<'a, K, V> {
     fn value(&self) -> &V {
         BTNode::value(self, 0)
     }
-    fn value_mut(&self) -> &mut V {
+    fn value_mut(&mut self) -> &mut V {
         BTNode::value_mut(self, 0)
     }
 
@@ -268,44 +247,25 @@ pub trait BSTNode<'a, K: DictKey, V>: BTNode<'a, K, V> {
     }
 
 
-    fn minimum(&self) -> *mut (dyn BSTNode<'a, K, V> + 'a) {
-        let mut x = self.itself_bst_mut();
-
-        while unsafe { !(*x).left().is_null() } {
-            unsafe { x = (*x).left() }
-        }
-
-        x
-    }
-
-    fn maximum(&self) -> *mut (dyn BSTNode<'a, K, V> + 'a) {
-        let mut x = self.itself_bst_mut();
-
-        while unsafe { !(*x).right().is_null() } {
-            unsafe { x = (*x).right() }
-        }
-
-        x
-    }
-
     fn successor(&self) -> *mut (dyn BSTNode<'a, K, V> + 'a) {
         let mut x = self.itself_bst_mut();
 
         unsafe {
             if !(*x).right().is_null() {
-                return (*(*x).right()).minimum();
+                return (*(*(*x).right()).minimum()).try_as_bst_mut().unwrap();
             }
 
-            let mut y = (*(*x).paren()).try_as_bst_mut().unwrap();
+            let mut y = (*x).paren_bst();
 
             while !y.is_null() && x == (*y).right() {
                 x = y;
-                y = (*(*y).paren()).try_as_bst_mut().unwrap();
+                y = (*y).paren_bst();
             }
 
             y
         }
     }
+
 
     fn just_echo_stdout(&self) {
         let mut cache = String::new();
@@ -431,9 +391,10 @@ pub(crate) mod tests {
     #[test]
     pub(crate) fn test_bst() {
         use super::avl::tests::test_avl_randomdata;
+        use super::rawst::tests::test_rawst_randomdata;
 
         test_avl_randomdata();
-
+        test_rawst_randomdata();
     }
 
 }
