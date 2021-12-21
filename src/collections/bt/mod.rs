@@ -160,6 +160,64 @@ pub trait BT<'a, K: DictKey, V>: Dictionary<K, V> {
         }
     }
 
+    fn basic_lookup(
+        &self,
+        income_key: &K,
+    ) -> Option<&V> {
+        let res = self.search_approximately(income_key);
+
+        if res.is_null() {
+            None
+        } else {
+            unsafe {
+                // println!("{:?}", (*res).format_keys());
+
+                if let Some(idx) = (*res).find_pos_of_key(income_key) {
+                    Some(&*(*res).val_ptr(idx))
+                } else {
+                    None
+                }
+            }
+        }
+    }
+
+    fn basic_lookup_mut(
+        &mut self,
+        income_key: &K,
+    ) -> Option<&mut V> {
+        let res = self.search_approximately(income_key);
+
+        if res.is_null() {
+            None
+        } else {
+            unsafe {
+                // println!("{:?}", (*res).format_keys());
+
+                if let Some(idx) = (*res).find_pos_of_key(income_key) {
+                    Some(&mut *(*res).val_ptr(idx))
+                } else {
+                    None
+                }
+            }
+        }
+    }
+
+    fn basic_modify(&mut self, key: &K, value: V) -> bool {
+        unsafe {
+            let app_node
+            = (*self.search_approximately(key)).try_as_bst_mut().unwrap();
+
+            if app_node.is_null() {
+                false
+            } else if let Some(idx) = (*app_node).find_pos_of_key(key) {
+                (*app_node).assign_value(value, idx);
+                true
+            } else {
+                false
+            }
+        }
+    }
+
 }
 
 
@@ -276,6 +334,21 @@ pub trait BTNode<'a, K: DictKey, V> {
         for i in 0..self.order() {
             if self.key(i).unwrap() == key {
                 return i;
+            }
+
+        }
+
+        unreachable!()
+    }
+
+    fn find_pos_of_key(&self, key: &K) -> Option<usize> {
+        for i in 0..self.order() {
+            if let Some(here_key) = self.key(i) {
+                if here_key == key {
+                    return Some(i);
+                } else {
+                    return None
+                }
             }
 
         }

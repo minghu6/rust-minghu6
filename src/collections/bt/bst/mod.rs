@@ -49,40 +49,6 @@ pub trait BST<'a, K: DictKey, V>: BT<'a, K, V> {
         }
     }
 
-    fn basic_modify(&mut self, key: &K, value: V) -> bool {
-        unsafe {
-            let app_node
-            = (*self.search_approximately(key)).try_as_bst_mut().unwrap();
-
-            if app_node.is_null() {
-                false
-            } else if BSTNode::key(&*app_node) == key {
-                (*app_node).assign_value(value, 0);
-                true
-            } else {
-                false
-            }
-        }
-    }
-
-    fn basic_lookup(
-        &self,
-        income_key: &K,
-    ) -> Option<*mut (dyn BSTNode<'a, K, V> + 'a)> {
-        unsafe {
-            let app_node =
-            (*self.search_approximately(income_key)).try_as_bst_mut().unwrap();
-
-            if app_node.is_null() {
-                None
-            } else if BSTNode::key(&*app_node) == income_key {
-                Some(app_node)
-            } else {
-                None
-            }
-        }
-    }
-
     fn basic_remove(
         &mut self,
         key: &K,

@@ -573,21 +573,11 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for AVL<K, V> {
     }
 
     fn lookup(&self, income_key: &K) -> Option<&V> {
-        if let Some(e) = self.basic_lookup(income_key) {
-            unsafe { Some(BSTNode::value(&*(e as *mut AVLNode<K, V>))) }
-        } else {
-            None
-        }
+        self.basic_lookup(income_key)
     }
 
     fn lookup_mut(&mut self, income_key: &K) -> Option<&mut V> {
-        if let Some(e) = self.basic_lookup(income_key) {
-            unsafe {
-                Some(BSTNode::value_mut(&mut *(e as *mut AVLNode<K, V>)))
-            }
-        } else {
-            None
-        }
+        self.basic_lookup_mut(income_key)
     }
 
     fn self_validate(&self) -> Result<(), Box<dyn std::error::Error>> {

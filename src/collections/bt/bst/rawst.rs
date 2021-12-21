@@ -176,19 +176,11 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for RawST<K, V> {
     }
 
     fn lookup(&self, key: &K) -> Option<&V> {
-        if let Some(node) = self.basic_lookup(key) {
-            Some(unsafe { &*(*(node as *mut RawSTNode<K, V>)).value })
-        } else {
-            None
-        }
+        self.basic_lookup(key)
     }
 
     fn lookup_mut(&mut self, key: &K) -> Option<&mut V> {
-        if let Some(node) = self.basic_lookup(key) {
-            Some(unsafe { &mut *(*(node as *mut RawSTNode<K, V>)).value })
-        } else {
-            None
-        }
+        self.basic_lookup_mut(key)
     }
 
     fn self_validate(&self) -> Result<(), Box<dyn std::error::Error>> {
