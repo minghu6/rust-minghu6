@@ -105,6 +105,25 @@ impl<'a, K: DictKey + 'a, V: 'a> B3Node<K, V> {
 
         self.children.insert(idx, child);
     }
+
+    unsafe fn swap_to_leaf(&mut self, idx: usize) {
+        // let mut pre_swap = (self as *mut Self, idx);
+        let key_p = self.keys[idx];
+        let val_p = self.values[idx];
+
+        let mut item_x = (self as *mut Self, idx);
+
+        todo!()
+        // while (*item_x.0).is_leaf() {
+        //     let item_nxt = (*item_x.0).successor(&*key_p);
+
+        //     (*item_nxt.0).k
+        //     // item_successor.0 shouldn't be null since item_x is not leaf.
+
+
+
+        // }
+    }
 }
 
 
@@ -162,20 +181,32 @@ impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for B3Node<K, V> {
         self.paren
     }
 
-    fn key(&self, idx: usize) -> Option<&K> {
-        if idx >= self.keys.len() {
-            return None;
+    fn key_ptr(&self, idx: usize) -> *mut K {
+        if idx < self.keys.len() {
+            self.keys[idx]
+        } else {
+            null_mut::<K>()
         }
-
-        Some(unsafe { &*self.keys[idx] })
     }
 
-    fn value(&self, idx: usize) -> &V {
-        unsafe { &*self.values[idx] }
+    fn assign_key_ptr(&mut self, idx: usize, key_ptr: *mut K) {
+        if idx < self.keys.len() {
+            self.keys[idx] = key_ptr;
+        }
     }
 
-    fn value_mut(&mut self, idx: usize) -> &mut V {
-        unsafe { &mut *self.values[idx] }
+    fn val_ptr(&self, idx: usize) -> *mut V {
+        if idx < self.values.len() {
+            self.values[idx]
+        } else {
+            null_mut::<V>()
+        }
+    }
+
+    fn assign_val_ptr(&mut self, idx: usize, val_ptr: *mut V) {
+        if idx < self.values.len() {
+            self.values[idx] = val_ptr;
+        }
     }
 
     fn height(&self) -> i32 {

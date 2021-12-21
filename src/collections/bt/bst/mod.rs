@@ -104,7 +104,7 @@ pub trait BST<'a, K: DictKey, V>: BT<'a, K, V> {
             } else if (*approxi_node).right().is_null() {
                 self.subtree_shift(approxi_node, (*approxi_node).left())
             } else {
-                let y = (*approxi_node).successor() ;
+                let y = BSTNode::successor(&*approxi_node) ;
                 // y should be leaf.
 
                 if (*y).paren_bst() != approxi_node {
@@ -178,10 +178,10 @@ pub trait BSTNode<'a, K: DictKey, V>: BTNode<'a, K, V> {
         BTNode::key(self, 0).unwrap()
     }
     fn value(&self) -> &V {
-        BTNode::value(self, 0)
+        BTNode::value(self, 0).unwrap()
     }
     fn value_mut(&mut self) -> &mut V {
-        BTNode::value_mut(self, 0)
+        BTNode::value_mut(self, 0).unwrap()
     }
 
     ////////////////////////////////////////////////////////////////////////////

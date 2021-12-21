@@ -223,12 +223,58 @@ pub trait BTNode<'a, K: DictKey, V> {
         unsafe { (*self.paren()).try_as_bst_mut().unwrap() }
     }
 
-    fn key(&self, idx: usize) -> Option<&K>;
+    fn key(&self, idx: usize) -> Option<&K> {
+        if !self.key_ptr(idx).is_null() {
+            Some(unsafe{ &*self.key_ptr(idx) })
+        } else {
+            None
+        }
+    }
+
+    fn key_mut(&mut self, idx: usize) -> Option<&mut K> {
+        if !self.key_ptr(idx).is_null() {
+            Some(unsafe{ &mut *self.key_ptr(idx) })
+        } else {
+            None
+        }
+    }
+    fn key_ptr(&self, idx: usize) -> *mut K;
+    fn assign_key_ptr(&mut self, idx: usize, key_ptr: *mut K);
+
+    fn value(&self, idx: usize) -> Option<&V> {
+        if !self.val_ptr(idx).is_null() {
+            Some(unsafe{ &*self.val_ptr(idx) })
+        } else {
+            None
+        }
+    }
+
+    fn value_mut(&mut self, idx: usize) -> Option<&mut V> {
+        if !self.val_ptr(idx).is_null() {
+            Some(unsafe{ &mut *self.val_ptr(idx) })
+        } else {
+            None
+        }
+    }
+    fn val_ptr(&self, idx: usize) -> *mut V;
+    fn assign_val_ptr(&mut self, idx: usize, val_ptr: *mut V);
 
     fn index_of_child(&self, child: *mut (dyn BTNode<'a, K, V> + 'a)) -> usize {
         for i in 0..self.order() {
             // as *const () just to ignore the vtable variant from the fat pointer
             if self.child(i) as *const () == child as *const () {
+                return i;
+            }
+
+        }
+
+        unreachable!()
+    }
+
+    /// key must in it!!
+    fn index_of_key(&self, key: &K) -> usize {
+        for i in 0..self.order() {
+            if self.key(i).unwrap() == key {
                 return i;
             }
 
@@ -264,10 +310,6 @@ pub trait BTNode<'a, K: DictKey, V> {
     fn node_is_overfilled(&self) -> bool {
         self.node_size() >= self.order()
     }
-
-
-    fn value(&self, idx: usize) -> &V;
-    fn value_mut(&mut self, idx: usize) -> &mut V;
 
     fn height(&self) -> i32;
 
@@ -322,6 +364,50 @@ pub trait BTNode<'a, K: DictKey, V> {
         x
     }
 
+    fn is_leaf(&self) -> bool {
+        for i in 0..self.order() {
+            if !self.child(i).is_null() {
+                return false;
+            }
+        }
+
+        true
+    }
+
+    /// successor of item whose key is key.
+    fn successor(&self, key: &K) -> (*mut (dyn BTNode<'a, K, V> + 'a), usize) {
+        let k_idx = self.index_of_key(key);
+
+        unsafe {
+            if self.is_leaf() {
+                if self.key(k_idx + 1).is_none() {  // Goto parent
+                    let mut x = self.itself_mut();
+                    let mut y = (*x).paren();
+
+                    while !y.is_null() {
+                        let idx = (*y).index_of_child(x);
+
+                        if (*y).key(idx).is_some() {
+                            return (y, idx);
+                        }
+
+                        x = y;
+                        y = (*x).paren();
+                    }
+
+                    (y, 0)
+
+                } else {
+                    (self.itself_mut(), k_idx + 1)
+                }
+
+            } else {
+
+                ((*self.child(k_idx + 1)).minimum(), 0)
+
+            }
+        }
+    }
 
     #[inline]
     fn search_approximately(
@@ -335,13 +421,13 @@ pub trait BTNode<'a, K: DictKey, V> {
             while !x.is_null() {
                 y = x;
 
-                if (*x).node_contains(income_key) {
+                if (*x).node_contains(income_key) || (*x).is_leaf() {
                     break;
                 }
 
                 let mut i = 0;
                 let mut encountered = false;
-                while i < self.order() {
+                loop {
                     if let Some(key) = (*x).key(i) {
                         if income_key < key {
                             x = (*x).child(i);
@@ -357,7 +443,7 @@ pub trait BTNode<'a, K: DictKey, V> {
                 }
 
                 if !encountered {
-                    x = (*x).child_last();
+                    x = (*x).child(i);
                 }
             }
         }

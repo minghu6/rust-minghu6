@@ -84,12 +84,12 @@ impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for RawSTNode<K, V> {
         }
     }
 
-    fn assign_paren(&mut self, paren: *mut (dyn BTNode<'a, K, V> + 'a)) {
-        self.paren = paren as *mut Self;
-    }
-
     fn assign_value(&mut self, value: V, _idx: usize) {
         self.value = Box::into_raw(box value);
+    }
+
+    fn assign_paren(&mut self, paren: *mut (dyn BTNode<'a, K, V> + 'a)) {
+        self.paren = paren as *mut Self;
     }
 
     fn paren(&self) -> *mut (dyn BTNode<'a, K, V> + 'a) {
@@ -104,12 +104,32 @@ impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for RawSTNode<K, V> {
         }
     }
 
-    fn value(&self, _idx: usize) -> &V {
-        unsafe { &*self.value }
+    fn key_ptr(&self, idx: usize) -> *mut K {
+        if idx == 0 {
+            self.key
+        } else {
+            null_mut::<K>()
+        }
     }
 
-    fn value_mut(&mut self, _idx: usize) -> &mut V {
-        unsafe { &mut *self.value }
+    fn assign_key_ptr(&mut self, idx: usize, key_ptr: *mut K) {
+        if idx == 0 {
+            self.key = key_ptr;
+        }
+    }
+
+    fn val_ptr(&self, idx: usize) -> *mut V {
+        if idx == 0 {
+            self.value
+        } else {
+            null_mut::<V>()
+        }
+    }
+
+    fn assign_val_ptr(&mut self, idx: usize, val_ptr: *mut V) {
+        if idx == 0 {
+            self.value = val_ptr;
+        }
     }
 
     fn height(&self) -> i32 {
