@@ -9,6 +9,7 @@
 #![feature(box_syntax)]
 #![feature(trait_upcasting)]
 
+
 use proc_macros::make_vec_macro_rules;
 
 

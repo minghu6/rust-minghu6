@@ -5,9 +5,10 @@ use std::{
     ptr::{null, null_mut},
 };
 
+use either::Either;
 use itertools::Itertools;
 
-use super::{bst::rawst::RawSTNode, BTNode, BT};
+use super::{bst::rawst::RawSTNode, BTItem, BTNode, BT};
 use crate::collections::{DictKey, Dictionary};
 use crate::*;
 
@@ -32,6 +33,8 @@ pub struct B3Node<K, V> {
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Implement
+///
+
 
 impl<'a, K: DictKey + 'a, V: 'a> B3Node<K, V> {
     pub fn new_value(key: K, value: V) -> *mut Self {
@@ -71,18 +74,18 @@ impl<'a, K: DictKey + 'a, V: 'a> B3Node<K, V> {
 
     /// 3key, 4br => 2x2 + 1
     unsafe fn inherrit_children(
-        heir: *mut B3Node<K, V>,
+        &mut self,
         left: *mut B3Node<K, V>,
         right: *mut B3Node<K, V>,
     ) {
-        if !(*heir).is_leaf() {
+        if !self.is_leaf() {
             (*left).children.clear();
-            (*left).connect_child_append((*heir).child(0) as *mut Self);
-            (*left).connect_child_append((*heir).child(1) as *mut Self);
+            (*left).connect_child_append(self.child(0) as *mut Self);
+            (*left).connect_child_append(self.child(1) as *mut Self);
 
             (*right).children.clear();
-            (*right).connect_child_append((*heir).child(2) as *mut Self);
-            (*right).connect_child_append((*heir).child(3) as *mut Self);
+            (*right).connect_child_append(self.child(2) as *mut Self);
+            (*right).connect_child_append(self.child(3) as *mut Self);
         }
     }
 
@@ -106,23 +109,17 @@ impl<'a, K: DictKey + 'a, V: 'a> B3Node<K, V> {
         self.children.insert(idx, child);
     }
 
-    unsafe fn swap_to_leaf(&mut self, idx: usize) {
-        // let mut pre_swap = (self as *mut Self, idx);
-        let key_p = self.keys[idx];
-        let val_p = self.values[idx];
+    /// (*x).paren shouldn' t be null
+    /// Result is Invalid B3 Node.
+    unsafe fn remove_node(&mut self, remove_idx: usize) -> *mut B3Node<K, V> {
+        debug_assert!(self.keys.len() > 1);
 
-        let mut item_x = (self as *mut Self, idx);
+        let (key, val) = (
+            self.keys.remove(remove_idx).unwrap(),
+            self.values.remove(remove_idx).unwrap(),
+        );
 
-        todo!()
-        // while (*item_x.0).is_leaf() {
-        //     let item_nxt = (*item_x.0).successor(&*key_p);
-
-        //     (*item_nxt.0).k
-        //     // item_successor.0 shouldn't be null since item_x is not leaf.
-
-
-
-        // }
+        B3Node::new_ptr(key, val)
     }
 }
 
@@ -262,16 +259,28 @@ impl<'a, K: DictKey + 'a, V: 'a> B3<K, V> {
             return;
         }
 
-        let x_left_key = (*x).keys.pop_front().unwrap();
-        let x_left_val = (*x).values.pop_front().unwrap();
-        let xlv_left = B3Node::new_ptr(x_left_key, x_left_val);
+        let x_mid_key = (*x).keys.remove(1).unwrap();
+        let x_mid_val = (*x).values.remove(1).unwrap();
+        let left_sibling = (*x).remove_node(0);
 
-        // let x_mid_key = (*x).keys[0];
-        // let x_mid_val = (*x).values[0];
+        if !(*x).is_leaf() {
+            (*left_sibling).connect_child_append((*x).children.pop_front().unwrap());
+            (*left_sibling).connect_child_append((*x).children.pop_front().unwrap());
+        }
 
-        let x_right_key = (*x).keys.pop_back().unwrap();
-        let x_right_val = (*x).values.pop_back().unwrap();
-        let xlv_right = B3Node::new_ptr(x_right_key, x_right_val);
+        if (*x).paren.is_null() {
+            self.root = B3Node::new_ptr(x_mid_key, x_mid_val);
+
+            (*self.root).connect_child_append(left_sibling);
+            (*self.root).connect_child_append(x);
+
+        } else {
+            let x_idx = (*(*x).paren).index_of_child(x);
+            (*(*x).paren).connect_child_insert(left_sibling, x_idx);
+            (*(*x).paren).node_insert(x_mid_key, x_mid_val);
+
+            self.promote((*x).paren);
+        };
 
         // case-0, root is null
         // case-1,
@@ -279,48 +288,15 @@ impl<'a, K: DictKey + 'a, V: 'a> B3<K, V> {
         //   /    \   ==>    /  |  \
         // (2,3,5) 9        2   5   9
         //
-        let paren =
-            self.shift_onechild_with_twochildren(x, xlv_left, xlv_right);
-        self.promote(paren);
-
+        // case-2, 2 key 3 br => 3 key 4 br, split and continue to promote.
         //   3,    8            3,5,8           5
         //  /   |   \   ==>    / | | \   ==>   / \
         // 2 (4,5,7) 9        2  4 7  9       3   8
         //                                   / \ / \
         //                                  2  4 7  9
-        // case-2, 2 key 3 br => 3 key 4 br, split and continue to promote.
+
     }
 
-
-    /// x contains mid key and mid val
-    unsafe fn shift_onechild_with_twochildren(
-        &mut self,
-        x: *mut B3Node<K, V>,
-        xlv_left: *mut B3Node<K, V>,
-        xlv_right: *mut B3Node<K, V>,
-    ) -> *mut B3Node<K, V> {
-        let mut x_paren = (*x).paren;
-
-        if x_paren.is_null() {
-            self.root = B3Node::new_ptr((*x).keys[0], (*x).values[0]);
-            x_paren = self.root;
-
-            (*self.root).connect_child_append(xlv_left);
-            (*self.root).connect_child_append(xlv_right);
-        } else {
-            let x_idx = (*x_paren).index_of_child(x);
-            (*x_paren).children.remove(x_idx);
-
-            (*x_paren).connect_child_insert(xlv_right, x_idx);
-            (*x_paren).connect_child_insert(xlv_left, x_idx);
-
-            (*x_paren).node_insert((*x).keys[0], (*x).values[0]);
-        }
-
-        B3Node::inherrit_children(x, xlv_left, xlv_right);
-
-        x_paren
-    }
 }
 
 
@@ -352,7 +328,45 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for B3<K, V> {
     }
 
     fn remove(&mut self, key: &K) -> Option<V> {
-        todo!()
+        let res = self.search_approximately(key) as *mut B3Node<K, V>;
+
+        if res.is_null() {
+            return None;
+        }
+
+        unsafe {
+            if let Some(idx) = (*res).find_pos_of_key(key) {
+                let leaf_item = (*res).swap_to_leaf(idx);
+                let leaf = leaf_item.node as *mut B3Node<K, V>;
+
+                let _key = (*leaf).keys.remove(leaf_item.idx).unwrap();
+                let val = (*leaf).values.remove(leaf_item.idx).unwrap();
+
+                if (*leaf).keys.is_empty() {
+                    // Remove leaf node
+                    let paren = (*leaf).paren;
+
+                    if paren.is_null() {
+                        self.root = null_mut();
+                    } else {
+                        let leaf_idx = (*paren).index_of_child(leaf);
+                        (*paren).children.remove(leaf_idx);
+
+                        // case-0 2key3br, 1key2br
+
+                        // case-1 1key2br
+                    }
+
+                    // Redistribution
+                }
+
+
+
+                Some(*Box::from_raw(val))
+            } else {
+                None
+            }
+        }
     }
 
     fn modify(&mut self, key: &K, value: V) -> bool {
@@ -511,20 +525,17 @@ mod tests {
 
         let dict = &mut b3 as &mut dyn Dictionary<i32, ()>;
 
-        dict.insert(74, ());
-        dict.insert(27, ());
-        dict.insert(14, ());
-        dict.insert(1, ());
-        dict.insert(42, ());
-        dict.insert(9, ());
-        dict.insert(19, ());
-        dict.insert(53, ());
-        dict.insert(40, ());
-        dict.insert(88, ());
-        dict.insert(56, ());
-        dict.insert(68, ());
+        dict.insert(44, ());
+        dict.insert(263, ());
+        dict.insert(945, ());
+        dict.insert(112, ());
+        dict.insert(940, ());
+        dict.insert(651, ());
+        dict.insert(879, ());
+        dict.insert(642, ());
+        dict.insert(118, ());
 
-        assert!(dict.lookup(&68).is_some());
+        assert!(dict.lookup(&118).is_some());
         dict.self_validate().unwrap();
 
 
@@ -540,82 +551,86 @@ mod tests {
             .test_dict(|| box B3::new());
     }
 
-    // ///
-    // /// Debug B3 entry
-    // ///
-    // #[ignore]
-    // #[test]
-    // fn hack_b3() {
-    //     for _ in 0..20 {
-    //     let batch_num = 55;
-    //     let mut collected_elems = vec![];
-    //     let mut keys = vec![];
-    //     let provider = InodeProvider {};
-    //     let mut dict = B3::new();
+    ///
+    /// Debug B3 entry
+    ///
+    #[ignore]
+    #[test]
+    fn hack_b3() {
+        for _ in 0..20 {
+        let batch_num = 55;
+        let mut collected_elems = vec![];
+        let mut keys = vec![];
+        let provider = InodeProvider {};
+        let mut dict = B3::new();
 
-    //     // Create
-    //     let mut i = 0;
-    //     while i < batch_num {
-    //         let e = provider.get_one();
-    //         let k = e.get_key();
-    //         if keys.contains(&k) {
-    //             continue;
-    //         }
+        // Create
+        let mut i = 0;
+        while i < batch_num {
+            let e = provider.get_one();
+            let k = e.get_key();
+            if keys.contains(&k) {
+                continue;
+            }
 
-    //         keys.push(k.clone());
-    //         collected_elems.push(e.clone());
+            keys.push(k.clone());
+            collected_elems.push(e.clone());
 
-    //         assert!(dict.insert(k, e));
-    //         assert!(dict.lookup(&keys.last().unwrap()).is_some());
+            assert!(dict.insert(k, e));
 
-    //         dict.self_validate().unwrap();
+            println!("{}: {:?}", i, k);
 
-    //         i += 1;
-    //     }
+            assert!(dict.lookup(&keys.last().unwrap()).is_some());
 
-    //     let mut dict_debug = dict.clone();
+            dict.self_validate().unwrap();
 
-    //     collected_elems.shuffle(&mut thread_rng());
+            i += 1;
+        }
 
-    //     // Remove-> Verify
-    //     for i in 0..batch_num {
-    //         let e = &collected_elems[i];
-    //         let k = &e.get_key();
+        // let mut dict_debug = dict.clone();
 
-    //         assert!(dict.remove(k).is_some());
-    //         assert!(!dict.lookup(k).is_some());
+        // collected_elems.shuffle(&mut thread_rng());
 
-    //         if let Ok(_res) = dict.self_validate() {
-    //         } else {
-    //             // restore the scene
-    //             println!("{}", i);
+        // // Remove-> Verify
+        // for i in 0..batch_num {
+        //     let e = &collected_elems[i];
+        //     let k = &e.get_key();
 
-    //             println!("DEBUG: {}", dict_debug.total());
-    //             // dict_debug.echo_stdout();
+        //     assert!(dict.remove(k).is_some());
+        //     assert!(!dict.lookup(k).is_some());
 
-    //             println!("ORIGIN: {}", dict.total());
-    //             // dict.echo_stdout();
+        //     if let Ok(_res) = dict.self_validate() {
+        //     } else {
+        //         // restore the scene
+        //         println!("{}", i);
 
-    //             for j in 0..i {
-    //                 let e = &collected_elems[j];
-    //                 let k = &e.get_key();
+        //         println!("DEBUG: {}", dict_debug.total());
+        //         // dict_debug.echo_stdout();
 
-    //                 assert!(dict_debug.remove(k).is_some());
-    //                 assert!(!dict_debug.lookup(k).is_some());
-    //                 dict_debug.self_validate().unwrap();
-    //             }
+        //         println!("ORIGIN: {}", dict.total());
+        //         // dict.echo_stdout();
 
-    //             unsafe {
-    //                 let target = (*dict_debug.search_approximately(k)).try_as_bst_mut().unwrap();
-    //                 let target_paren = (*target).paren_bst();
+        //         for j in 0..i {
+        //             let e = &collected_elems[j];
+        //             let k = &e.get_key();
 
-    //                 println!("Target: {:?}", k);
-    //                 BSTNode::just_echo_stdout(&*target_paren);
-    //             }
+        //             assert!(dict_debug.remove(k).is_some());
+        //             assert!(!dict_debug.lookup(k).is_some());
+        //             dict_debug.self_validate().unwrap();
+        //         }
 
-    //             dict_debug.remove(k).unwrap();
-    //             dict_debug.self_validate().unwrap();
-    //         }
-    //     }}
-    // }
+        //         unsafe {
+        //             let target = (*dict_debug.search_approximately(k)).try_as_bst_mut().unwrap();
+        //             let target_paren = (*target).paren_bst();
+
+        //             println!("Target: {:?}", k);
+        //             BSTNode::just_echo_stdout(&*target_paren);
+        //         }
+
+        //         dict_debug.remove(k).unwrap();
+        //         dict_debug.self_validate().unwrap();
+        //     }
+        // }
+    }
+    }
 }

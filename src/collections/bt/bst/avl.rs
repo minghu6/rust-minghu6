@@ -481,6 +481,8 @@ impl<'a, K: DictKey + Clone + 'a, V: Clone + 'a> Clone for AVL<K, V> {
             let root = Box::into_raw(box (*self.root).clone());
 
             (*root).bfs_do(|x| {
+                let x = (*x).try_as_bst_mut().unwrap();
+
                 if !(*x).left().is_null() {
                     (*(*x).left()).assign_paren((*x).itself_mut());
                 }

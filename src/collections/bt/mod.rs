@@ -218,6 +218,19 @@ pub trait BT<'a, K: DictKey, V>: Dictionary<K, V> {
         }
     }
 
+    fn bfs_do(
+        &self,
+        action: fn(
+            *mut (dyn BTNode<'a, K, V> + 'a),
+        )
+    ) {
+        if !self.root().is_null() {
+            unsafe{ (*self.root()).bfs_do(action) }
+        }
+
+    }
+
+
 }
 
 
@@ -448,7 +461,7 @@ pub trait BTNode<'a, K: DictKey, V> {
     }
 
     /// successor of item whose key is key.
-    fn successor(&self, key: &K) -> (*mut (dyn BTNode<'a, K, V> + 'a), usize) {
+    fn successor(&self, key: &K) -> BTItem<'a, K, V> {
         let k_idx = self.index_of_key(key);
 
         unsafe {
@@ -461,23 +474,22 @@ pub trait BTNode<'a, K: DictKey, V> {
                         let idx = (*y).index_of_child(x);
 
                         if (*y).key(idx).is_some() {
-                            return (y, idx);
+                            return BTItem::new(y, idx);
                         }
 
                         x = y;
                         y = (*x).paren();
                     }
 
-                    (y, 0)
+                    BTItem::new(y, 0)
 
                 } else {
-                    (self.itself_mut(), k_idx + 1)
+                    BTItem::new(self.itself_mut(), k_idx + 1)
                 }
 
             } else {
 
-                ((*self.child(k_idx + 1)).minimum(), 0)
-
+                BTItem::new((*self.child(k_idx + 1)).minimum(), 0)
             }
         }
     }
@@ -524,6 +536,15 @@ pub trait BTNode<'a, K: DictKey, V> {
         y
     }
 
+    fn swap_to_leaf(&mut self, idx: usize) -> BTItem<'a, K, V> {
+        let mut item_x = BTItem::new(self.itself_mut(), idx);
+
+        while let Ok(item_nxt) = item_x.swap_with_successor_until_leaf() {
+            item_x = item_nxt;
+        }
+
+        item_x
+    }
 
 
     fn just_echo_stdout(&self) {
@@ -624,7 +645,108 @@ pub trait BTNode<'a, K: DictKey, V> {
     }
 
 
+    fn bfs_do(
+        &self,
+        action: fn(
+            *mut (dyn BTNode<'a, K, V> + 'a),
+        )
+    ) {
+        let mut queue= VecDeque::new();
+
+        queue.push_back(self.itself_mut());
+        while !queue.is_empty() {
+            let x = queue.pop_front().unwrap();
+
+            action(x);
+
+            unsafe {
+                for i in 0..self.order() {
+                    let child = BTNode::child (&*x, i);
+
+                    if !child.is_null() {
+                        queue.push_back(child);
+                    } else {
+                        break;
+                    }
+                }
+            }
+
+        }
+    }
+
 }
+
+
+pub struct BTItem<'a, K, V> {
+    node: *mut (dyn BTNode<'a, K, V> + 'a),
+    idx: usize
+}
+
+impl<'a, K: DictKey, V> BTItem<'a, K, V> {
+    pub fn new(node: *mut (dyn BTNode<'a, K, V> + 'a), idx: usize) -> Self {
+        Self {
+            node,
+            idx,
+        }
+    }
+
+    pub fn key(&self) -> *mut K {
+        unsafe {
+            (*self.node).key_ptr(self.idx)
+        }
+    }
+
+    pub fn assign_key(&mut self, key: *mut K) {
+        unsafe {
+            (*self.node).assign_key_ptr(self.idx, key)
+        }
+    }
+
+    pub fn assign_val(&mut self, val: *mut V) {
+        unsafe {
+            (*self.node).assign_val_ptr(self.idx, val)
+        }
+    }
+
+    pub fn val(&self) -> *mut V {
+        unsafe {
+            (*self.node).val_ptr(self.idx)
+        }
+    }
+
+    pub fn successor(&self) -> Self {
+        unsafe {
+            (*self.node).successor(&*self.key())
+        }
+    }
+
+    pub fn swap(x: &mut Self, y: &mut Self) {
+        let tmp_key = y.key();
+        let tmp_val = y.val();
+
+        y.assign_key(x.key());
+        y.assign_val(x.val());
+
+        x.assign_key(tmp_key);
+        x.assign_val(tmp_val);
+    }
+
+    pub fn swap_with_successor_until_leaf(&mut self) -> Result<Self, ()> {
+        unsafe {
+            if (*self.node).is_leaf() {
+                return Err(())
+            }
+
+            let mut nxt_item = self.successor();
+
+            BTItem::swap(self, &mut nxt_item);
+
+            Ok(nxt_item)
+        }
+    }
+
+}
+
 
 
 

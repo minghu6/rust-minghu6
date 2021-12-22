@@ -108,18 +108,6 @@ pub trait BST<'a, K: DictKey, V>: BT<'a, K, V> {
         }
     }
 
-    fn bfs_do(
-        &self,
-        action: fn(
-            *mut (dyn BSTNode<'a, K, V> + 'a),
-        )
-    ) {
-        if !self.root().is_null() {
-            unsafe{ (*self.root_bst()).bfs_do(action) }
-        }
-
-    }
-
     fn just_echo_stdout(&self) {
         if !self.root().is_null() {
             unsafe { BSTNode::just_echo_stdout(&*self.root_bst()) }
@@ -321,33 +309,6 @@ pub trait BSTNode<'a, K: DictKey, V>: BTNode<'a, K, V> {
         Ok(())
     }
 
-
-    fn bfs_do(
-        &self,
-        action: fn(
-            *mut (dyn BSTNode<'a, K, V> + 'a),
-        )
-    ) {
-        let mut queue= VecDeque::new();
-
-        queue.push_back(self.itself_bst_mut());
-        while !queue.is_empty() {
-            let x = queue.pop_front().unwrap();
-
-            action(x);
-
-            unsafe {
-                if !(*x).left().is_null() {
-                    queue.push_back((*x).left());
-                }
-
-                if !(*x).right().is_null() {
-                    queue.push_back((*x).right());
-                }
-            }
-
-        }
-    }
 }
 
 
