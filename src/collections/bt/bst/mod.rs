@@ -16,7 +16,7 @@ use super::{super::{DictKey, Dictionary}, BTNode, BT};
 
 
 /// LF(key) < MID(key) < RH(key)
-pub trait BST<'a, K: DictKey, V>: BT<'a, K, V> {
+pub trait BST<'a, K: DictKey + 'a, V: 'a>: BT<'a, K, V> {
     fn basic_insert(
         &mut self,
         new_node: *mut (dyn BSTNode<'a, K, V> + 'a),
@@ -116,12 +116,7 @@ pub trait BST<'a, K: DictKey, V>: BT<'a, K, V> {
 }
 
 
-// /// BST Helper function for DRY.
-// impl<'a, K: BSTKey, V> dyn BST<'a, K, V> + 'a {
-// }
-
-
-pub trait BSTNode<'a, K: DictKey, V>: BTNode<'a, K, V> {
+pub trait BSTNode<'a, K: DictKey + 'a, V: 'a>: BTNode<'a, K, V> {
     fn left(&self) -> *mut (dyn BSTNode<'a, K, V> + 'a) {
         unsafe { (*BTNode::child(self, 0)).try_as_bst_mut().unwrap() }
     }

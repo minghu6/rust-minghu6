@@ -184,7 +184,7 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for RawST<K, V> {
     }
 
     fn self_validate(&self) -> Result<(), Box<dyn std::error::Error>> {
-        Ok(())
+        self.basic_self_validate()
     }
 }
 

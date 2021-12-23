@@ -72,22 +72,22 @@ impl<'a, K: DictKey + 'a, V: 'a> B3Node<K, V> {
         self.values.insert(insert_idx, value);
     }
 
-    /// 3key, 4br => 2x2 + 1
-    unsafe fn inherrit_children(
-        &mut self,
-        left: *mut B3Node<K, V>,
-        right: *mut B3Node<K, V>,
-    ) {
-        if !self.is_leaf() {
-            (*left).children.clear();
-            (*left).connect_child_append(self.child(0) as *mut Self);
-            (*left).connect_child_append(self.child(1) as *mut Self);
+    // /// 3key, 4br => 2x2 + 1
+    // unsafe fn inherrit_children(
+    //     &mut self,
+    //     left: *mut B3Node<K, V>,
+    //     right: *mut B3Node<K, V>,
+    // ) {
+    //     if !self.is_leaf() {
+    //         (*left).children.clear();
+    //         (*left).connect_child_append(self.child(0) as *mut Self);
+    //         (*left).connect_child_append(self.child(1) as *mut Self);
 
-            (*right).children.clear();
-            (*right).connect_child_append(self.child(2) as *mut Self);
-            (*right).connect_child_append(self.child(3) as *mut Self);
-        }
-    }
+    //         (*right).children.clear();
+    //         (*right).connect_child_append(self.child(2) as *mut Self);
+    //         (*right).connect_child_append(self.child(3) as *mut Self);
+    //     }
+    // }
 
     unsafe fn connect_child_append(&mut self, child: *mut B3Node<K, V>) {
         if !child.is_null() {
@@ -109,17 +109,23 @@ impl<'a, K: DictKey + 'a, V: 'a> B3Node<K, V> {
         self.children.insert(idx, child);
     }
 
-    /// (*x).paren shouldn' t be null
     /// Result is Invalid B3 Node.
     unsafe fn remove_node(&mut self, remove_idx: usize) -> *mut B3Node<K, V> {
-        debug_assert!(self.keys.len() > 1);
-
         let (key, val) = (
             self.keys.remove(remove_idx).unwrap(),
             self.values.remove(remove_idx).unwrap(),
         );
 
         B3Node::new_ptr(key, val)
+    }
+
+    unsafe fn merge_node(&mut self, income_node: *mut B3Node<K, V>) {
+        for _ in 0..self.keys.len() {
+            self.node_insert(
+                (*income_node).keys.pop_front().unwrap(),
+                (*income_node).values.pop_front().unwrap()
+            )
+        }
     }
 }
 
@@ -297,6 +303,124 @@ impl<'a, K: DictKey + 'a, V: 'a> B3<K, V> {
 
     }
 
+    unsafe fn unpromote(&mut self, leaf: *mut B3Node<K, V>) {
+        debug_assert!(!leaf.is_null());
+
+        if (*leaf).node_size() == 0 {
+            let paren = (*leaf).paren;
+
+            if paren.is_null() {
+                self.root = null_mut();
+            } else {
+                let leaf_idx = (*paren).index_of_child(leaf);
+                self.unpromote_(paren, leaf_idx);
+            }
+        }
+    }
+
+    unsafe fn unpromote_(&mut self, paren: *mut B3Node<K, V>, leaf_idx: usize) {
+        debug_assert!(!paren.is_null());
+
+        // First check 2-key-val sibling
+        // Split && Redistribute
+        if !(*paren).child(leaf_idx + 1).is_null() {
+            if (*(*paren).child(leaf_idx + 1)).node_size() > 1 {
+                // split
+                let sibling = (*paren).child(leaf_idx + 1) as *mut B3Node<K, V>;
+                let split_sibling = (*sibling).remove_node(0);
+                (*paren).children.remove(leaf_idx);
+                (*paren).connect_child_insert(split_sibling, leaf_idx);
+
+                // redistribute
+                let mut paren_item = BTItem::new(paren, leaf_idx);
+                let mut split_sibling_item = BTItem::new(split_sibling, 0);
+                BTItem::swap(&mut paren_item, &mut split_sibling_item);
+
+                if !(*sibling).is_leaf() {
+                    let sibling_child =  (*sibling).children.pop_front().unwrap();
+                    (*split_sibling).children.push_back(null_mut());
+                    (*split_sibling).connect_child_append(sibling_child);
+
+                    self.unpromote_(split_sibling, 0)
+                }
+
+                return;
+            }
+        }
+
+        if leaf_idx > 0 && !(*paren).child(leaf_idx - 1).is_null() {
+            if (*(*paren).child(leaf_idx - 1)).node_size() > 1 {
+                // split
+                let sibing = (*paren).child(leaf_idx - 1) as *mut B3Node<K, V>;
+                let split_sibling = (*sibing).remove_node((*sibing).node_size() - 1);
+                (*paren).children.remove(leaf_idx);
+                (*paren).connect_child_insert(split_sibling, leaf_idx);
+
+                // redistribute (including subtree)
+                let mut paren_item = BTItem::new(paren, leaf_idx - 1);
+                let mut split_sibling_item = BTItem::new(split_sibling, 0);
+                BTItem::swap(&mut paren_item, &mut split_sibling_item);
+
+                if !(*sibing).is_leaf() {
+                    let sibling_child = (*sibing).children.pop_back().unwrap();
+                    (*split_sibling).connect_child_append(sibling_child);
+                    (*split_sibling).children.push_back(null_mut());
+
+                    self.unpromote_(split_sibling, 1)
+                }
+
+                return;
+            }
+        }
+
+
+        // For 1-key-val node
+        // Move down && Merge (Recursive)
+        let sibling;
+        if !(*paren).child(leaf_idx + 1).is_null() {
+            // move down
+            sibling = (*paren).child(leaf_idx + 1) as *mut B3Node<K, V>;
+            (*paren).children.remove(leaf_idx);
+            let mvd_sibling = (*paren).remove_node(leaf_idx);
+
+            // merge
+            (*sibling).merge_node(mvd_sibling);
+
+            if (*paren).node_size() == 0 {
+                self.subtree_shift(paren, sibling);
+            }
+
+            if !(*sibling).is_leaf() {
+                (*sibling).children.insert(0, null_mut());
+                self.unpromote_(sibling, 0 );
+            }
+
+            return;
+        }
+
+        if leaf_idx > 0 && !(*paren).child(leaf_idx - 1).is_null() {
+            // move down
+            sibling = (*paren).child(leaf_idx - 1) as *mut B3Node<K, V>;
+            (*paren).children.remove(leaf_idx);
+            let mvd_sibling = (*paren).remove_node(leaf_idx - 1);
+
+            // merge
+            (*sibling).merge_node(mvd_sibling);
+
+            if (*paren).node_size() == 0 {
+                self.subtree_shift(paren, sibling);
+            }
+
+            if !(*sibling).is_leaf() {
+                (*sibling).children.push_back(null_mut());
+                self.unpromote_(sibling, (*sibling).children.len() - 1);
+            }
+
+            return;
+        }
+
+        unreachable!()
+    }
 }
 
 
@@ -336,31 +460,20 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for B3<K, V> {
 
         unsafe {
             if let Some(idx) = (*res).find_pos_of_key(key) {
+                // if !(*res).paren.is_null() {
+                //     println!("REMOVE RES: {}", (*res).format_keys());
+
+                //     println!("REMOVE RES PAREN:", );
+                //     (*(*res).paren).just_echo_stdout();
+                // }
+
                 let leaf_item = (*res).swap_to_leaf(idx);
                 let leaf = leaf_item.node as *mut B3Node<K, V>;
 
                 let _key = (*leaf).keys.remove(leaf_item.idx).unwrap();
                 let val = (*leaf).values.remove(leaf_item.idx).unwrap();
 
-                if (*leaf).keys.is_empty() {
-                    // Remove leaf node
-                    let paren = (*leaf).paren;
-
-                    if paren.is_null() {
-                        self.root = null_mut();
-                    } else {
-                        let leaf_idx = (*paren).index_of_child(leaf);
-                        (*paren).children.remove(leaf_idx);
-
-                        // case-0 2key3br, 1key2br
-
-                        // case-1 1key2br
-                    }
-
-                    // Redistribution
-                }
-
-
+                self.unpromote(leaf);
 
                 Some(*Box::from_raw(val))
             } else {
@@ -397,8 +510,6 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for B3<K, V> {
             None
         } else {
             unsafe {
-                // println!("{:?}", (*res).format_keys());
-
                 if let Some((idx, _)) = (*res)
                     .keys
                     .iter()
@@ -433,7 +544,7 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for B3<K, V> {
     }
 
     fn self_validate(&self) -> Result<(), Box<dyn std::error::Error>> {
-        Ok(())
+        self.basic_self_validate()
     }
 }
 
@@ -477,65 +588,105 @@ mod tests {
 
         let dict = &mut b3 as &mut dyn Dictionary<i32, ()>;
 
-        dict.insert(9, ());
-        assert!(dict.lookup(&9).is_some());
+        dict.insert(92, ());
+        dict.insert(917, ());
+        dict.insert(765, ());
+        dict.insert(901, ());
+        dict.insert(345, ());
+        dict.insert(645, ());
+        dict.insert(794, ());
+        dict.insert(643, ());
+        dict.insert(540, ());
+        dict.insert(81, ());
+        dict.insert(174, ());
+        dict.insert(340, ());
+        dict.insert(923, ());
+        dict.insert(88, ());
+        dict.insert(226, ());
+        dict.insert(126, ());
+        dict.insert(784, ());
+        dict.insert(943, ());
+        dict.insert(332, ());
+        dict.insert(885, ());
+
+
+        assert!(dict.remove(&794).is_some());
         assert!(dict.self_validate().is_ok());
 
-        dict.insert(5, ());
-        assert!(dict.lookup(&5).is_some());
+        assert!(dict.remove(&81).is_some());
         dict.self_validate().unwrap();
 
-        dict.insert(8, ());
-        assert!(dict.lookup(&8).is_some());
+        assert!(dict.remove(&901).is_some());
         dict.self_validate().unwrap();
 
-        dict.insert(3, ());
-        assert!(dict.lookup(&3).is_some());
+        assert!(dict.remove(&643).is_some());
         dict.self_validate().unwrap();
 
-        dict.insert(2, ());
-        assert!(dict.lookup(&2).is_some());
+        assert!(dict.remove(&345).is_some());
         dict.self_validate().unwrap();
 
-        dict.insert(4, ());
-        assert!(dict.lookup(&4).is_some());
+        assert!(dict.remove(&645).is_some());
         dict.self_validate().unwrap();
 
-        dict.insert(7, ());
-        assert!(dict.lookup(&7).is_some());
+        assert!(dict.remove(&92).is_some());
+        dict.self_validate().unwrap();
+
+        assert!(dict.remove(&784).is_some());
+        dict.self_validate().unwrap();
+
+        assert!(dict.remove(&885).is_some());
+        dict.self_validate().unwrap();
+
+        assert!(dict.remove(&332).is_some());
         dict.self_validate().unwrap();
 
         b3.just_echo_stdout();
     }
-
 
     #[test]
     fn test_b3_fixeddata_case_1() {
-        let mut seq = (10..110).step_by(10).map(|n| (n, ()));
-
-        let b3 = B3::<i32, ()>::bulk_load(&mut seq);
-
-
-        b3.just_echo_stdout();
-    }
-
-    #[test]
-    fn test_b3_fixeddata_case_2() {
         let mut b3 = B3::<i32, ()>::new();
 
         let dict = &mut b3 as &mut dyn Dictionary<i32, ()>;
 
-        dict.insert(44, ());
-        dict.insert(263, ());
-        dict.insert(945, ());
-        dict.insert(112, ());
-        dict.insert(940, ());
-        dict.insert(651, ());
-        dict.insert(879, ());
-        dict.insert(642, ());
-        dict.insert(118, ());
+        dict.insert(75, ());
+        dict.insert(60, ());
+        dict.insert(98, ());
+        dict.insert(91, ());
+        dict.insert(59, ());
+        dict.insert(92, ());
+        dict.insert(45, ());
+        dict.insert(2, ());
+        dict.insert(4, ());
+        dict.insert(13, ());
 
-        assert!(dict.lookup(&118).is_some());
+        assert!(dict.lookup(&75).is_some());
+        assert!(dict.remove(&75).is_some());
+        assert!(dict.lookup(&75).is_none());
+        dict.self_validate().unwrap();
+
+        assert!(dict.remove(&60).is_some());
+        dict.self_validate().unwrap();
+
+        assert!(dict.remove(&98).is_some());
+        dict.self_validate().unwrap();
+
+        assert!(dict.remove(&59).is_some());
+        dict.self_validate().unwrap();
+
+        assert!(dict.remove(&92).is_some());
+        dict.self_validate().unwrap();
+
+        assert!(dict.remove(&45).is_some());
+        dict.self_validate().unwrap();
+
+        assert!(dict.remove(&2).is_some());
+        dict.self_validate().unwrap();
+
+        assert!(dict.remove(&4).is_some());
+        dict.self_validate().unwrap();
+
+        assert!(dict.remove(&13).is_some());
         dict.self_validate().unwrap();
 
 
@@ -551,14 +702,25 @@ mod tests {
             .test_dict(|| box B3::new());
     }
 
+    #[test]
+    fn test_b3_bulk_load() {
+        let mut seq = (10..110).step_by(10).map(|n| (n, ()));
+
+        let b3 = B3::<i32, ()>::bulk_load(&mut seq);
+
+        b3.self_validate().unwrap();
+        b3.just_echo_stdout();
+    }
+
+
     ///
     /// Debug B3 entry
     ///
     #[ignore]
     #[test]
     fn hack_b3() {
-        for _ in 0..20 {
-        let batch_num = 55;
+        for _ in 0..50 {
+        let batch_num = 20;
         let mut collected_elems = vec![];
         let mut keys = vec![];
         let provider = InodeProvider {};
@@ -578,7 +740,7 @@ mod tests {
 
             assert!(dict.insert(k, e));
 
-            println!("{}: {:?}", i, k);
+            println!("insert {}: {:?}", i, k);
 
             assert!(dict.lookup(&keys.last().unwrap()).is_some());
 
@@ -587,50 +749,26 @@ mod tests {
             i += 1;
         }
 
-        // let mut dict_debug = dict.clone();
+        collected_elems.shuffle(&mut thread_rng());
 
-        // collected_elems.shuffle(&mut thread_rng());
+        // Remove-> Verify
+        for i in 0..batch_num {
+            let e = &collected_elems[i];
+            let k = &e.get_key();
 
-        // // Remove-> Verify
-        // for i in 0..batch_num {
-        //     let e = &collected_elems[i];
-        //     let k = &e.get_key();
+            println!("remove i: {}, k: {}", i, k);
+            assert!(dict.lookup(k).is_some());
+            let res = dict.remove(k);
+            if res.is_none() {
+                assert!(dict.lookup(k).is_some());
+                dict.remove(k);
+            }
 
-        //     assert!(dict.remove(k).is_some());
-        //     assert!(!dict.lookup(k).is_some());
+            // assert!(dict.remove(k).is_some());
+            assert!(!dict.lookup(k).is_some());
+            dict.self_validate().unwrap();
 
-        //     if let Ok(_res) = dict.self_validate() {
-        //     } else {
-        //         // restore the scene
-        //         println!("{}", i);
-
-        //         println!("DEBUG: {}", dict_debug.total());
-        //         // dict_debug.echo_stdout();
-
-        //         println!("ORIGIN: {}", dict.total());
-        //         // dict.echo_stdout();
-
-        //         for j in 0..i {
-        //             let e = &collected_elems[j];
-        //             let k = &e.get_key();
-
-        //             assert!(dict_debug.remove(k).is_some());
-        //             assert!(!dict_debug.lookup(k).is_some());
-        //             dict_debug.self_validate().unwrap();
-        //         }
-
-        //         unsafe {
-        //             let target = (*dict_debug.search_approximately(k)).try_as_bst_mut().unwrap();
-        //             let target_paren = (*target).paren_bst();
-
-        //             println!("Target: {:?}", k);
-        //             BSTNode::just_echo_stdout(&*target_paren);
-        //         }
-
-        //         dict_debug.remove(k).unwrap();
-        //         dict_debug.self_validate().unwrap();
-        //     }
-        // }
+        }
     }
     }
 }

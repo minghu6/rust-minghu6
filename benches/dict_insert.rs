@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use minghu6::collections::DictKey;
 use minghu6::collections::Dictionary;
 use minghu6::collections::bt::bst::*;
+use minghu6::collections::bt::*;
 use minghu6::test::dict::*;
 use minghu6::test::Provider;
 
@@ -72,3 +73,9 @@ fn bench_vecdict_insert(b: &mut Bencher) {
 fn bench_hashmapdict_insert(b: &mut Bencher) {
     bench_insert::<u32, Inode>(b, &mut HashMap::new(), &InodeProvider{})
 }
+
+#[bench]
+fn bench_b3_insert(b: &mut Bencher) {
+    bench_insert::<u32, Inode>(b, &mut b3::B3::new(), &InodeProvider{})
+}
+

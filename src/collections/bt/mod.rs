@@ -23,7 +23,7 @@ pub mod b3;
 
 
 /// B-Tree
-pub trait BT<'a, K: DictKey, V>: Dictionary<K, V> {
+pub trait BT<'a, K: DictKey + 'a, V: 'a>: Dictionary<K, V> {
     fn order(&self) -> usize;  // >= 2
     fn root(&self) -> *mut (dyn BTNode<'a, K, V> + 'a);
     fn assign_root(&mut self, root: *mut (dyn BTNode<'a, K, V> + 'a));
@@ -230,12 +230,21 @@ pub trait BT<'a, K: DictKey, V>: Dictionary<K, V> {
 
     }
 
+    fn basic_self_validate(&self) -> Result<(), Box<dyn std::error::Error>> {
+        if self.root().is_null() {
+            Ok(())
+        } else {
+            unsafe {
+                (*self.root()).basic_self_validate()
+            }
+        }
+    }
 
 }
 
 
 /// B-Tree Node
-pub trait BTNode<'a, K: DictKey, V> {
+pub trait BTNode<'a, K: DictKey + 'a, V: 'a> {
 
     ////////////////////////////////////////////////////////////////////////////
     //// Introspection
@@ -359,14 +368,11 @@ pub trait BTNode<'a, K: DictKey, V> {
             if let Some(here_key) = self.key(i) {
                 if here_key == key {
                     return Some(i);
-                } else {
-                    return None
                 }
             }
-
         }
 
-        unreachable!()
+        None
     }
 
     /// If this node contains key (exclude the subtree)
@@ -382,10 +388,51 @@ pub trait BTNode<'a, K: DictKey, V> {
         false
     }
 
+    fn node_last_key(&self) -> &K {
+        self.key(self.key_num() - 1).unwrap()
+    }
+
+    fn node_first_key(&self) -> &K {
+        self.key(0).unwrap()
+    }
+
     /// How many key-values does this node contains?
     fn node_size(&self) -> usize {
+        self.key_num()
+    }
+
+    fn key_num(&self) -> usize {
         for i in 0..self.order() {
             if self.key(i).is_none() {
+                return i;  // i must be greater than one in this case.
+            }
+        }
+
+        self.order()
+    }
+
+    fn key_iter(&'a self) -> Box<dyn Iterator<Item=&K> + 'a> {
+        let mut i = -1i32;
+
+        box std::iter::from_fn(move || -> Option<&K> {
+            i += 1;
+            self.key(i as usize)
+        })
+    }
+
+    fn val_num(&self) -> usize {
+        for i in 0..self.order() {
+            if self.value(i).is_none() {
+                return i;  // i must be greater than one in this case.
+            }
+        }
+
+        self.order()
+    }
+
+    fn children_num(&self) -> usize {
+        for i in 0..self.order() + 1 {
+            if self.child(i).is_null() {
                 return i;  // i must be greater than one in this case.
             }
         }
@@ -494,6 +541,43 @@ pub trait BTNode<'a, K: DictKey, V> {
         }
     }
 
+
+    /// precessor of item whose key is key.
+    fn precessor(&self, key: &K) -> BTItem<'a, K, V> {
+        let k_idx = self.index_of_key(key);
+
+        unsafe {
+            if self.is_leaf() {
+                if k_idx == 0 {  // Goto parent
+                    let mut x = self.itself_mut();
+                    let mut y = (*x).paren();
+
+                    while !y.is_null() {
+                        let idx = (*y).index_of_child(x);
+
+                        if idx > 0 {
+                            return BTItem::new(y, idx - 1);
+                        }
+
+                        x = y;
+                        y = (*x).paren();
+                    }
+
+                    BTItem::new(y, 0)
+
+                } else {
+                    BTItem::new(self.itself_mut(), k_idx - 1)
+                }
+
+            } else {
+                let pre_ptr = (*self.child(k_idx)).maximum();
+
+                BTItem::new(pre_ptr, (*pre_ptr).node_size() - 1)
+            }
+        }
+    }
+
+
     #[inline]
     fn search_approximately(
         &self,
@@ -543,9 +627,28 @@ pub trait BTNode<'a, K: DictKey, V> {
             item_x = item_nxt;
         }
 
+        // unsafe {
+        //     if (*item_x.node).is_leaf() {
+        //         return item_x;
+        //     }
+        // }
+
+        // while let Ok(item_nxt) = item_x.swap_with_precessor_until_leaf() {
+        //     item_x = item_nxt;
+        // }
+
         item_x
     }
 
+    // fn swap_to_valid(&mut self, idx: usize) -> BTItem<'a, K, V> {
+    //     let mut item_x = BTItem::new(self.itself_mut(), idx);
+
+    //     while let Ok(item_nxt) = item_x.swap_with_successor_until_valid() {
+    //         item_x = item_nxt;
+    //     }
+
+    //     item_x
+    // }
 
     fn just_echo_stdout(&self) {
         let mut cache = String::new();
@@ -674,6 +777,76 @@ pub trait BTNode<'a, K: DictKey, V> {
         }
     }
 
+    /// 1. N(keys) = N(vals)
+    /// 1. Keep infix-order
+    /// 1. non-leaf node (except root) has at least ⌈m/2⌉ child nodes.
+    /// 1. A non-leaf node with k children contains k − 1 keys (m >= 3).
+    /// 1. The root has at least two children if it is not a leaf node.
+    ///
+    /// **WARNING:** order-2 (BST) is a excaption case for some rules above.
+    fn basic_self_validate(&'a self) -> Result<(), Box<dyn std::error::Error>> {
+        if self.order() == 2 {
+            unsafe {
+                if !self.child(0).is_null() {
+                    assert!((*self.child(0)).key(0).unwrap() < self.key(0).unwrap());
+
+                    (*self.child(0)).basic_self_validate()?;
+                }
+
+                if !self.child(1).is_null() {
+                    assert!((*self.child(1)).key(0).unwrap() > self.key(0).unwrap());
+
+                    (*self.child(1)).basic_self_validate()?;
+                }
+            }
+
+            return Ok(());
+        }
+
+
+        let key_num = self.key_num();
+        assert_eq!(key_num, self.val_num());
+
+        if self.is_leaf() {
+            assert!(self.key_iter().is_sorted())
+        } else {
+            let children_num = self.children_num();
+
+            assert_eq!(key_num + 1, children_num);
+
+            if self.paren().is_null() {
+                assert!(children_num >= 2);
+            } else {
+                assert!(children_num >= self.order().unstable_div_ceil(2));
+            }
+
+            for i in 0..self.key_num() {
+                unsafe {
+                    let cur_key = self.key(i).unwrap();
+                    let lf_child = self.child(i);
+                    let rh_child = self.child(i + 1);
+
+                    if !lf_child.is_null() {
+                        assert!((*lf_child).node_last_key() < cur_key);
+                    }
+
+                    if !rh_child.is_null() {
+                        assert!((*rh_child).node_first_key() > cur_key);
+                    }
+                }
+            }
+
+            for i in 0..self.order() {
+                if !self.child(i).is_null() {
+                    unsafe { (*self.child(i)).basic_self_validate()?; }
+                }
+            }
+        }
+
+
+        Ok(())
+    }
+
 }
 
 
@@ -688,6 +861,10 @@ impl<'a, K: DictKey, V> BTItem<'a, K, V> {
             node,
             idx,
         }
+    }
+
+    pub fn is_valid(&self) -> bool {
+        !self.node.is_null()
     }
 
     pub fn key(&self) -> *mut K {
@@ -720,6 +897,12 @@ impl<'a, K: DictKey, V> BTItem<'a, K, V> {
         }
     }
 
+    pub fn precessor(&self) -> Self {
+        unsafe {
+            (*self.node).precessor(&*self.key())
+        }
+    }
+
     pub fn swap(x: &mut Self, y: &mut Self) {
         let tmp_key = y.key();
         let tmp_val = y.val();
@@ -739,9 +922,53 @@ impl<'a, K: DictKey, V> BTItem<'a, K, V> {
 
             let mut nxt_item = self.successor();
 
-            BTItem::swap(self, &mut nxt_item);
+            if nxt_item.is_valid() {
+                BTItem::swap(self, &mut nxt_item);
 
-            Ok(nxt_item)
+                Ok(nxt_item)
+            } else {
+                Err(())
+            }
+
+        }
+    }
+
+    /// END COND: is_leaf || key < successor's key
+    pub fn swap_with_successor_until_valid(&mut self) -> Result<Self, ()> {
+        unsafe {
+            if (*self.node).is_leaf() {
+                return Err(())
+            }
+
+            let mut nxt_item = self.successor();
+
+            if nxt_item.is_valid() && self.key() > nxt_item.key() {
+                BTItem::swap(self, &mut nxt_item);
+
+                Ok(nxt_item)
+            } else {
+                Err(())
+            }
+
+        }
+    }
+
+    pub fn swap_with_precessor_until_leaf(&mut self) -> Result<Self, ()> {
+        unsafe {
+            if (*self.node).is_leaf() {
+                return Err(())
+            }
+
+            let mut nxt_item = self.precessor();
+
+            if nxt_item.is_valid() {
+                BTItem::swap(self, &mut nxt_item);
+
+                Ok(nxt_item)
+            } else {
+                Err(())
+            }
+
         }
     }
 

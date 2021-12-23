@@ -6,6 +6,7 @@ use std::collections::HashMap;
 
 use itertools::Itertools;
 use minghu6::collections::bt::bst::*;
+use minghu6::collections::bt::*;
 use minghu6::collections::DictKey;
 use minghu6::collections::Dictionary;
 use minghu6::test::dict::*;
@@ -76,5 +77,10 @@ fn bench_vecdict_lookup(b: &mut Bencher) {
 #[bench]
 fn bench_hashmapdict_lookup(b: &mut Bencher) {
     bench_lookup::<u32, Inode>(b, &mut HashMap::new(), &InodeProvider {})
+}
+
+#[bench]
+fn bench_b3_lookup(b: &mut Bencher) {
+    bench_lookup::<u32, Inode>(b, &mut b3::B3::new(), &InodeProvider {})
 }
 

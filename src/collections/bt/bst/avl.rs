@@ -583,6 +583,8 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for AVL<K, V> {
     }
 
     fn self_validate(&self) -> Result<(), Box<dyn std::error::Error>> {
+        self.basic_self_validate()?;
+
         if !self.root.is_null() {
             unsafe { (*self.root).self_validate()? }
         }
