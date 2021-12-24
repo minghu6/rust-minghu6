@@ -20,6 +20,7 @@ use super::{DictKey, Dictionary};
 
 pub mod bst;
 pub mod b3;
+pub mod b4;
 
 
 /// B-Tree

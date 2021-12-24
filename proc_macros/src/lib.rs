@@ -7,8 +7,8 @@ use proc_macro::TokenStream;
 use proc_macro2::{ Span };
 use syn::parse::{Parse, ParseStream, Result};
 use syn::token::{Paren, Priv};
-use syn::{Expr, Ident, Lit, LitStr, MacroDelimiter, Path, Token, parse_macro_input};
-use quote::quote;
+use syn::{Expr, Ident, Lit, LitStr, MacroDelimiter, Path, Token, parse_macro_input, LitInt};
+use quote::{quote, format_ident};
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -130,51 +130,31 @@ pub fn make_simple_error_rules(input: TokenStream) -> TokenStream {
 }
 
 
-////////////////////////////////////////////////////////////////////////////////
-/////// ht![Head | Tail] -> New Vector
-
-// struct HT {
-//     head: Priv,
-//     tail: Priv
+// struct DefBN {
+//     order: LitInt,
 // }
 
-// impl Parse for HT {
+// impl Parse for DefBN {
 //     fn parse(input: ParseStream) -> Result<Self> {
-//         if input.peek2(Paren) {
-//             input.parse::<Expr>(parser)
-//         }
-
-
-//         let head = input.parse()?;
-//         input.parse::<Token!(|)>()?;
-//         let tail = input.parse()?;
+//         let order: LitInt = input.parse()?;
 
 //         Ok(Self {
-//             head, tail
+//             order
 //         })
 //     }
 // }
 
+
+
 // #[proc_macro]
-// pub fn ht(input: TokenStream) -> TokenStream {
-//     let HT {
-//         head,
-//         tail
-//     } = parse_macro_input!(input as HT);
+// pub fn def_bn(input: TokenStream) -> TokenStream {
+//     let DefBN {
+//         order
+//     } = parse_macro_input!(input as DefBN);
 
-//     let new_vec_name = Ident::new(
-//         &Uuid::new_v4().to_simple().to_string(),
-//         Span::call_site()
-//     );
+//     let BN = Ident::new(&format!("B{}", order), Span::call_site());
+//     let BNNode = Ident::new(&format!("B{}Node", order), Span::call_site());
 
-//     TokenStream::from(quote! {
-//         {
-//             let mut #new_vec_name = vec![#head];
-//             #new_vec_name.extend(#tail.iter());
-
-//             #new_vec_name
-//         }
-//     })
 // }
 
 

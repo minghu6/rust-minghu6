@@ -83,3 +83,9 @@ fn bench_hashmapdict_remove(b: &mut Bencher) {
 fn bench_b3_remove(b: &mut Bencher) {
     bench_remove::<u32, Inode>(b, &mut b3::B3::new(), &InodeProvider {})
 }
+
+#[bench]
+fn bench_b4_remove(b: &mut Bencher) {
+    bench_remove::<u32, Inode>(b, &mut b4::B4::new(), &InodeProvider {})
+}
+

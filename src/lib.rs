@@ -11,7 +11,9 @@
 #![feature(int_roundings)]
 
 
-use proc_macros::make_vec_macro_rules;
+use proc_macros::{
+    make_vec_macro_rules,
+};
 
 
 pub mod text;

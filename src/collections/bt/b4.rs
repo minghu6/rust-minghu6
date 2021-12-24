@@ -1,4 +1,6 @@
-//! AKA 2-3 tree, order 3 of B Tree, so call it B3.
+//! AKA 2-3-4 tree, order 4 of B Tree, so call it B4.
+//! reference: https://en.wikipedia.org/wiki/2%E2%80%933%E2%80%934_tree
+//! (B3 B4), (B5, B6), (B7, B8) ... = Algs(x), x = div_ceil(order, 2), order > 2
 
 use std::{
     collections::VecDeque,
@@ -16,14 +18,14 @@ use crate::*;
 ////////////////////////////////////////////////////////////////////////////////
 //// Structs
 
-/// 2-3 Tree
-pub struct B3<K, V> {
-    root: *mut B3Node<K, V>,
+/// 2-3-4 Tree
+pub struct B4<K, V> {
+    root: *mut B4Node<K, V>,
 }
 
-pub struct B3Node<K, V> {
-    keys: VecDeque<*mut K>,   // len: 1~2,
-    values: VecDeque<*mut V>, // co-variant with keys: 1~2
+pub struct B4Node<K, V> {
+    keys: VecDeque<*mut K>,
+    values: VecDeque<*mut V>,
 
     children: VecDeque<*mut Self>,
     paren: *mut Self,
@@ -35,8 +37,7 @@ pub struct B3Node<K, V> {
 //// Implement
 ///
 
-
-impl<'a, K: DictKey + 'a, V: 'a> B3Node<K, V> {
+impl<'a, K: DictKey + 'a, V: 'a> B4Node<K, V> {
     pub fn new_value(key: K, value: V) -> *mut Self {
         let key = Box::into_raw(box key);
         let value = Box::into_raw(box value);
@@ -72,7 +73,7 @@ impl<'a, K: DictKey + 'a, V: 'a> B3Node<K, V> {
         self.values.insert(insert_idx, value);
     }
 
-    unsafe fn connect_child_append(&mut self, child: *mut B3Node<K, V>) {
+    unsafe fn connect_child_append(&mut self, child: *mut B4Node<K, V>) {
         if !child.is_null() {
             (*child).paren = self as *mut Self;
         }
@@ -82,7 +83,7 @@ impl<'a, K: DictKey + 'a, V: 'a> B3Node<K, V> {
 
     unsafe fn connect_child_insert(
         &mut self,
-        child: *mut B3Node<K, V>,
+        child: *mut B4Node<K, V>,
         idx: usize,
     ) {
         if !child.is_null() {
@@ -92,17 +93,17 @@ impl<'a, K: DictKey + 'a, V: 'a> B3Node<K, V> {
         self.children.insert(idx, child);
     }
 
-    /// Result is Invalid B3 Node.
-    unsafe fn remove_node(&mut self, remove_idx: usize) -> *mut B3Node<K, V> {
+    /// Result is Invalid B4 Node.
+    unsafe fn remove_node(&mut self, remove_idx: usize) -> *mut B4Node<K, V> {
         let (key, val) = (
             self.keys.remove(remove_idx).unwrap(),
             self.values.remove(remove_idx).unwrap(),
         );
 
-        B3Node::new_ptr(key, val)
+        B4Node::new_ptr(key, val)
     }
 
-    unsafe fn merge_node(&mut self, income_node: *mut B3Node<K, V>) {
+    unsafe fn merge_node(&mut self, income_node: *mut B4Node<K, V>) {
         for _ in 0..self.keys.len() {
             self.node_insert(
                 (*income_node).keys.pop_front().unwrap(),
@@ -113,8 +114,7 @@ impl<'a, K: DictKey + 'a, V: 'a> B3Node<K, V> {
 }
 
 
-
-impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for B3Node<K, V> {
+impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for B4Node<K, V> {
     fn itself(&self) -> *const (dyn BTNode<'a, K, V> + 'a) {
         self as *const Self
     }
@@ -130,7 +130,7 @@ impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for B3Node<K, V> {
     }
 
     fn order(&self) -> usize {
-        3
+        4
     }
 
     fn child(&self, idx: usize) -> *mut (dyn BTNode<'a, K, V> + 'a) {
@@ -201,33 +201,33 @@ impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for B3Node<K, V> {
 }
 
 
-impl<'a, K: DictKey + 'a, V: 'a> B3<K, V> {
+impl<'a, K: DictKey + 'a, V: 'a> B4<K, V> {
     pub fn new() -> Self {
         Self { root: null_mut() }
     }
 
     /// Ordered Sequence
     pub fn bulk_load(seq: &mut dyn Iterator<Item = (K, V)>) -> Self {
-        let mut b3 = Self::new();
+        let mut b4 = Self::new();
 
         let mut seq =
             seq.map(|(k, v)| (Box::into_raw(box k), Box::into_raw(box v)));
 
         if let Some((k, v)) = seq.next() {
-            b3.root = B3Node::new_ptr(k, v);
+            b4.root = B4Node::new_ptr(k, v);
         }
 
         for (k, v) in seq.into_iter() {
             unsafe {
-                let target_node = b3.maximum() as *mut B3Node<K, V>;
+                let target_node = b4.maximum() as *mut B4Node<K, V>;
 
                 (*target_node).node_insert(k, v);
 
-                b3.promote(target_node);
+                b4.promote(target_node);
             }
         }
 
-        b3
+        b4
     }
 
     /// Assume that key is unique from node's keys.
@@ -243,7 +243,7 @@ impl<'a, K: DictKey + 'a, V: 'a> B3<K, V> {
     /// (2), 2 key 3 br,  -> 3 key 4 br (split)
     ///
     /// (3), 3 key 4 br (tmporary)      (split)
-    unsafe fn promote(&mut self, x: *mut B3Node<K, V>) {
+    unsafe fn promote(&mut self, x: *mut B4Node<K, V>) {
         if x.is_null() || !(*x).node_is_overfilled() {
             return;
         }
@@ -258,7 +258,7 @@ impl<'a, K: DictKey + 'a, V: 'a> B3<K, V> {
         }
 
         if (*x).paren.is_null() {
-            self.root = B3Node::new_ptr(x_mid_key, x_mid_val);
+            self.root = B4Node::new_ptr(x_mid_key, x_mid_val);
 
             (*self.root).connect_child_append(left_sibling);
             (*self.root).connect_child_append(x);
@@ -286,7 +286,7 @@ impl<'a, K: DictKey + 'a, V: 'a> B3<K, V> {
 
     }
 
-    unsafe fn unpromote(&mut self, leaf: *mut B3Node<K, V>) {
+    unsafe fn unpromote(&mut self, leaf: *mut B4Node<K, V>) {
         debug_assert!(!leaf.is_null());
 
         if (*leaf).node_size() == 0 {
@@ -301,7 +301,7 @@ impl<'a, K: DictKey + 'a, V: 'a> B3<K, V> {
         }
     }
 
-    unsafe fn unpromote_(&mut self, paren: *mut B3Node<K, V>, leaf_idx: usize) {
+    unsafe fn unpromote_(&mut self, paren: *mut B4Node<K, V>, leaf_idx: usize) {
         debug_assert!(!paren.is_null());
 
         // First check 2-key-val sibling
@@ -309,7 +309,7 @@ impl<'a, K: DictKey + 'a, V: 'a> B3<K, V> {
         if !(*paren).child(leaf_idx + 1).is_null() {
             if (*(*paren).child(leaf_idx + 1)).node_size() > 1 {
                 // split
-                let sibling = (*paren).child(leaf_idx + 1) as *mut B3Node<K, V>;
+                let sibling = (*paren).child(leaf_idx + 1) as *mut B4Node<K, V>;
                 let split_sibling = (*sibling).remove_node(0);
                 (*paren).children.remove(leaf_idx);
                 (*paren).connect_child_insert(split_sibling, leaf_idx);
@@ -334,7 +334,7 @@ impl<'a, K: DictKey + 'a, V: 'a> B3<K, V> {
         if leaf_idx > 0 && !(*paren).child(leaf_idx - 1).is_null() {
             if (*(*paren).child(leaf_idx - 1)).node_size() > 1 {
                 // split
-                let sibing = (*paren).child(leaf_idx - 1) as *mut B3Node<K, V>;
+                let sibing = (*paren).child(leaf_idx - 1) as *mut B4Node<K, V>;
                 let split_sibling = (*sibing).remove_node((*sibing).node_size() - 1);
                 (*paren).children.remove(leaf_idx);
                 (*paren).connect_child_insert(split_sibling, leaf_idx);
@@ -362,7 +362,7 @@ impl<'a, K: DictKey + 'a, V: 'a> B3<K, V> {
         let sibling;
         if !(*paren).child(leaf_idx + 1).is_null() {
             // move down
-            sibling = (*paren).child(leaf_idx + 1) as *mut B3Node<K, V>;
+            sibling = (*paren).child(leaf_idx + 1) as *mut B4Node<K, V>;
             (*paren).children.remove(leaf_idx);
             let mvd_sibling = (*paren).remove_node(leaf_idx);
 
@@ -383,7 +383,7 @@ impl<'a, K: DictKey + 'a, V: 'a> B3<K, V> {
 
         if leaf_idx > 0 && !(*paren).child(leaf_idx - 1).is_null() {
             // move down
-            sibling = (*paren).child(leaf_idx - 1) as *mut B3Node<K, V>;
+            sibling = (*paren).child(leaf_idx - 1) as *mut B4Node<K, V>;
             (*paren).children.remove(leaf_idx);
             let mvd_sibling = (*paren).remove_node(leaf_idx - 1);
 
@@ -407,10 +407,10 @@ impl<'a, K: DictKey + 'a, V: 'a> B3<K, V> {
 }
 
 
-impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for B3<K, V> {
+impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for B4<K, V> {
     fn insert(&mut self, key: K, value: V) -> bool {
         if self.root().is_null() {
-            self.assign_root(B3Node::new_value(key, value));
+            self.assign_root(B4Node::new_value(key, value));
             return true;
         }
 
@@ -425,7 +425,7 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for B3<K, V> {
             let key = Box::into_raw(box key);
             let value = Box::into_raw(box value);
 
-            let x_self = x as *mut B3Node<K, V>;
+            let x_self = x as *mut B4Node<K, V>;
             (*x_self).node_insert(key, value);
 
             self.promote(x_self);
@@ -435,7 +435,7 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for B3<K, V> {
     }
 
     fn remove(&mut self, key: &K) -> Option<V> {
-        let res = self.search_approximately(key) as *mut B3Node<K, V>;
+        let res = self.search_approximately(key) as *mut B4Node<K, V>;
 
         if res.is_null() {
             return None;
@@ -451,7 +451,7 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for B3<K, V> {
                 // }
 
                 let leaf_item = (*res).swap_to_leaf(idx);
-                let leaf = leaf_item.node as *mut B3Node<K, V>;
+                let leaf = leaf_item.node as *mut B4Node<K, V>;
 
                 let _key = (*leaf).keys.remove(leaf_item.idx).unwrap();
                 let val = (*leaf).values.remove(leaf_item.idx).unwrap();
@@ -466,7 +466,7 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for B3<K, V> {
     }
 
     fn modify(&mut self, key: &K, value: V) -> bool {
-        let res = self.search_approximately(key) as *mut B3Node<K, V>;
+        let res = self.search_approximately(key) as *mut B4Node<K, V>;
 
         if res.is_null() {
             false
@@ -487,7 +487,7 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for B3<K, V> {
     }
 
     fn lookup(&self, key: &K) -> Option<&V> {
-        let res = self.search_approximately(key) as *const B3Node<K, V>;
+        let res = self.search_approximately(key) as *const B4Node<K, V>;
 
         if res.is_null() {
             None
@@ -507,7 +507,7 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for B3<K, V> {
     }
 
     fn lookup_mut(&mut self, key: &K) -> Option<&mut V> {
-        let res = self.search_approximately(key) as *mut B3Node<K, V>;
+        let res = self.search_approximately(key) as *mut B4Node<K, V>;
 
         if res.is_null() {
             None
@@ -533,9 +533,9 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for B3<K, V> {
 
 
 
-impl<'a, K: DictKey + 'a, V: 'a> BT<'a, K, V> for B3<K, V> {
+impl<'a, K: DictKey + 'a, V: 'a> BT<'a, K, V> for B4<K, V> {
     fn order(&self) -> usize {
-        3
+        4
     }
 
     fn root(&self) -> *mut (dyn BTNode<'a, K, V> + 'a) {
@@ -543,9 +543,10 @@ impl<'a, K: DictKey + 'a, V: 'a> BT<'a, K, V> for B3<K, V> {
     }
 
     fn assign_root(&mut self, root: *mut (dyn BTNode<'a, K, V> + 'a)) {
-        self.root = root as *mut B3Node<K, V>;
+        self.root = root as *mut B4Node<K, V>;
     }
 }
+
 
 
 
@@ -555,7 +556,7 @@ mod tests {
 
     use crate::{
         collections::{
-            bt::{b3::B3, BT},
+            bt::{b4::B4, BT},
             Dictionary,
         },
         test::{
@@ -566,10 +567,10 @@ mod tests {
 
 
     #[test]
-    fn test_b3_fixeddata_case_0() {
-        let mut b3 = B3::<i32, ()>::new();
+    fn test_b4_fixeddata_case_0() {
+        let mut b4 = B4::<i32, ()>::new();
 
-        let dict = &mut b3 as &mut dyn Dictionary<i32, ()>;
+        let dict = &mut b4 as &mut dyn Dictionary<i32, ()>;
 
         dict.insert(92, ());
         dict.insert(917, ());
@@ -623,14 +624,14 @@ mod tests {
         assert!(dict.remove(&332).is_some());
         dict.self_validate().unwrap();
 
-        b3.just_echo_stdout();
+        b4.just_echo_stdout();
     }
 
     #[test]
-    fn test_b3_fixeddata_case_1() {
-        let mut b3 = B3::<i32, ()>::new();
+    fn test_b4_fixeddata_case_1() {
+        let mut b4 = B4::<i32, ()>::new();
 
-        let dict = &mut b3 as &mut dyn Dictionary<i32, ()>;
+        let dict = &mut b4 as &mut dyn Dictionary<i32, ()>;
 
         dict.insert(75, ());
         dict.insert(60, ());
@@ -673,41 +674,41 @@ mod tests {
         dict.self_validate().unwrap();
 
 
-        b3.just_echo_stdout();
+        b4.just_echo_stdout();
     }
 
 
     #[test]
-    pub(crate) fn test_b3_randomdata() {
+    pub(crate) fn test_b4_randomdata() {
         let provider = InodeProvider {};
 
         (&provider as &dyn DictProvider<u32, Inode>)
-            .test_dict(|| box B3::new());
+            .test_dict(|| box B4::new());
     }
 
     #[test]
-    fn test_b3_bulk_load() {
+    fn test_b4_bulk_load() {
         let mut seq = (10..110).step_by(10).map(|n| (n, ()));
 
-        let b3 = B3::<i32, ()>::bulk_load(&mut seq);
+        let b4 = B4::<i32, ()>::bulk_load(&mut seq);
 
-        b3.self_validate().unwrap();
-        b3.just_echo_stdout();
+        b4.self_validate().unwrap();
+        b4.just_echo_stdout();
     }
 
 
     ///
-    /// Debug B3 entry
+    /// Debug B4 entry
     ///
     #[ignore]
     #[test]
-    fn hack_b3() {
+    fn hack_b4() {
         for _ in 0..50 {
         let batch_num = 20;
         let mut collected_elems = vec![];
         let mut keys = vec![];
         let provider = InodeProvider {};
-        let mut dict = B3::new();
+        let mut dict = B4::new();
 
         // Create
         let mut i = 0;
@@ -754,4 +755,6 @@ mod tests {
         }
     }
     }
+
+
 }

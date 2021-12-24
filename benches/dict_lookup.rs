@@ -84,3 +84,7 @@ fn bench_b3_lookup(b: &mut Bencher) {
     bench_lookup::<u32, Inode>(b, &mut b3::B3::new(), &InodeProvider {})
 }
 
+#[bench]
+fn bench_b4_lookup(b: &mut Bencher) {
+    bench_lookup::<u32, Inode>(b, &mut b4::B4::new(), &InodeProvider {})
+}
