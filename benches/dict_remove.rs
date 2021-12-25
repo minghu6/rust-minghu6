@@ -89,3 +89,7 @@ fn bench_b4_remove(b: &mut Bencher) {
     bench_remove::<u32, Inode>(b, &mut b4::B4::new(), &InodeProvider {})
 }
 
+#[bench]
+fn bench_bstar4_remove(b: &mut Bencher) {
+    bench_remove::<u32, Inode>(b, &mut bstar4::BStar4::new(), &InodeProvider {})
+}

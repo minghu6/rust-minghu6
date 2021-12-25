@@ -84,3 +84,8 @@ fn bench_b4_insert(b: &mut Bencher) {
     bench_insert::<u32, Inode>(b, &mut b4::B4::new(), &InodeProvider{})
 }
 
+#[bench]
+fn bench_bstar4_insert(b: &mut Bencher) {
+    bench_insert::<u32, Inode>(b, &mut bstar4::BStar4::new(), &InodeProvider{})
+}
+

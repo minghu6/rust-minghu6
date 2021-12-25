@@ -19,11 +19,11 @@ use crate::*;
 //// Structs
 
 /// 2-3-4 Tree
-pub struct B4<K, V> {
-    root: *mut B4Node<K, V>,
+pub struct BStar4<K, V> {
+    root: *mut BStar4Node<K, V>,
 }
 
-pub struct B4Node<K, V> {
+pub struct BStar4Node<K, V> {
     keys: VecDeque<*mut K>,
     values: VecDeque<*mut V>,
 
@@ -37,7 +37,7 @@ pub struct B4Node<K, V> {
 //// Implement
 ///
 
-impl<'a, K: DictKey + 'a, V: 'a> B4Node<K, V> {
+impl<'a, K: DictKey + 'a, V: 'a> BStar4Node<K, V> {
     pub fn new_value(key: K, value: V) -> *mut Self {
         let key = Box::into_raw(box key);
         let value = Box::into_raw(box value);
@@ -73,7 +73,7 @@ impl<'a, K: DictKey + 'a, V: 'a> B4Node<K, V> {
         self.values.insert(insert_idx, value);
     }
 
-    unsafe fn connect_child_append(&mut self, child: *mut B4Node<K, V>) {
+    unsafe fn connect_child_append(&mut self, child: *mut BStar4Node<K, V>) {
         if !child.is_null() {
             (*child).paren = self as *mut Self;
         }
@@ -83,7 +83,7 @@ impl<'a, K: DictKey + 'a, V: 'a> B4Node<K, V> {
 
     unsafe fn connect_child_insert(
         &mut self,
-        child: *mut B4Node<K, V>,
+        child: *mut BStar4Node<K, V>,
         idx: usize,
     ) {
         if !child.is_null() {
@@ -94,16 +94,16 @@ impl<'a, K: DictKey + 'a, V: 'a> B4Node<K, V> {
     }
 
     /// Result is Invalid B4 Node.
-    unsafe fn remove_node(&mut self, remove_idx: usize) -> *mut B4Node<K, V> {
+    unsafe fn remove_node(&mut self, remove_idx: usize) -> *mut BStar4Node<K, V> {
         let (key, val) = (
             self.keys.remove(remove_idx).unwrap(),
             self.values.remove(remove_idx).unwrap(),
         );
 
-        B4Node::new_ptr(key, val)
+        BStar4Node::new_ptr(key, val)
     }
 
-    unsafe fn merge_node(&mut self, income_node: *mut B4Node<K, V>) {
+    unsafe fn merge_node(&mut self, income_node: *mut BStar4Node<K, V>) {
         for _ in 0..self.keys.len() {
             self.node_insert(
                 (*income_node).keys.pop_front().unwrap(),
@@ -114,7 +114,7 @@ impl<'a, K: DictKey + 'a, V: 'a> B4Node<K, V> {
 }
 
 
-impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for B4Node<K, V> {
+impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for BStar4Node<K, V> {
     fn itself(&self) -> *const (dyn BTNode<'a, K, V> + 'a) {
         self as *const Self
     }
@@ -201,44 +201,64 @@ impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for B4Node<K, V> {
 }
 
 
-impl<'a, K: DictKey + 'a, V: 'a> B4<K, V> {
+impl<'a, K: DictKey + 'a, V: 'a> BStar4<K, V> {
     pub fn new() -> Self {
         Self { root: null_mut() }
     }
 
-    /// Ordered Sequence
-    pub fn bulk_load(seq: &mut dyn Iterator<Item = (K, V)>) -> Self {
-        let mut b4 = Self::new();
-
-        let mut seq =
-            seq.map(|(k, v)| (Box::into_raw(box k), Box::into_raw(box v)));
-
-        if let Some((k, v)) = seq.next() {
-            b4.root = B4Node::new_ptr(k, v);
-        }
-
-        for (k, v) in seq.into_iter() {
-            unsafe {
-                let target_node = b4.maximum() as *mut B4Node<K, V>;
-
-                (*target_node).node_insert(k, v);
-
-                // There are soem other optimization include keeping rightmost node's size zero and one child instead of split from middle when promotion
-                b4.promote(target_node);
-            }
-        }
-
-        b4
-    }
-
-
-    unsafe fn promote(&mut self, x: *mut B4Node<K, V>) {
+    unsafe fn promote(&mut self, x: *mut BStar4Node<K, V>) {
         if x.is_null() || !(*x).node_is_overfilled() {
             return;
         }
 
-        // For B* Tree, it try to delay the promotion by move the key into sibling which is not fullfuilled yet.
+        // For B* Tree, it try to delay the promotion by move the key into sibling which is not fullfuilled yet (and then redistribute).
         // So the node is 2/3 instead 1/2.
+        // Delay Promote
+        let paren = (*x).paren();
+        if !paren.is_null() {
+            let idx = (*paren).index_of_child(x);
+
+            if idx > 0 {
+                let left_sibling = (*paren).child(idx - 1) as *mut BStar4Node<K, V>;
+                if !left_sibling.is_null() && !(*left_sibling).node_is_fullfilled() {
+
+                    BTItem::swap(
+                        &mut BTItem::new(paren, idx - 1),
+                        &mut BTItem::new(x, 0)
+                    );
+
+                    (*left_sibling).keys.push_back((*x).keys.pop_front().unwrap());
+                    (*left_sibling).values.push_back((*x).values.pop_front().unwrap());
+
+                    if !(*x).is_leaf() {
+                        (*left_sibling).connect_child_append((*x).children.pop_front().unwrap());
+                    }
+
+                    return;
+                }
+            }
+
+            let right_sibling = (*paren).child(idx + 1) as *mut BStar4Node<K, V>;
+            if !right_sibling.is_null() && !(*right_sibling).node_is_fullfilled() {
+
+                BTItem::swap(
+                    &mut BTItem::new(paren, idx),
+                    &mut BTItem::new(x, (*x).node_size() - 1)
+                );
+
+                (*right_sibling).keys.push_front((*x).keys.pop_back().unwrap());
+                (*right_sibling).values.push_front((*x).values.pop_back().unwrap());
+
+                if !(*x).is_leaf() {
+                    (*right_sibling).connect_child_insert((*x).children.pop_back().unwrap(), 0);
+                }
+
+                return;
+            }
+
+
+        }
+
 
         let x_mid_key = (*x).keys.remove(1).unwrap();
         let x_mid_val = (*x).values.remove(1).unwrap();
@@ -250,7 +270,7 @@ impl<'a, K: DictKey + 'a, V: 'a> B4<K, V> {
         }
 
         if (*x).paren.is_null() {
-            self.root = B4Node::new_ptr(x_mid_key, x_mid_val);
+            self.root = BStar4Node::new_ptr(x_mid_key, x_mid_val);
 
             (*self.root).connect_child_append(left_sibling);
             (*self.root).connect_child_append(x);
@@ -265,7 +285,7 @@ impl<'a, K: DictKey + 'a, V: 'a> B4<K, V> {
 
     }
 
-    unsafe fn unpromote(&mut self, leaf: *mut B4Node<K, V>) {
+    unsafe fn unpromote(&mut self, leaf: *mut BStar4Node<K, V>) {
         debug_assert!(!leaf.is_null());
 
         if (*leaf).node_size() == 0 {
@@ -280,7 +300,7 @@ impl<'a, K: DictKey + 'a, V: 'a> B4<K, V> {
         }
     }
 
-    unsafe fn unpromote_(&mut self, paren: *mut B4Node<K, V>, leaf_idx: usize) {
+    unsafe fn unpromote_(&mut self, paren: *mut BStar4Node<K, V>, leaf_idx: usize) {
         debug_assert!(!paren.is_null());
 
         // First check 2-key-val sibling
@@ -288,7 +308,7 @@ impl<'a, K: DictKey + 'a, V: 'a> B4<K, V> {
         if !(*paren).child(leaf_idx + 1).is_null() {
             if (*(*paren).child(leaf_idx + 1)).node_size() > 1 {
                 // split
-                let sibling = (*paren).child(leaf_idx + 1) as *mut B4Node<K, V>;
+                let sibling = (*paren).child(leaf_idx + 1) as *mut BStar4Node<K, V>;
                 let split_sibling = (*sibling).remove_node(0);
                 (*paren).children.remove(leaf_idx);
                 (*paren).connect_child_insert(split_sibling, leaf_idx);
@@ -313,7 +333,7 @@ impl<'a, K: DictKey + 'a, V: 'a> B4<K, V> {
         if leaf_idx > 0 && !(*paren).child(leaf_idx - 1).is_null() {
             if (*(*paren).child(leaf_idx - 1)).node_size() > 1 {
                 // split
-                let sibing = (*paren).child(leaf_idx - 1) as *mut B4Node<K, V>;
+                let sibing = (*paren).child(leaf_idx - 1) as *mut BStar4Node<K, V>;
                 let split_sibling = (*sibing).remove_node((*sibing).node_size() - 1);
                 (*paren).children.remove(leaf_idx);
                 (*paren).connect_child_insert(split_sibling, leaf_idx);
@@ -341,7 +361,7 @@ impl<'a, K: DictKey + 'a, V: 'a> B4<K, V> {
         let sibling;
         if !(*paren).child(leaf_idx + 1).is_null() {
             // move down
-            sibling = (*paren).child(leaf_idx + 1) as *mut B4Node<K, V>;
+            sibling = (*paren).child(leaf_idx + 1) as *mut BStar4Node<K, V>;
             (*paren).children.remove(leaf_idx);
             let mvd_sibling = (*paren).remove_node(leaf_idx);
 
@@ -362,7 +382,7 @@ impl<'a, K: DictKey + 'a, V: 'a> B4<K, V> {
 
         if leaf_idx > 0 && !(*paren).child(leaf_idx - 1).is_null() {
             // move down
-            sibling = (*paren).child(leaf_idx - 1) as *mut B4Node<K, V>;
+            sibling = (*paren).child(leaf_idx - 1) as *mut BStar4Node<K, V>;
             (*paren).children.remove(leaf_idx);
             let mvd_sibling = (*paren).remove_node(leaf_idx - 1);
 
@@ -386,10 +406,10 @@ impl<'a, K: DictKey + 'a, V: 'a> B4<K, V> {
 }
 
 
-impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for B4<K, V> {
+impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for BStar4<K, V> {
     fn insert(&mut self, key: K, value: V) -> bool {
         if self.root().is_null() {
-            self.assign_root(B4Node::new_value(key, value));
+            self.assign_root(BStar4Node::new_value(key, value));
             return true;
         }
 
@@ -404,7 +424,7 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for B4<K, V> {
             let key = Box::into_raw(box key);
             let value = Box::into_raw(box value);
 
-            let x_self = x as *mut B4Node<K, V>;
+            let x_self = x as *mut BStar4Node<K, V>;
             (*x_self).node_insert(key, value);
 
             self.promote(x_self);
@@ -414,7 +434,7 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for B4<K, V> {
     }
 
     fn remove(&mut self, key: &K) -> Option<V> {
-        let res = self.search_approximately(key) as *mut B4Node<K, V>;
+        let res = self.search_approximately(key) as *mut BStar4Node<K, V>;
 
         if res.is_null() {
             return None;
@@ -430,7 +450,7 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for B4<K, V> {
                 // }
 
                 let leaf_item = (*res).swap_to_leaf(idx);
-                let leaf = leaf_item.node as *mut B4Node<K, V>;
+                let leaf = leaf_item.node as *mut BStar4Node<K, V>;
 
                 let _key = (*leaf).keys.remove(leaf_item.idx).unwrap();
                 let val = (*leaf).values.remove(leaf_item.idx).unwrap();
@@ -445,7 +465,7 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for B4<K, V> {
     }
 
     fn modify(&mut self, key: &K, value: V) -> bool {
-        let res = self.search_approximately(key) as *mut B4Node<K, V>;
+        let res = self.search_approximately(key) as *mut BStar4Node<K, V>;
 
         if res.is_null() {
             false
@@ -466,7 +486,7 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for B4<K, V> {
     }
 
     fn lookup(&self, key: &K) -> Option<&V> {
-        let res = self.search_approximately(key) as *const B4Node<K, V>;
+        let res = self.search_approximately(key) as *const BStar4Node<K, V>;
 
         if res.is_null() {
             None
@@ -486,7 +506,7 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for B4<K, V> {
     }
 
     fn lookup_mut(&mut self, key: &K) -> Option<&mut V> {
-        let res = self.search_approximately(key) as *mut B4Node<K, V>;
+        let res = self.search_approximately(key) as *mut BStar4Node<K, V>;
 
         if res.is_null() {
             None
@@ -512,7 +532,7 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for B4<K, V> {
 
 
 
-impl<'a, K: DictKey + 'a, V: 'a> BT<'a, K, V> for B4<K, V> {
+impl<'a, K: DictKey + 'a, V: 'a> BT<'a, K, V> for BStar4<K, V> {
     fn order(&self) -> usize {
         4
     }
@@ -522,7 +542,7 @@ impl<'a, K: DictKey + 'a, V: 'a> BT<'a, K, V> for B4<K, V> {
     }
 
     fn assign_root(&mut self, root: *mut (dyn BTNode<'a, K, V> + 'a)) {
-        self.root = root as *mut B4Node<K, V>;
+        self.root = root as *mut BStar4Node<K, V>;
     }
 }
 
@@ -535,7 +555,7 @@ mod tests {
 
     use crate::{
         collections::{
-            bt::{b4::B4, BT},
+            bt::{bstar4::BStar4, BT},
             Dictionary,
         },
         test::{
@@ -546,10 +566,10 @@ mod tests {
 
 
     #[test]
-    fn test_b4_fixeddata_case_0() {
-        let mut b4 = B4::<i32, ()>::new();
+    fn test_bstar4_fixeddata_case_0() {
+        let mut bstar4 = BStar4::<i32, ()>::new();
 
-        let dict = &mut b4 as &mut dyn Dictionary<i32, ()>;
+        let dict = &mut bstar4 as &mut dyn Dictionary<i32, ()>;
 
         dict.insert(92, ());
         dict.insert(917, ());
@@ -603,77 +623,18 @@ mod tests {
         assert!(dict.remove(&332).is_some());
         dict.self_validate().unwrap();
 
-        b4.just_echo_stdout();
-    }
-
-    #[test]
-    fn test_b4_fixeddata_case_1() {
-        let mut b4 = B4::<i32, ()>::new();
-
-        let dict = &mut b4 as &mut dyn Dictionary<i32, ()>;
-
-        dict.insert(75, ());
-        dict.insert(60, ());
-        dict.insert(98, ());
-        dict.insert(91, ());
-        dict.insert(59, ());
-        dict.insert(92, ());
-        dict.insert(45, ());
-        dict.insert(2, ());
-        dict.insert(4, ());
-        dict.insert(13, ());
-
-        assert!(dict.lookup(&75).is_some());
-        assert!(dict.remove(&75).is_some());
-        assert!(dict.lookup(&75).is_none());
-        dict.self_validate().unwrap();
-
-        assert!(dict.remove(&60).is_some());
-        dict.self_validate().unwrap();
-
-        assert!(dict.remove(&98).is_some());
-        dict.self_validate().unwrap();
-
-        assert!(dict.remove(&59).is_some());
-        dict.self_validate().unwrap();
-
-        assert!(dict.remove(&92).is_some());
-        dict.self_validate().unwrap();
-
-        assert!(dict.remove(&45).is_some());
-        dict.self_validate().unwrap();
-
-        assert!(dict.remove(&2).is_some());
-        dict.self_validate().unwrap();
-
-        assert!(dict.remove(&4).is_some());
-        dict.self_validate().unwrap();
-
-        assert!(dict.remove(&13).is_some());
-        dict.self_validate().unwrap();
-
-
-        b4.just_echo_stdout();
+        bstar4.just_echo_stdout();
     }
 
 
     #[test]
-    pub(crate) fn test_b4_randomdata() {
+    pub(crate) fn test_bstar4_randomdata() {
         let provider = InodeProvider {};
 
         (&provider as &dyn DictProvider<u32, Inode>)
-            .test_dict(|| box B4::new());
+            .test_dict(|| box BStar4::new());
     }
 
-    #[test]
-    fn test_b4_bulk_load() {
-        let mut seq = (10..110).step_by(10).map(|n| (n, ()));
-
-        let b4 = B4::<i32, ()>::bulk_load(&mut seq);
-
-        b4.self_validate().unwrap();
-        b4.just_echo_stdout();
-    }
 
 
     ///
@@ -681,13 +642,13 @@ mod tests {
     ///
     #[ignore]
     #[test]
-    fn hack_b4() {
+    fn hack_bstar4() {
         for _ in 0..50 {
         let batch_num = 20;
         let mut collected_elems = vec![];
         let mut keys = vec![];
         let provider = InodeProvider {};
-        let mut dict = B4::new();
+        let mut dict = BStar4::new();
 
         // Create
         let mut i = 0;

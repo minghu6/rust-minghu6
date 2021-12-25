@@ -9,6 +9,9 @@
 /// 1. The root has at least two children if it is not a leaf node.
 /// 1. A non-leaf node with k children contains k − 1 keys.
 /// 1. All leaves appear in the same level and carry no information.
+/// Here, It's not restrict B-Tree as it save key-value in internal node instead of leaf(nil),
+/// we do it just for comparison convenience with other BT impl with Dictionary Trait
+
 
 use std::{ops::Bound, fmt, fmt::Write, collections::VecDeque, ptr};
 
@@ -21,6 +24,7 @@ use super::{DictKey, Dictionary};
 pub mod bst;
 pub mod b3;
 pub mod b4;
+pub mod bstar4;
 
 
 /// B-Tree
@@ -340,6 +344,42 @@ pub trait BTNode<'a, K: DictKey + 'a, V: 'a> {
     fn val_ptr(&self, idx: usize) -> *mut V;
     fn assign_val_ptr(&mut self, idx: usize, val_ptr: *mut V);
 
+    // fn right_sibling(&self) -> *mut (dyn BTNode<'a, K, V> + 'a) {
+    //     let paren = (*self).paren();
+
+    //     if paren.is_null() {
+    //         return paren;
+    //     }
+
+    //     unsafe {
+    //         let idx = (*paren).index_of_child(self.itself_mut());
+
+    //         (*paren).child(idx + 1)
+    //     }
+
+    // }
+
+
+    // fn left_sibling(&self) -> *mut (dyn BTNode<'a, K, V> + 'a) {
+    //     let paren = (*self).paren();
+
+    //     if paren.is_null() {
+    //         return paren;
+    //     }
+
+    //     unsafe {
+    //         let idx = (*paren).index_of_child(self.itself_mut());
+
+    //         if idx > 0 {
+    //             (*paren).child(idx - 1)
+    //         } else {
+    //             self.null_mut()
+    //         }
+    //     }
+
+    // }
+
+
     fn index_of_child(&self, child: *mut (dyn BTNode<'a, K, V> + 'a)) -> usize {
         for i in 0..self.order() {
             // as *const () just to ignore the vtable variant from the fat pointer
@@ -443,6 +483,10 @@ pub trait BTNode<'a, K: DictKey + 'a, V: 'a> {
 
     fn node_is_overfilled(&self) -> bool {
         self.node_size() >= self.order()
+    }
+
+    fn node_is_fullfilled(&self) -> bool {
+        self.node_size() >= self.order() - 1
     }
 
     fn height(&self) -> i32;
