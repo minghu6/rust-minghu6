@@ -3,6 +3,8 @@
 
 pub mod avl;
 pub mod rawst;
+pub mod rb;
+
 
 
 use std::{
@@ -12,7 +14,11 @@ use std::{
 
 use either::Either;
 
-use super::{super::{DictKey, Dictionary}, BTNode, BT};
+use super::{
+    super::{DictKey, Dictionary},
+    BTNode, BT,
+};
+use crate::etc::Reverse;
 
 
 /// LF(key) < MID(key) < RH(key)
@@ -23,8 +29,8 @@ pub trait BST<'a, K: DictKey + 'a, V: 'a>: BT<'a, K, V> {
     ) -> bool {
         unsafe {
             let key = BSTNode::key(&*new_node);
-            let approxi_node
-            = (*self.search_approximately(&key)).try_as_bst_mut().unwrap();
+            let approxi_node =
+                (*self.search_approximately(&key)).try_as_bst_mut().unwrap();
 
             if !approxi_node.is_null() && BSTNode::key(&*approxi_node) == key {
                 return false;
@@ -54,8 +60,8 @@ pub trait BST<'a, K: DictKey + 'a, V: 'a>: BT<'a, K, V> {
         key: &K,
     ) -> Option<*mut (dyn BSTNode<'a, K, V> + 'a)> {
         unsafe {
-            let approxi_node
-            = (*self.search_approximately(&key)).try_as_bst_mut().unwrap();
+            let approxi_node =
+                (*self.search_approximately(&key)).try_as_bst_mut().unwrap();
 
             if approxi_node.is_null() {
                 return None;
@@ -70,7 +76,7 @@ pub trait BST<'a, K: DictKey + 'a, V: 'a>: BT<'a, K, V> {
             } else if (*approxi_node).right().is_null() {
                 self.subtree_shift(approxi_node, (*approxi_node).left())
             } else {
-                let y = BSTNode::successor(&*approxi_node) ;
+                let y = BSTNode::successor(&*approxi_node);
                 // y should be leaf.
 
                 if (*y).paren_bst() != approxi_node {
@@ -87,6 +93,144 @@ pub trait BST<'a, K: DictKey + 'a, V: 'a>: BT<'a, K, V> {
         }
     }
 
+    unsafe fn rotate_cleanup(
+        &mut self,
+        x: *mut (dyn BSTNode<'a, K, V> + 'a),
+        z: *mut (dyn BSTNode<'a, K, V> + 'a),
+    );
+
+    /// Simple Rotation
+    /// ```no_run
+    ///             rotate left
+    ///    x        =========>          z
+    ///  /  \                          / \
+    /// t1   z                        x   t4
+    /// |   / \                      / \   |
+    ///   t23 t4                    t1 t23 |
+    ///     |  |                     |   |
+    ///        |
+    /// ```
+    ///
+    unsafe fn rotate(
+        &mut self,
+        x: *mut (dyn BSTNode<'a, K, V> + 'a),
+        rotation: Either<(), ()>, // rotate to left = from right rotation
+    ) -> *mut (dyn BSTNode<'a, K, V> + 'a) {
+        let z = if rotation.is_left() {
+            (*x).right()
+        } else {
+            (*x).left()
+        };
+
+        let t23 = if rotation.is_left() {
+            (*z).left()
+        } else {
+            (*z).right()
+        };
+
+        if !t23.is_null() {
+            (*t23).assign_paren(x);
+        }
+
+        if rotation.is_left() {
+            (*x).assign_right(t23);
+            (*z).assign_left(x);
+        } else {
+            (*x).assign_left(t23);
+            (*z).assign_right(x);
+        }
+
+        self.subtree_shift(x, z);
+        (*x).assign_paren(z);
+
+        self.rotate_cleanup(x, z);
+
+        z
+    }
+
+
+    /// Double Rotation
+    /// ```no_run
+    ///             rotate [right]-left         rotate right-[left]
+    ///    x        =========>         x        =========>       y
+    ///  /   \                        /  \                      / \
+    /// t1    z                      t1   y                    x   z
+    /// |   /  \                     |   / \                  / \ / \
+    ///    y   t4                      t2   z                t1 t2t3t4
+    ///   / \   |                       |  / \                |  | | |
+    ///  t2 t3                            t3 t4
+    ///   |  |                            |   |
+    /// ```
+    unsafe fn double_rotate(
+        &mut self,
+        x: *mut (dyn BSTNode<'a, K, V> + 'a),
+        snd_rotation: Either<(), ()>,
+    ) -> *mut (dyn BSTNode<'a, K, V> + 'a) {
+        let z = if snd_rotation.is_left() {
+            (*x).right()
+        } else {
+            (*x).left()
+        };
+
+        self.rotate(z, snd_rotation.reverse());
+        self.rotate(x, snd_rotation)
+
+        // // Manualy Implements
+        // /* FIRST ROTATION */
+        // // z is by 2 higher than its sibing(t1)
+        // // y is by 1 higher than its sibling(t4) (thereis shouldn't be empty)
+        // let z = if snd_rotation.is_left() {
+        //     (*x).right
+        // } else {
+        //     (*x).left
+        // };
+
+        // let y = if snd_rotation.is_left() {
+        //     (*z).left
+        // } else {
+        //     (*z).right
+        // };
+
+        // let (t2, t3) = if snd_rotation.is_left() {
+        //     ((*y).left, (*y).right)
+        // } else {
+        //     ((*y).right, (*y).left)
+        // };
+
+        // if !t3.is_null() {
+        //     (*t3).assign_paren(z);
+        // }
+        // (*z).assign_paren(y);
+
+        // if snd_rotation.is_left() {
+        //     (*z).assign_left(t3);
+        //     (*y).assign_right(z);
+        // } else {
+        //     (*z).assign_right(t3);
+        //     (*y).assign_left(z);
+        // }
+
+        // // skip x-R->z => x-R->y for it would be overrided by second rotation
+
+        // /* SECOND ROTATION */
+        // if snd_rotation.is_left() {
+        //     (*x).assign_right(t2);
+        //     (*y).assign_left(x);
+        // } else {
+        //     (*x).assign_left(t2);
+        //     (*y).assign_right(x);
+        // }
+        // if !t2.is_null() {
+        //     (*t2).assign_paren(x);
+        // }
+
+        // self.subtree_shift(x, y);
+        // (*x).assign_paren(y);
+
+        // y
+    }
+
+
 
     /// BFS Echo
     fn echo_in_mm(
@@ -101,7 +245,11 @@ pub trait BST<'a, K: DictKey + 'a, V: 'a>: BT<'a, K, V> {
             writeln!(cache, "ROOT: null")
         } else {
             unsafe {
-                writeln!(cache, "ROOT: {:?}", BSTNode::key(&*self.root_bst()))?;
+                writeln!(
+                    cache,
+                    "ROOT: {:?}",
+                    BSTNode::key(&*self.root_bst())
+                )?;
 
                 BSTNode::echo_in_mm(&*self.root_bst(), cache, action)
             }
@@ -121,8 +269,25 @@ pub trait BSTNode<'a, K: DictKey + 'a, V: 'a>: BTNode<'a, K, V> {
         unsafe { (*BTNode::child(self, 0)).try_as_bst_mut().unwrap() }
     }
     fn right(&self) -> *mut (dyn BSTNode<'a, K, V> + 'a) {
-        unsafe{ (*BTNode::child(self, 1)).try_as_bst_mut().unwrap() }
+        unsafe { (*BTNode::child(self, 1)).try_as_bst_mut().unwrap() }
     }
+    fn uncle(&self) -> *mut (dyn BSTNode<'a, K, V> + 'a) {
+        unsafe {
+            let paren = self.paren();
+            debug_assert!(!paren.is_null());
+
+            let grandparen = (*paren).paren_bst();
+            debug_assert!(!grandparen.is_null());
+
+            if paren as *const () == (*grandparen).left() as *const () {
+                (*grandparen).right()
+            } else {
+                (*grandparen).left()
+            }
+
+        }
+    }
+
     fn key(&self) -> &K {
         BTNode::key(self, 0).unwrap()
     }
@@ -239,8 +404,7 @@ pub trait BSTNode<'a, K: DictKey + 'a, V: 'a>: BTNode<'a, K, V> {
             let mut this_level_queue: VecDeque<
                 *mut (dyn BSTNode<'a, K, V> + 'a),
             > = VecDeque::new();
-            this_level_queue
-                .push_back(self.itself_bst_mut());
+            this_level_queue.push_back(self.itself_bst_mut());
             let mut level = 0;
 
             while !this_level_queue.is_empty() {
@@ -303,7 +467,6 @@ pub trait BSTNode<'a, K: DictKey + 'a, V: 'a>: BTNode<'a, K, V> {
 
         Ok(())
     }
-
 }
 
 
@@ -318,5 +481,4 @@ pub(crate) mod tests {
         test_avl_randomdata();
         test_rawst_randomdata();
     }
-
 }

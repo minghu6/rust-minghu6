@@ -244,15 +244,7 @@ impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for AVLNode<K, V> {
 
 
 
-impl<'a, K: DictKey + 'a, V: 'a> BSTNode<'a, K, V> for AVLNode<K, V> {
-    fn key(&self) -> &K {
-        unsafe { &*self.key }
-    }
-
-    fn value(&self) -> &V {
-        unsafe { &*self.value }
-    }
-}
+impl<'a, K: DictKey + 'a, V: 'a> BSTNode<'a, K, V> for AVLNode<K, V> {}
 
 
 
@@ -266,139 +258,6 @@ impl<'a, K: DictKey + 'a, V: 'a> AVL<K, V> {
             unsafe { (*self.root).echo_stdout() }
         }
     }
-
-    /// Simple Rotation
-    /// ```no_run
-    ///             rotate left
-    ///    x        =========>          z
-    ///  /  \                          / \
-    /// t1   z                        x   t4
-    /// |   / \                      / \   |
-    ///   t23 t4                    t1 t23 |
-    ///     |  |                     |   |
-    ///        |
-    /// ```
-    ///
-    unsafe fn rotate(
-        &mut self,
-        x: *mut AVLNode<K, V>,
-        rotation: Either<(), ()>, // rotate to left = from right rotation
-    ) -> *mut AVLNode<K, V> {
-        let z = if rotation.is_left() {
-            (*x).right
-        } else {
-            (*x).left
-        };
-
-        let t23 = if rotation.is_left() {
-            (*z).left
-        } else {
-            (*z).right
-        };
-
-        if !t23.is_null() {
-            (*t23).assign_paren(x);
-        }
-
-        if rotation.is_left() {
-            (*x).assign_right(t23);
-            (*z).assign_left(x);
-        } else {
-            (*x).assign_left(t23);
-            (*z).assign_right(x);
-        }
-
-        self.subtree_shift(x, z);
-        (*x).assign_paren(z);
-
-        (*x).height = 1 + max((*x).left_height(), (*x).right_height());
-        (*z).height = 1 + max((*z).left_height(), (*z).right_height());
-
-        z
-    }
-
-
-    /// Double Rotation
-    /// ```no_run
-    ///             rotate [right]-left         rotate right-[left]
-    ///    x        =========>         x        =========>       y
-    ///  /   \                        /  \                      / \
-    /// t1    z                      t1   y                    x   z
-    /// |   /  \                     |   / \                  / \ / \
-    ///    y   t4                      t2   z                t1 t2t3t4
-    ///   / \   |                       |  / \                |  | | |
-    ///  t2 t3                            t3 t4
-    ///   |  |                            |   |
-    /// ```
-    unsafe fn double_rotate(
-        &mut self,
-        x: *mut AVLNode<K, V>,
-        snd_rotation: Either<(), ()>,
-    ) -> *mut AVLNode<K, V> {
-        let z = if snd_rotation.is_left() {
-            (*x).right
-        } else {
-            (*x).left
-        };
-
-        self.rotate(z, snd_rotation.reverse());
-        self.rotate(x, snd_rotation)
-
-        // // Manualy Implements
-        // /* FIRST ROTATION */
-        // // z is by 2 higher than its sibing(t1)
-        // // y is by 1 higher than its sibling(t4) (thereis shouldn't be empty)
-        // let z = if snd_rotation.is_left() {
-        //     (*x).right
-        // } else {
-        //     (*x).left
-        // };
-
-        // let y = if snd_rotation.is_left() {
-        //     (*z).left
-        // } else {
-        //     (*z).right
-        // };
-
-        // let (t2, t3) = if snd_rotation.is_left() {
-        //     ((*y).left, (*y).right)
-        // } else {
-        //     ((*y).right, (*y).left)
-        // };
-
-        // if !t3.is_null() {
-        //     (*t3).assign_paren(z);
-        // }
-        // (*z).assign_paren(y);
-
-        // if snd_rotation.is_left() {
-        //     (*z).assign_left(t3);
-        //     (*y).assign_right(z);
-        // } else {
-        //     (*z).assign_right(t3);
-        //     (*y).assign_left(z);
-        // }
-
-        // // skip x-R->z => x-R->y for it would be overrided by second rotation
-
-        // /* SECOND ROTATION */
-        // if snd_rotation.is_left() {
-        //     (*x).assign_right(t2);
-        //     (*y).assign_left(x);
-        // } else {
-        //     (*x).assign_left(t2);
-        //     (*y).assign_right(x);
-        // }
-        // if !t2.is_null() {
-        //     (*t2).assign_paren(x);
-        // }
-
-        // self.subtree_shift(x, y);
-        // (*x).assign_paren(y);
-
-        // y
-    }
-
 
     unsafe fn insert_retracing(&mut self, new_node: *mut AVLNode<K, V>) {
         let mut y = new_node;
@@ -462,12 +321,15 @@ impl<'a, K: DictKey + 'a, V: 'a> AVL<K, V> {
                     self.rotate(x, direction)
                 } else {
                     self.double_rotate(x, direction)
-                }
+                } as *mut AVLNode<K, V>;
             }
 
             p = (*p).paren;
         }
     }
+
+
+
 }
 
 
@@ -608,7 +470,16 @@ impl<'a, K: DictKey + 'a, V: 'a> BT<'a, K, V> for AVL<K, V> {
 }
 
 
-impl<'a, K: DictKey + 'a, V: 'a> BST<'a, K, V> for AVL<K, V> {}
+impl<'a, K: DictKey + 'a, V: 'a> BST<'a, K, V> for AVL<K, V> {
+    unsafe fn rotate_cleanup(
+        &mut self,
+        x: *mut (dyn BSTNode<'a, K, V> + 'a),
+        z: *mut (dyn BSTNode<'a, K, V> + 'a),
+    ) {
+        (*(x as *mut AVLNode<K, V>)).height = 1 + max((*x).left_height(), (*x).right_height());
+        (*(z as *mut AVLNode<K, V>)).height = 1 + max((*z).left_height(), (*z).right_height());
+    }
+}
 
 
 

@@ -5,8 +5,8 @@ use either::Either;
 ////////////////////////////////////////////////////////////////////////////////
 //// Traits
 
-pub trait Reverse<T> {
-    fn reverse(&self) -> T;
+pub trait Reverse {
+    fn reverse(&self) -> Self;
 }
 
 
@@ -19,7 +19,7 @@ pub trait Conjugation<T> {
 ////////////////////////////////////////////////////////////////////////////////
 //// Implements
 
-impl Reverse<Either<(), ()>> for Either<(), ()> {
+impl Reverse for Either<(), ()> {
     fn reverse(&self) -> Either<(), ()> {
         if self.is_left() {
             Either::Right(())

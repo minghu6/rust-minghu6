@@ -137,15 +137,7 @@ impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for RawSTNode<K, V> {
     }
 }
 
-impl<'a, K: DictKey + 'a, V: 'a> BSTNode<'a, K, V> for RawSTNode<K, V> {
-    fn key(&self) -> &K {
-        unsafe { &*self.key }
-    }
-
-    fn value(&self) -> &V {
-        unsafe { &*self.value }
-    }
-}
+impl<'a, K: DictKey + 'a, V: 'a> BSTNode<'a, K, V> for RawSTNode<K, V> {}
 
 
 impl<'a, K: DictKey + 'a, V: 'a> RawST<K, V> {
@@ -205,7 +197,13 @@ impl<'a, K: DictKey + 'a, V: 'a> BT<'a, K, V> for RawST<K, V> {
 }
 
 
-impl<'a, K: DictKey + 'a, V: 'a> BST<'a, K, V> for RawST<K, V> {}
+impl<'a, K: DictKey + 'a, V: 'a> BST<'a, K, V> for RawST<K, V> {
+    unsafe fn rotate_cleanup(
+        &mut self,
+        _x: *mut (dyn BSTNode<'a, K, V> + 'a),
+        _z: *mut (dyn BSTNode<'a, K, V> + 'a),
+    ) {}
+}
 
 
 
