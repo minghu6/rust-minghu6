@@ -494,7 +494,7 @@ pub(crate) mod tests {
     use crate::{
         collections::{
             bt::{
-                bst::{BSTNode, BST},
+                bst::{BSTNode, BST, ROTATE_NUM},
                 BTNode, BT,
             },
             Dictionary,
@@ -512,6 +512,8 @@ pub(crate) mod tests {
 
         (&provider as &dyn DictProvider<u32, Inode>)
             .test_dict(|| box AVL::new());
+
+        println!("rotate numer: {}", unsafe { ROTATE_NUM })
     }
 
     ///

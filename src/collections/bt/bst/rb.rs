@@ -69,6 +69,22 @@ fn is_red<K, V>(node: *mut RBNode<K, V>) -> bool {
     !is_black(node)
 }
 
+fn set_black<K, V>(node: *mut RBNode<K, V>) {
+    unsafe {
+        if !node.is_null() {
+            (*node).color = Color::BLACK
+        }
+    }
+}
+
+fn set_red<K, V>(node: *mut RBNode<K, V>) {
+    unsafe {
+        if !node.is_null() {
+            (*node).color = Color::RED
+        }
+    }
+}
+
 
 
 impl<'a, K: DictKey + 'a, V: 'a> RBNode<K, V> {
@@ -94,8 +110,11 @@ impl<'a, K: DictKey + 'a, V: 'a> RBNode<K, V> {
         })
     }
 
-    fn into_value(self) -> V {
-        unsafe { *Box::from_raw(self.value) }
+    fn node_into_value(node: *mut RBNode<K, V>) -> V {
+        unsafe {
+            let origin_node = Box::from_raw(node);
+            *Box::from_raw(origin_node.value)
+        }
     }
 
     /// validate red/black
@@ -286,11 +305,135 @@ impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for RBNode<K, V> {
 impl<'a, K: DictKey + 'a, V: 'a> BSTNode<'a, K, V> for RBNode<K, V> {}
 
 
-
 impl<'a, K: DictKey + 'a, V: 'a> RB<K, V> {
     pub fn new() -> Self {
         Self { root: null_mut() }
     }
+
+    // ref: https://www.geeksforgeeks.org/red-black-tree-set-3-delete-2/?ref=lbp
+    unsafe fn remove_retracing(
+        &mut self,
+        mut n: *mut RBNode<K, V>,
+    ) -> *mut RBNode<K, V> {
+
+        /* Prepare Deleting */
+        if !(*n).right.is_null() {
+            let successor = (*(*n).right).minimum() as *mut RBNode<K, V>;
+            (*n).swap_with(successor);
+
+            n = successor;
+        }
+        // Either n.left or n.right is null.
+        let u = n;
+        let v = if (*u).left.is_null() {
+            (*u).right
+        } else {
+            (*u).left
+        };
+
+        /* Handle SPECIAL v is null case (for it need retracing before remove) */
+        if v.is_null() {
+            if (*u).paren.is_null() {
+                self.root = v;
+            } else {
+                if is_black(u) {
+                    self.remove_retracing_black_non_root_leaf(u);
+                } else {
+                    set_red((*u).sibling() as *mut RBNode<K, V>);
+                }
+
+                self.subtree_shift(u, v);
+            }
+
+            return u;
+        }
+
+        /* Simple Case: either u and v is red */
+        /* No change in black height */
+
+        self.subtree_shift(u, v);
+
+        if is_red(u) || is_red(v) {
+            set_black(v);
+
+            return u;
+        }
+
+        /* Both u, v are black case */
+
+        // u is root
+        if (*u).paren.is_null() {
+            return u;
+        }
+
+        // u isn't root
+        self.remove_retracing_black_non_root_leaf(v);
+
+        u
+    }
+
+    unsafe fn remove_retracing_black_non_root_leaf(&mut self, n: *mut RBNode<K, V>) {
+        let p = (*n).paren;
+        if p.is_null() {
+            return;
+        }
+
+        let dir = if n == (*p).left {
+            Either::Left(())
+        } else {
+            Either::Right(())
+        };
+
+        let s
+        = BSTNode::child(&*p, dir.reverse())  // Sibling
+        as *mut RBNode<K, V>;
+
+        if s.is_null() {
+            return self.remove_retracing_black_non_root_leaf(p);
+        }
+
+        let c
+        = BSTNode::child(&*s, dir)  // Close Nephew
+        as *mut RBNode<K, V>;
+
+        let d
+        = BSTNode::child(&*s, dir.reverse())  // Distant Nephew
+        as *mut RBNode<K, V>;
+
+
+        if is_red(s) {  // indicates that p c d are black
+            self.rotate(p, dir);
+            (*p).color = Color::RED;
+            (*s).color = Color::BLACK;
+
+            return self.remove_retracing_black_non_root_leaf(n);
+        }
+
+        /* s is black */
+
+        if is_black(c) && is_black(d) {
+            (*s).color = Color::RED;
+
+            if is_black(p) {
+                self.remove_retracing_black_non_root_leaf(p);
+            } else {
+                set_black(p);
+            }
+        } else if is_red(c) {
+            self.double_rotate(p, dir);
+            (*c).color = (*p).color.clone();
+            (*p).color = Color::BLACK;
+
+        } else {  // d is red
+            self.rotate(p, dir);
+            (*s).color = (*p).color.clone();
+            (*d).color = Color::BLACK;
+            (*p).color = Color::BLACK;
+
+        }
+
+    }
+
 
     unsafe fn insert_retracing(&mut self, x: *mut RBNode<K, V>) {
         let p = (*x).paren;
@@ -310,33 +453,34 @@ impl<'a, K: DictKey + 'a, V: 'a> RB<K, V> {
             return;
         }
 
-        let u = (*x).uncle() as *mut RBNode<K, V>;
+        let pdir = if x == (*p).left {
+            Either::Left(())
+        } else {
+            Either::Right(())
+        };
+        let u
+        = BSTNode::child(&*g, pdir.reverse()) as *mut RBNode<K, V>;
+
         if is_red(u) {
-            // Recolor
+            // Repaint
             (*p).color = Color::BLACK;
             (*u).color = Color::BLACK;
             (*g).color = Color::RED;
 
             self.insert_retracing(g)
         } else {
-            let dir = if x == (*p).left {
-                Either::Left(())
-            } else {
-                Either::Right(())
-            };
-
             let new_root;
             let the_other_child;
 
             if p as *const ()
-                == BSTNode::child(&*g, dir.reverse()) as *const ()
+                == BSTNode::child(&*g, pdir.reverse()) as *const ()
             {
-                new_root = self.double_rotate(g, dir) as *mut RBNode<K, V>;
+                new_root = self.double_rotate(g, pdir) as *mut RBNode<K, V>;
                 the_other_child =
-                    BSTNode::child(&*new_root, dir) as *mut RBNode<K, V>;
+                    BSTNode::child(&*new_root, pdir) as *mut RBNode<K, V>;
             } else {
-                new_root = self.rotate(g, dir.reverse()) as *mut RBNode<K, V>;
-                the_other_child = BSTNode::child(&*new_root, dir.reverse())
+                new_root = self.rotate(g, pdir.reverse()) as *mut RBNode<K, V>;
+                the_other_child = BSTNode::child(&*new_root, pdir.reverse())
                     as *mut RBNode<K, V>;
             }
 
@@ -371,14 +515,26 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for RB<K, V> {
 
 
     fn remove(&mut self, key: &K) -> Option<V> {
-        if let Some(z) = self.basic_remove(key) {
-            let origin_node = unsafe { Box::from_raw(z as *mut RBNode<K, V>) };
+        unsafe {
+            let approxi_node =
+                (*self.search_approximately(&key)).try_as_bst_mut().unwrap();
 
-            Some(origin_node.into_value())
-        } else {
-            None
+            if approxi_node.is_null() {
+                return None;
+            }
+
+            if BSTNode::key(&*approxi_node) != key {
+                return None;
+            }
+
+            let removed_node =
+                self.remove_retracing(approxi_node as *mut RBNode<K, V>);
+
+            Some(RBNode::node_into_value(removed_node))
         }
     }
+
+
 
     fn modify(&mut self, key: &K, value: V) -> bool {
         self.basic_modify(key, value)
@@ -441,12 +597,13 @@ mod test {
 
 
     use itertools::Itertools;
+    use rand::{prelude::SliceRandom, thread_rng};
 
     use super::RB;
     use crate::{
         collections::{
             bt::{
-                bst::{BSTNode, BST},
+                bst::{BSTNode, BST, ROTATE_NUM},
                 BTNode, BT,
             },
             Dictionary,
@@ -464,11 +621,14 @@ mod test {
 
         (&provider as &dyn DictProvider<u32, Inode>)
             .test_dict(|| box RB::new());
+
+        println!("rotate numer: {}", unsafe { ROTATE_NUM })
     }
 
     ///
     /// Debug RB entry
     ///
+    #[ignore = "Only used for debug"]
     #[test]
     fn hack_rb() {
         for _ in 0..20 {
@@ -501,50 +661,21 @@ mod test {
 
             // let mut dict_debug = dict.clone();
 
-            // collected_elems.shuffle(&mut thread_rng());
+            collected_elems.shuffle(&mut thread_rng());
 
-            // // Remove-> Verify
-            // for i in 0..batch_num {
-            //     let e = &collected_elems[i];
-            //     let k = &e.get_key();
+            // Remove-> Verify
+            for i in 0..batch_num {
+                let e = &collected_elems[i];
+                let k = &e.get_key();
 
-            //     assert!(dict.remove(k).is_some());
-            //     assert!(!dict.lookup(k).is_some());
+                assert!(dict.remove(k).is_some());
+                assert!(!dict.lookup(k).is_some());
 
-            //     if let Ok(_res) = dict.self_validate() {
-            //     } else {
-            //         // restore the scene
-            //         println!("{}", i);
-
-            //         println!("DEBUG: {}", dict_debug.total());
-            //         // dict_debug.echo_stdout();
-
-            //         println!("ORIGIN: {}", dict.total());
-            //         // dict.echo_stdout();
-
-            //         for j in 0..i {
-            //             let e = &collected_elems[j];
-            //             let k = &e.get_key();
-
-            //             assert!(dict_debug.remove(k).is_some());
-            //             assert!(!dict_debug.lookup(k).is_some());
-            //             dict_debug.self_validate().unwrap();
-            //         }
-
-            //         unsafe {
-            //             let target = (*dict_debug.search_approximately(k))
-            //                 .try_as_bst_mut()
-            //                 .unwrap();
-            //             let target_paren = (*target).paren_bst();
-
-            //             println!("Target: {:?}", k);
-            //             BSTNode::just_echo_stdout(&*target_paren);
-            //         }
-
-            //         dict_debug.remove(k).unwrap();
-            //         dict_debug.self_validate().unwrap();
-            //     }
-            // }
+                println!("{}", i);
+                if let Ok(_res) = dict.self_validate() {
+                } else {
+                }
+            }
         }
     }
 
@@ -595,36 +726,37 @@ mod test {
         assert!(dict.lookup(&11).is_some());
         assert!(dict.lookup(&22).is_some());
 
-        // assert!(dict.remove(&10).is_some());
-        // assert!(dict.lookup(&10).is_none());
-        // dict.self_validate().unwrap();
 
-        // assert!(dict.remove(&5).is_some());
-        // assert!(dict.lookup(&5).is_none());
-        // dict.self_validate().unwrap();
+        assert!(dict.remove(&10).is_some());
+        assert!(dict.lookup(&10).is_none());
+        dict.self_validate().unwrap();
 
-        // assert!(dict.remove(&12).is_some());
-        // dict.self_validate().unwrap();
+        assert!(dict.remove(&5).is_some());
+        assert!(dict.lookup(&5).is_none());
+        dict.self_validate().unwrap();
 
-        // assert!(dict.remove(&13).is_some());
-        // dict.self_validate().unwrap();
+        assert!(dict.remove(&12).is_some());
+        dict.self_validate().unwrap();
 
-        // assert!(dict.remove(&14).is_some());
-        // dict.self_validate().unwrap();
+        assert!(dict.remove(&13).is_some());
+        dict.self_validate().unwrap();
 
-        // assert!(dict.remove(&18).is_some());
-        // dict.self_validate().unwrap();
+        assert!(dict.remove(&14).is_some());
+        dict.self_validate().unwrap();
 
-        // assert!(dict.remove(&7).is_some());
-        // dict.self_validate().unwrap();
+        assert!(dict.remove(&18).is_some());
+        dict.self_validate().unwrap();
 
-        // assert!(dict.remove(&9).is_some());
-        // dict.self_validate().unwrap();
+        assert!(dict.remove(&7).is_some());
+        dict.self_validate().unwrap();
 
-        // assert!(dict.remove(&11).is_some());
-        // dict.self_validate().unwrap();
+        assert!(dict.remove(&9).is_some());
+        dict.self_validate().unwrap();
 
-        // assert!(dict.remove(&22).is_some());
+        assert!(dict.remove(&11).is_some());
+        dict.self_validate().unwrap();
+
+        assert!(dict.remove(&22).is_some());
 
         rb.self_validate().unwrap();
         rb.echo_stdout();

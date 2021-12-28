@@ -116,6 +116,10 @@ pub trait BST<'a, K: DictKey + 'a, V: 'a>: BT<'a, K, V> {
         x: *mut (dyn BSTNode<'a, K, V> + 'a),
         rotation: Either<(), ()>, // rotate to left = from right rotation
     ) -> *mut (dyn BSTNode<'a, K, V> + 'a) {
+        #[cfg(test)] {
+            ROTATE_NUM += 1;
+        }
+
         let z = if rotation.is_left() {
             (*x).right()
         } else {
@@ -230,8 +234,6 @@ pub trait BST<'a, K: DictKey + 'a, V: 'a>: BT<'a, K, V> {
         // y
     }
 
-
-
     /// BFS Echo
     fn echo_in_mm(
         &self,
@@ -271,19 +273,21 @@ pub trait BSTNode<'a, K: DictKey + 'a, V: 'a>: BTNode<'a, K, V> {
     fn right(&self) -> *mut (dyn BSTNode<'a, K, V> + 'a) {
         unsafe { (*BTNode::child(self, 1)).try_as_bst_mut().unwrap() }
     }
-    fn uncle(&self) -> *mut (dyn BSTNode<'a, K, V> + 'a) {
+    fn sibling(&self) -> *mut (dyn BSTNode<'a, K, V> + 'a) {
         unsafe {
-            let paren = self.paren();
+            let paren = self.paren_bst();
             debug_assert!(!paren.is_null());
 
-            let grandparen = (*paren).paren_bst();
-            debug_assert!(!grandparen.is_null());
+            BSTNode::child(&*paren, (*self).dir().reverse())
+        }
+    }
 
-            if paren as *const () == (*grandparen).left() as *const () {
-                (*grandparen).right()
-            } else {
-                (*grandparen).left()
-            }
+    fn uncle(&self) -> *mut (dyn BSTNode<'a, K, V> + 'a) {
+        unsafe {
+            let paren = self.paren_bst();
+            debug_assert!(!paren.is_null());
+
+            (*paren).sibling()
 
         }
     }
@@ -300,6 +304,18 @@ pub trait BSTNode<'a, K: DictKey + 'a, V: 'a>: BTNode<'a, K, V> {
 
     ////////////////////////////////////////////////////////////////////////////
     //// Introspection
+
+    fn dir(&self) -> Either<(), ()> {
+        unsafe {
+            debug_assert!(!self.paren().is_null());
+
+            if (*self.paren()).index_of_child(self.itself_mut()) == 0 {
+                Either::Left(())
+            } else {
+                Either::Right(())
+            }
+        }
+    }
 
     fn child(
         &self,
@@ -380,6 +396,40 @@ pub trait BSTNode<'a, K: DictKey + 'a, V: 'a>: BTNode<'a, K, V> {
         }
     }
 
+    // fn swap_with_successor_until_null(
+    //     &mut self,
+    // ) -> *mut (dyn BSTNode<'a, K, V> + 'a) {
+    //     unsafe {
+    //         let mut x = self.itself_bst_mut();
+    //         let mut p;
+
+    //         loop {
+    //             p = x;
+    //             x = BSTNode::successor(&*x);
+
+    //             if x.is_null() {
+    //                 break;
+    //             }
+
+    //             (*p).swap_with(x);
+    //         }
+
+    //         p
+    //     }
+    // }
+
+    unsafe fn swap_with(&mut self, other: *mut (dyn BSTNode<'a, K, V> + 'a)) {
+        debug_assert!(!other.is_null());
+
+        let tmp_key = (*other).key_ptr(0);
+        let tmp_val = (*other).val_ptr(0);
+
+        (*other).assign_key_ptr(0, self.key_ptr(0));
+        (*other).assign_val_ptr(0, self.val_ptr(0));
+
+        self.assign_key_ptr(0, tmp_key);
+        self.assign_val_ptr(0, tmp_val);
+    }
 
     fn just_echo_stdout(&self) {
         let mut cache = String::new();
@@ -468,6 +518,10 @@ pub trait BSTNode<'a, K: DictKey + 'a, V: 'a>: BTNode<'a, K, V> {
         Ok(())
     }
 }
+
+
+pub(crate) static mut ROTATE_NUM: usize = 0;
+
 
 
 #[cfg(test)]
