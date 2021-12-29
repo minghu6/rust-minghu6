@@ -79,20 +79,20 @@ where
                 }
             }
 
-            collected_elems.shuffle(&mut thread_rng());
+            // collected_elems.shuffle(&mut thread_rng());
 
-            // Remove-> Verify
-            for i in 0..batch_num {
-                let e = &collected_elems[i];
-                let k = &e.get_key();
+            // // Remove-> Verify
+            // for i in 0..batch_num {
+            //     let e = &collected_elems[i];
+            //     let k = &e.get_key();
 
-                assert!(dict.remove(k).is_some());
-                assert!(!dict.lookup(k).is_some());
+            //     assert!(dict.remove(k).is_some());
+            //     assert!(!dict.lookup(k).is_some());
 
-                if i % 10 == 0 {  // sample to save time
-                    dict.self_validate().unwrap();
-                }
-            }
+            //     if i % 10 == 0 {  // sample to save time
+            //         dict.self_validate().unwrap();
+            //     }
+            // }
         }
     }
 

@@ -1,8 +1,11 @@
+//! Left Learning Red Black Tree
 //!
-//! Reference: https://en.wikipedia.org/wiki/Red%E2%80%93black_tree#loopInvariantI
-//! Red is central item of 2-4 tree
+//! ref: https://oi-wiki.org/ds/llllrbt/
 //!
-
+//! Painting edge instead of node (node's color indicates it's edge to parent)
+//! Restrict black children are either black-black or red-black (red is only left)
+//!
+//! red link same node's item of 2-4 tree, black link different node respectly.
 
 
 use std::cmp::max;
@@ -15,6 +18,7 @@ use itertools::Itertools;
 use serde::de::DeserializeSeed;
 use serde::{Deserialize, Deserializer, Serialize};
 
+use super::rb::Color;
 use super::{BSTNode, BST};
 use crate::collections::bt::{BTNode, BT};
 use crate::collections::{DictKey, Dictionary};
@@ -26,12 +30,14 @@ use crate::*;
 //// Struct
 ////
 
-pub struct RB<K, V> {
-    root: *mut RBNode<K, V>,
+
+///
+pub struct LLRB<K, V> {
+    root: *mut LLRBNode<K, V>,
 }
 
 
-struct RBNode<K, V> {
+struct LLRBNode<K, V> {
     left: *mut Self,
     right: *mut Self,
     paren: *mut Self,
@@ -41,35 +47,18 @@ struct RBNode<K, V> {
 }
 
 
-#[derive(Debug, Clone, PartialEq)]
-#[repr(u8)]
-pub(crate) enum Color {
-    RED,
-    BLACK,
-}
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //// Implement
 
-impl Reverse for Color {
-    fn reverse(&self) -> Self {
-        match &self {
-            Color::RED => Color::BLACK,
-            Color::BLACK => Color::RED,
-        }
-    }
-}
-
-fn is_black<K, V>(node: *mut RBNode<K, V>) -> bool {
+fn is_black<K, V>(node: *mut LLRBNode<K, V>) -> bool {
     unsafe { node.is_null() || (*node).color == Color::BLACK }
 }
 
-fn is_red<K, V>(node: *mut RBNode<K, V>) -> bool {
+fn is_red<K, V>(node: *mut LLRBNode<K, V>) -> bool {
     !is_black(node)
 }
 
-fn set_black<K, V>(node: *mut RBNode<K, V>) {
+fn set_black<K, V>(node: *mut LLRBNode<K, V>) {
     unsafe {
         if !node.is_null() {
             (*node).color = Color::BLACK
@@ -77,7 +66,7 @@ fn set_black<K, V>(node: *mut RBNode<K, V>) {
     }
 }
 
-fn set_red<K, V>(node: *mut RBNode<K, V>) {
+fn set_red<K, V>(node: *mut LLRBNode<K, V>) {
     unsafe {
         if !node.is_null() {
             (*node).color = Color::RED
@@ -87,7 +76,7 @@ fn set_red<K, V>(node: *mut RBNode<K, V>) {
 
 
 
-impl<'a, K: DictKey + 'a, V: 'a> RBNode<K, V> {
+impl<'a, K: DictKey + 'a, V: 'a> LLRBNode<K, V> {
     pub fn new(key: K, value: V) -> *mut Self {
         Box::into_raw(box Self {
             left: null_mut(),
@@ -110,7 +99,7 @@ impl<'a, K: DictKey + 'a, V: 'a> RBNode<K, V> {
         })
     }
 
-    fn node_into_value(node: *mut RBNode<K, V>) -> V {
+    fn node_into_value(node: *mut LLRBNode<K, V>) -> V {
         unsafe {
             let origin_node = Box::from_raw(node);
             *Box::from_raw(origin_node.value)
@@ -122,16 +111,29 @@ impl<'a, K: DictKey + 'a, V: 'a> RBNode<K, V> {
         self.basic_self_validate()?;
 
         unsafe {
-            // Single Red Color Rule
             if self.color == Color::RED {
-                // Ignore this for impl convenience
-                // if !self.paren.is_null() {
-                //     assert!(self.color.is_black());
-                // }
+                // right-learning red violation
+                assert!(!
+                    (is_black(self.left) && is_red(self.right))
+                );
 
-                assert!(is_black(self.left));
-                assert!(is_black(self.right));
+                // at most 4-node
+                if is_red(self.left) && is_red(self.right) {
+                    assert!(!is_red(self.paren));
+
+                    assert!(!is_red((*self.left).left));
+                    assert!(!is_red((*self.left).right));
+
+                    assert!(!is_red((*self.right).left));
+                    assert!(!is_red((*self.right).right));
+
+                }
             }
+
+            // unbalanced 4-node
+            assert!(!
+                (is_red(self.left) && is_red((*self.left).left))
+            );
 
             // All descendant leaf's black depth
             // validate it from root
@@ -159,13 +161,13 @@ impl<'a, K: DictKey + 'a, V: 'a> RBNode<K, V> {
 
             unsafe {
                 if (*p).left.is_null() {
-                    leafs.push(RBNode::leaf(p));
+                    leafs.push(LLRBNode::leaf(p));
                 } else {
                     queue.push_back((*p).left);
                 }
 
                 if (*p).right.is_null() {
-                    leafs.push(RBNode::leaf(p));
+                    leafs.push(LLRBNode::leaf(p));
                 } else {
                     queue.push_back((*p).right);
                 }
@@ -199,7 +201,7 @@ impl<'a, K: DictKey + 'a, V: 'a> RBNode<K, V> {
     pub fn echo_in_mm(&self, cache: &mut String) -> fmt::Result {
         unsafe {
             BSTNode::echo_in_mm(self, cache, |x, cache| {
-                let x_self = x as *mut RBNode<K, V>;
+                let x_self = x as *mut LLRBNode<K, V>;
 
                 writeln!(cache, "{:?}", (*x_self).color)
             })
@@ -213,10 +215,23 @@ impl<'a, K: DictKey + 'a, V: 'a> RBNode<K, V> {
 
         println!("{}", cache);
     }
+
+    /// Split or Merge of 4-node
+    fn color_flip(&mut self) {
+        self.color = self.color.reverse();
+
+        if !self.left.is_null() {
+            unsafe { (*self.left).color = (*self.left).color.reverse(); }
+        }
+
+        if !self.right.is_null() {
+            unsafe { (*self.right).color = (*self.right).color.reverse(); }
+        }
+    }
 }
 
 
-impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for RBNode<K, V> {
+impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for LLRBNode<K, V> {
     fn itself(&self) -> *const (dyn BTNode<'a, K, V> + 'a) {
         self as *const Self
     }
@@ -302,191 +317,59 @@ impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for RBNode<K, V> {
     }
 }
 
-impl<'a, K: DictKey + 'a, V: 'a> BSTNode<'a, K, V> for RBNode<K, V> {}
+impl<'a, K: DictKey + 'a, V: 'a> BSTNode<'a, K, V> for LLRBNode<K, V> {}
 
 
-impl<'a, K: DictKey + 'a, V: 'a> RB<K, V> {
+impl<'a, K: DictKey + 'a, V: 'a> LLRB<K, V> {
     pub fn new() -> Self {
         Self { root: null_mut() }
     }
 
-    // ref: https://www.geeksforgeeks.org/red-black-tree-set-3-delete-2/?ref=lbp
     unsafe fn remove_retracing(
         &mut self,
-        mut n: *mut RBNode<K, V>,
-    ) -> *mut RBNode<K, V> {
-
-        /* Prepare Deleting */
-        if !(*n).right.is_null() {
-            let successor = (*(*n).right).minimum() as *mut RBNode<K, V>;
-            (*n).swap_with(successor);
-
-            n = successor;
-        }
-        // Either n.left or n.right is null.
-        let u = n;
-        let v = if (*u).left.is_null() {
-            (*u).right
-        } else {
-            (*u).left
-        };
-
-        /* Handle SPECIAL v is null case (for it need retracing before remove) */
-        if v.is_null() {
-            if (*u).paren.is_null() {
-                self.root = v;
-            } else {
-                if is_black(u) {
-                    self.remove_retracing_black_non_root_leaf(u);
-                } else {
-                    set_red((*u).sibling() as *mut RBNode<K, V>);
-                }
-
-                self.subtree_shift(u, v);
-            }
-
-            return u;
-        }
-
-        /* Simple Case: either u and v is red */
-        /* No change in black height */
-
-        self.subtree_shift(u, v);
-
-        if is_red(u) || is_red(v) {
-            set_black(v);
-
-            return u;
-        }
-
-        /* Both u, v are black case */
-
-        // u is root
-        if (*u).paren.is_null() {
-            return u;
-        }
-
-        // u isn't root
-        self.remove_retracing_black_non_root_leaf(v);
-
-        u
+        mut n: *mut LLRBNode<K, V>,
+    ) -> *mut LLRBNode<K, V> {
+        todo!()
     }
 
-    unsafe fn remove_retracing_black_non_root_leaf(&mut self, n: *mut RBNode<K, V>) {
-        let p = (*n).paren;
-        if p.is_null() {
-            return;
-        }
-
-        let dir = if n == (*p).left {
-            Either::Left(())
-        } else {
-            Either::Right(())
-        };
-
-        let s
-        = BSTNode::child(&*p, dir.reverse())  // Sibling
-        as *mut RBNode<K, V>;
-
-        if s.is_null() {
-            return self.remove_retracing_black_non_root_leaf(p);
-        }
-
-        let c
-        = BSTNode::child(&*s, dir)  // Close Nephew
-        as *mut RBNode<K, V>;
-
-        let d
-        = BSTNode::child(&*s, dir.reverse())  // Distant Nephew
-        as *mut RBNode<K, V>;
-
-
-        if is_red(s) {  // indicates that p c d are black
-            self.rotate(p, dir);
-            (*p).color = Color::RED;
-            (*s).color = Color::BLACK;
-
-            return self.remove_retracing_black_non_root_leaf(n);
-        }
-
-        /* s is black */
-
-        if is_black(c) && is_black(d) {
-            (*s).color = Color::RED;
-
-            if is_black(p) {
-                self.remove_retracing_black_non_root_leaf(p);
-            } else {
-                set_black(p);
-            }
-        } else if is_red(c) {
-            self.double_rotate(p, dir);
-            (*c).color = (*p).color.clone();
-            (*p).color = Color::BLACK;
-
-        } else {  // d is red
-            self.rotate(p, dir);
-            (*s).color = (*p).color.clone();
-            (*d).color = Color::BLACK;
-            (*p).color = Color::BLACK;
-
-        }
-
-    }
-
-
-    unsafe fn insert_retracing(&mut self, x: *mut RBNode<K, V>) {
+    unsafe fn insert_retracing(&mut self, x: *mut LLRBNode<K, V>) {
         let p = (*x).paren;
         if p.is_null() {
             return;
+
+        }
+    }
+
+    // insert at x
+    unsafe fn insert_at(&mut self, mut x:  *mut LLRBNode<K, V>, key: K, value: V) -> Result<*mut LLRBNode<K, V>, ()> {
+        if x.is_null() {
+            return Ok(LLRBNode::new(key, value));
         }
 
-        if (*p).color == Color::BLACK {
-            return;
+        // split 4-node (protect from possible 5-node) on the way down
+        if is_red((*x).left) && is_red((*x).right) {
+            (*x).color_flip();
         }
 
-        // P is RED, G is BLACK
-        let g = (*p).paren;
-        if g.is_null() {
-            (*p).color = Color::BLACK;
-
-            return;
-        }
-
-        let pdir = if x == (*p).left {
-            Either::Left(())
+        if key == (*(*x).key) {
+            return Err(());
+        } else if key < (*(*x).key) {
+            (*x).connect_left(self.insert_at((*x).left, key, value)?)
         } else {
-            Either::Right(())
-        };
-        let u
-        = BSTNode::child(&*g, pdir.reverse()) as *mut RBNode<K, V>;
-
-        if is_red(u) {
-            // Repaint
-            (*p).color = Color::BLACK;
-            (*u).color = Color::BLACK;
-            (*g).color = Color::RED;
-
-            self.insert_retracing(g)
-        } else {
-            let new_root;
-            let the_other_child;
-
-            if p as *const ()
-                == BSTNode::child(&*g, pdir.reverse()) as *const ()
-            {
-                new_root = self.double_rotate(g, pdir) as *mut RBNode<K, V>;
-                the_other_child =
-                    BSTNode::child(&*new_root, pdir) as *mut RBNode<K, V>;
-            } else {
-                new_root = self.rotate(g, pdir.reverse()) as *mut RBNode<K, V>;
-                the_other_child = BSTNode::child(&*new_root, pdir.reverse())
-                    as *mut RBNode<K, V>;
-            }
-
-            (*new_root).color = Color::BLACK;
-            (*the_other_child).color = Color::RED;
+            (*x).connect_right(self.insert_at((*x).right, key, value)?)
         }
+
+        // fix right-learning reds on the way up (enforce left-learning)
+        if is_red((*x).right) {
+            x = self.rotate(x, Either::Left(())) as *mut LLRBNode<K, V>;
+        }
+
+        // fix two reds in a row on the way up (balance a 4-node)
+        if is_red((*x).left) && is_red((*(*x).left).left) {
+            x = self.rotate(x, Either::Right(())) as *mut LLRBNode<K, V>;
+        }
+
+        Ok(x)
     }
 
     pub fn echo_stdout(&self) {
@@ -498,19 +381,17 @@ impl<'a, K: DictKey + 'a, V: 'a> RB<K, V> {
 
 
 
-impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for RB<K, V> {
+impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for LLRB<K, V> {
     fn insert(&mut self, key: K, value: V) -> bool {
-        let new_node = RBNode::new(key, value);
+        unsafe{
+            if self.root.is_null() {
+                self.root = LLRBNode::new(key, value);
 
-        if !self.basic_insert(new_node) {
-            return false;
+                return true;
+            }
+
+            self.insert_at(self.root, key, value).is_ok()
         }
-
-        unsafe {
-            self.insert_retracing(new_node);
-        }
-
-        true
     }
 
 
@@ -528,9 +409,9 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for RB<K, V> {
             }
 
             let removed_node =
-                self.remove_retracing(approxi_node as *mut RBNode<K, V>);
+                self.remove_retracing(approxi_node as *mut LLRBNode<K, V>);
 
-            Some(RBNode::node_into_value(removed_node))
+            Some(LLRBNode::node_into_value(removed_node))
         }
     }
 
@@ -568,7 +449,7 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for RB<K, V> {
     }
 }
 
-impl<'a, K: DictKey + 'a, V: 'a> BT<'a, K, V> for RB<K, V> {
+impl<'a, K: DictKey + 'a, V: 'a> BT<'a, K, V> for LLRB<K, V> {
     fn order(&self) -> usize {
         2
     }
@@ -578,21 +459,27 @@ impl<'a, K: DictKey + 'a, V: 'a> BT<'a, K, V> for RB<K, V> {
     }
 
     fn assign_root(&mut self, root: *mut (dyn BTNode<'a, K, V> + 'a)) {
-        self.root = root as *mut RBNode<K, V>;
+        self.root = root as *mut LLRBNode<K, V>;
     }
 }
 
 
-impl<'a, K: DictKey + 'a, V: 'a> BST<'a, K, V> for RB<K, V> {
+impl<'a, K: DictKey + 'a, V: 'a> BST<'a, K, V> for LLRB<K, V> {
     unsafe fn rotate_cleanup(
         &mut self,
-        _x: *mut (dyn BSTNode<'a, K, V> + 'a),
-        _z: *mut (dyn BSTNode<'a, K, V> + 'a),
+        x: *mut (dyn BSTNode<'a, K, V> + 'a),
+        z: *mut (dyn BSTNode<'a, K, V> + 'a),
     ) {
+        debug_assert!(!x.is_null());
+        debug_assert!(!z.is_null());
+
+        let x_self = x as *mut LLRBNode<K, V>;
+        let z_self = z as *mut LLRBNode<K, V>;
+
+        (*z_self).color = (*x_self).color.clone();
+        (*x_self).color = Color::RED;
     }
 }
-
-
 
 
 #[cfg(test)]
@@ -602,7 +489,7 @@ mod test {
     use itertools::Itertools;
     use rand::{prelude::SliceRandom, thread_rng};
 
-    use super::RB;
+    use super::LLRB;
     use crate::{
         collections::{
             bt::{
@@ -619,27 +506,27 @@ mod test {
 
 
     #[test]
-    pub(crate) fn test_rb_randomdata() {
+    pub(crate) fn test_llrb_randomdata() {
         let provider = InodeProvider {};
 
         (&provider as &dyn DictProvider<u32, Inode>)
-            .test_dict(|| box RB::new());
+            .test_dict(|| box LLRB::new());
 
-        println!("rotate numer: {}", unsafe { ROTATE_NUM })
+        println!("LLRB rotate numer: {}", unsafe { ROTATE_NUM })
     }
 
     ///
     /// Debug RB entry
     ///
-    #[ignore = "Only used for debug"]
+    // #[ignore = "Only used for debug"]
     #[test]
-    fn hack_rb() {
+    fn hack_llrb() {
         for _ in 0..20 {
             let batch_num = 10;
             let mut collected_elems = vec![];
             let mut keys = vec![];
             let provider = InodeProvider {};
-            let mut dict = RB::new();
+            let mut dict = LLRB::new();
 
             // Create
             let mut i = 0;
@@ -653,7 +540,7 @@ mod test {
                 keys.push(k.clone());
                 collected_elems.push(e.clone());
 
-                // println!("insert {}: {:?}", i, k);
+                println!("insert {}: {:?}", i, k);
                 assert!(dict.insert(k, e));
                 assert!(dict.lookup(&keys.last().unwrap()).is_some());
 
@@ -664,29 +551,29 @@ mod test {
 
             // let mut dict_debug = dict.clone();
 
-            collected_elems.shuffle(&mut thread_rng());
+            // collected_elems.shuffle(&mut thread_rng());
 
-            // Remove-> Verify
-            for i in 0..batch_num {
-                let e = &collected_elems[i];
-                let k = &e.get_key();
+            // // Remove-> Verify
+            // for i in 0..batch_num {
+            //     let e = &collected_elems[i];
+            //     let k = &e.get_key();
 
-                assert!(dict.remove(k).is_some());
-                assert!(!dict.lookup(k).is_some());
+            //     assert!(dict.remove(k).is_some());
+            //     assert!(!dict.lookup(k).is_some());
 
-                println!("{}", i);
-                if let Ok(_res) = dict.self_validate() {
-                } else {
-                }
-            }
+            //     println!("{}", i);
+            //     if let Ok(_res) = dict.self_validate() {
+            //     } else {
+            //     }
+            // }
         }
     }
 
     #[test]
-    fn test_rb_fixeddata_case_0() {
-        let mut rb = RB::<i32, ()>::new();
+    fn test_llrb_fixeddata_case_0() {
+        let mut llrb = LLRB::<i32, ()>::new();
 
-        let dict = &mut rb as &mut dyn Dictionary<i32, ()>;
+        let dict = &mut llrb as &mut dyn Dictionary<i32, ()>;
 
         dict.insert(10, ());
         assert!(dict.self_validate().is_ok());
@@ -730,48 +617,48 @@ mod test {
         assert!(dict.lookup(&22).is_some());
 
 
-        assert!(dict.remove(&10).is_some());
-        assert!(dict.lookup(&10).is_none());
-        dict.self_validate().unwrap();
+        // assert!(dict.remove(&10).is_some());
+        // assert!(dict.lookup(&10).is_none());
+        // dict.self_validate().unwrap();
 
-        assert!(dict.remove(&5).is_some());
-        assert!(dict.lookup(&5).is_none());
-        dict.self_validate().unwrap();
+        // assert!(dict.remove(&5).is_some());
+        // assert!(dict.lookup(&5).is_none());
+        // dict.self_validate().unwrap();
 
-        assert!(dict.remove(&12).is_some());
-        dict.self_validate().unwrap();
+        // assert!(dict.remove(&12).is_some());
+        // dict.self_validate().unwrap();
 
-        assert!(dict.remove(&13).is_some());
-        dict.self_validate().unwrap();
+        // assert!(dict.remove(&13).is_some());
+        // dict.self_validate().unwrap();
 
-        assert!(dict.remove(&14).is_some());
-        dict.self_validate().unwrap();
+        // assert!(dict.remove(&14).is_some());
+        // dict.self_validate().unwrap();
 
-        assert!(dict.remove(&18).is_some());
-        dict.self_validate().unwrap();
+        // assert!(dict.remove(&18).is_some());
+        // dict.self_validate().unwrap();
 
-        assert!(dict.remove(&7).is_some());
-        dict.self_validate().unwrap();
+        // assert!(dict.remove(&7).is_some());
+        // dict.self_validate().unwrap();
 
-        assert!(dict.remove(&9).is_some());
-        dict.self_validate().unwrap();
+        // assert!(dict.remove(&9).is_some());
+        // dict.self_validate().unwrap();
 
-        assert!(dict.remove(&11).is_some());
-        dict.self_validate().unwrap();
+        // assert!(dict.remove(&11).is_some());
+        // dict.self_validate().unwrap();
 
-        assert!(dict.remove(&22).is_some());
+        // assert!(dict.remove(&22).is_some());
 
-        rb.self_validate().unwrap();
-        rb.echo_stdout();
+        llrb.self_validate().unwrap();
+        llrb.echo_stdout();
     }
 
 
 
     #[test]
-    fn test_rb_fixeddata_case_1() {
-        let mut rb = RB::<i32, ()>::new();
+    fn test_llrb_fixeddata_case_1() {
+        let mut llrb = LLRB::<i32, ()>::new();
 
-        let dict = &mut rb as &mut dyn Dictionary<i32, ()>;
+        let dict = &mut llrb as &mut dyn Dictionary<i32, ()>;
 
         dict.insert(87, ());
         assert!(dict.self_validate().is_ok());
@@ -800,6 +687,6 @@ mod test {
         dict.insert(67, ());
         dict.self_validate().unwrap();
 
-        rb.echo_stdout();
+        llrb.echo_stdout();
     }
 }

@@ -344,6 +344,14 @@ pub trait BTNode<'a, K: DictKey + 'a, V: 'a> {
     fn val_ptr(&self, idx: usize) -> *mut V;
     fn assign_val_ptr(&mut self, idx: usize, val_ptr: *mut V);
 
+    fn connect_child(&mut self, child: *mut (dyn BTNode<'a, K, V> + 'a), idx: usize) {
+        if !child.is_null() {
+            unsafe{ (*child).assign_paren(self.itself_mut()) };
+        }
+
+        self.assign_child(child, idx);
+    }
+
     // fn right_sibling(&self) -> *mut (dyn BTNode<'a, K, V> + 'a) {
     //     let paren = (*self).paren();
 

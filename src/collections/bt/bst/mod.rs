@@ -4,7 +4,7 @@
 pub mod avl;
 pub mod rawst;
 pub mod rb;
-
+pub mod llrb;
 
 
 use std::{
@@ -42,13 +42,9 @@ pub trait BST<'a, K: DictKey + 'a, V: 'a>: BT<'a, K, V> {
 
                 self.assign_root(new_node)
             } else if key < BSTNode::key(&*approxi_node) {
-                (*new_node).assign_paren(approxi_node);
-
-                (*approxi_node).assign_left(new_node)
+                (*approxi_node).connect_left(new_node)
             } else {
-                (*new_node).assign_paren(approxi_node);
-
-                (*approxi_node).assign_right(new_node)
+                (*approxi_node).connect_right(new_node)
             }
 
             true
@@ -342,6 +338,14 @@ pub trait BSTNode<'a, K: DictKey + 'a, V: 'a>: BTNode<'a, K, V> {
 
     fn assign_right(&mut self, right: *mut (dyn BSTNode<'a, K, V> + 'a)) {
         self.assign_child(right, 1)
+    }
+
+    fn connect_left(&mut self, child: *mut (dyn BSTNode<'a, K, V> + 'a)) {
+        self.connect_child(child, 0)
+    }
+
+    fn connect_right(&mut self, child: *mut (dyn BSTNode<'a, K, V> + 'a)) {
+        self.connect_child(child, 1)
     }
 
     fn calc_left_height(&self) -> i32 {
