@@ -441,97 +441,61 @@ impl<'a, K: DictKey + 'a, V: 'a> LLRB<K, V> {
 
     unsafe fn promote(&mut self, x: *mut LLRBNode<K, V>) {
         debug_assert!(!x.is_null());
-        if (*x).paren.is_null() {
+        let x_paren = (*x).paren;
+
+        if x_paren.is_null() {
             set_black(x);
             return;
         }
 
-        let x_paren = (*x).paren;
-        if (*x).dir().is_left() {
-            let x_sibling = (*x_paren).right;
+        let mut x_dir = (*x).dir();
+        let x_sibling
+        = (*x_paren).child_bst(x_dir.reverse()) as *mut LLRBNode<K, V>;
 
-            if is_red(x_sibling) {
-                debug_assert!( is_black(x_paren));
-                debug_assert!( is_black((*x_sibling).left));
-                debug_assert!( is_black((*x_sibling).right));
+        let mut u = x_paren;
 
-                // 4-node is just ok
-            } else {  // x_sibling is black
+        if is_red(x_sibling) {
+            // origin 3-node is just ok!
 
-                if is_red(x_paren) {
-                    // Already left-learning
-                    let u = x_paren;
-                    let u_paren = (*u).paren;
-
-                    if (*u).dir().is_left() {
-                        if is_black((*u_paren).right) {
-                            self.rotate(u_paren, Either::Right(()));
-                        } else {
-                            // u_paren is overfilled
-                            (*u_paren).color_flip();
-
-                            self.promote(u_paren);
-                        }
-                    } else {  // u_dir is right
-                        if is_black((*u_paren).left) {
-                            self.double_rotate(u_paren, Either::Left(()));
-                        } else {
-                            // u_paren is overfilled
-                            (*u_paren).color_flip();
-
-                            self.promote(u_paren);
-                        }
-                    }
-                } else {
-
-                    // 3-node is just ok!
-                }
-
-            }
-
-
-        } else {  // x_dir is right
-            let x_sibling = (*x_paren).left;
-            if is_red(x_sibling) {
-
-                // 4-node is just ok
-            } else {  // sibling is black
-                if is_red(x_paren) {
-                    let u = x_paren;
-                    let u_paren = (*u).paren;
-
-                    if (*u).dir().is_left() {
-                        let u_sibling = (*u_paren).right;
-
-                        if is_black(u_sibling) {
-                            self.double_rotate(u_paren, Either::Right(()));
-                        } else {
-                            (*u_paren).color_flip();
-
-                            self.promote(u_paren);
-                        }
-
-                    } else {  // u_dir is right
-                        let u_sibling = (*u_paren).left;
-
-                        if is_black(u_sibling) {
-                            self.rotate(u_paren, Either::Left(()));
-                        } else {
-                            (*u_paren).color_flip();
-                            self.rotate(u, Either::Left(()));
-
-                            self.promote(u_paren);
-                        }
-
-                    }
-                } else {
-                    // Just Fix right-learning for 3-node
-                    self.rotate(x_paren, Either::Left(()));
-
-                }
-            }
-
+            return;
         }
+
+        if x_dir.is_right() {  // Both of 3-node and 4-node
+            u = self.rotate(x_paren, Either::Left(())) as *mut LLRBNode<K, V>;
+            x_dir = x_dir.reverse();
+        }
+
+        if is_black(u) {
+            // origin 2-node is just ok!
+
+            return;
+        }
+
+
+        // x_sibling is black && u is red
+        let u_paren = (*u).paren;
+        let u_dir = (*u).dir();
+        let u_sibling
+        = (*u_paren).child_bst(u_dir.reverse()) as *mut LLRBNode<K, V>;
+
+        if is_black(u_sibling) {
+            if u_dir == x_dir {
+                self.rotate(u_paren, x_dir.reverse());
+            } else {
+                debug_assert!( !(*u_paren).child_bst(u_dir).is_null() );
+                debug_assert!( !
+                    (*(*u_paren).child_bst(u_dir))
+                    .child_bst(u_dir.reverse()).is_null()
+                );
+
+                self.double_rotate(u_paren, x_dir);
+            }
+        } else {  // u_paren is overfilled
+            (*u_paren).color_flip();
+
+            self.promote(u_paren);
+        }
+
 
     }
 

@@ -324,6 +324,17 @@ pub trait BSTNode<'a, K: DictKey + 'a, V: 'a>: BTNode<'a, K, V> {
         }
     }
 
+    fn child_bst(
+        &self,
+        direction: Either<(), ()>,
+    ) -> *mut (dyn BSTNode<'a, K, V> + 'a) {
+        if direction.is_left() {
+            self.left()
+        } else {
+            self.right()
+        }
+    }
+
     fn child_height(&self, direction: Either<(), ()>) -> i32 {
         if BSTNode::child(self, direction).is_null() {
             -1
