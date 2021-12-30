@@ -422,6 +422,8 @@ pub trait BSTNode<'a, K: DictKey + 'a, V: 'a>: BTNode<'a, K, V> {
     //     }
     // }
 
+
+    /// Just swap key and value
     unsafe fn swap_with(&mut self, other: *mut (dyn BSTNode<'a, K, V> + 'a)) {
         debug_assert!(!other.is_null());
 

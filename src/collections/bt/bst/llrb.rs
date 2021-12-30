@@ -1,11 +1,42 @@
 //! Left Learning Red Black Tree
 //!
-//! ref: https://oi-wiki.org/ds/llllrbt/
+//! ref: https://oi-wiki.org/ds/llrbt/
 //!
-//! Painting edge instead of node (node's color indicates it's edge to parent)
-//! Restrict black children are either black-black or red-black (red is only left)
+//! Painting edge instead of node (node's color indicates that it's edge to parent)
+//! Extra Restriction: red should be left with black (that's why left-learning)
 //!
-//! red link same node's item of 2-4 tree, black link different node respectly.
+//! red link is same with node's item of 2-4 tree, black link as different node respectly.
+//!
+//!      4-node equivalence                  4-node
+//!
+//!            | B
+//!           (x)                            x--x--x
+//!       R /     \ R         ===>         /  \  /  \
+//!       (x)     (x)                     c0  c1 c2  c3
+//!     B / \ B B / \ B
+//!      c0 c1   c2  c3
+//!
+//!
+//!     3-node equivalence                  3-node
+//!
+//!          | B
+//!         (x)                              x--x
+//!      R /   \ B           ===>           /  |  \
+//!      (x)    c2                         c0   c1  c2
+//!    B/  \B
+//!    c0  c1
+//!
+//!
+//!    2-node equivalence                 2-node
+//!
+//!         | B
+//!         x                                x
+//!      B / \ B             ===>           / \
+//!       c0 c1                            c0  c1
+//!
+
+
+
 
 
 use std::cmp::max;
@@ -15,8 +46,6 @@ use std::ptr::{null, null_mut};
 
 use either::Either;
 use itertools::Itertools;
-use serde::de::DeserializeSeed;
-use serde::{Deserialize, Deserializer, Serialize};
 
 use super::rb::Color;
 use super::{BSTNode, BST};
@@ -88,6 +117,17 @@ impl<'a, K: DictKey + 'a, V: 'a> LLRBNode<K, V> {
         })
     }
 
+    pub fn new_ptr(key: *mut K, value: *mut V) -> *mut Self {
+        Box::into_raw(box Self {
+            left: null_mut(),
+            right: null_mut(),
+            paren: null_mut(),
+            color: Color::RED,
+            key,
+            value,
+        })
+    }
+
     fn leaf(paren: *mut Self) -> *mut Self {
         Box::into_raw(box Self {
             left: null_mut(),
@@ -128,6 +168,11 @@ impl<'a, K: DictKey + 'a, V: 'a> LLRBNode<K, V> {
                     assert!(!is_red((*self.right).right));
 
                 }
+            } else {
+                // if is_black(self.left) && is_black(self.right) {
+                //     assert!(self.left.is_null());
+                //     assert!(self.right.is_null());
+                // }
             }
 
             // unbalanced 4-node
@@ -228,6 +273,74 @@ impl<'a, K: DictKey + 'a, V: 'a> LLRBNode<K, V> {
             unsafe { (*self.right).color = (*self.right).color.reverse(); }
         }
     }
+
+
+    /// Equivalence of 2-4 tree node_size
+    #[inline]
+    unsafe fn b4_node_size(&self) -> usize {
+        if is_red(self.right) {
+            if is_red((*self.left).left)
+                || is_red((*self.left).right)
+                || is_red((*self.right).left)
+                || is_red((*self.right).right) {
+                    4
+                } else {
+                    3
+                }
+        } else if is_red(self.left) {
+            2
+        } else {
+            1
+        }
+    }
+
+    unsafe fn b4_node_is_fullfilled(&self) -> bool {
+        self.b4_node_size() >= 3
+    }
+
+    unsafe fn b4_node_is_overfilled(&self) -> bool {
+        self.b4_node_size() > 3
+    }
+
+
+    /// WARNING b4node shouldn't be overfilled
+    unsafe fn get_b4_centre(&self) -> *mut Self {
+        let self_ptr = self as *const Self as *mut Self;
+
+        if is_red(self.left) || is_red(self.right) {
+            self_ptr
+        } else if self.color == Color::RED {
+            self.paren
+        } else {
+            self_ptr
+        }
+
+    }
+
+    /// self should be b4node centre
+    unsafe fn is_b4_leaf(&self) -> bool {
+        match self.b4_node_size() {
+            1 => {
+                self.left.is_null() && self.right.is_null()
+            }
+            2 => {
+                (*self.left).left.is_null()
+                && (*self.left).right.is_null()
+                && self.right.is_null()
+            }
+            3 => {
+                (*self.left).left.is_null()
+                && (*self.left).right.is_null()
+                && (*self.right).left.is_null()
+                && (*self.right).right.is_null()
+            }
+            _ => unreachable!()
+        }
+
+    }
+
+
+
 }
 
 
@@ -325,20 +438,198 @@ impl<'a, K: DictKey + 'a, V: 'a> LLRB<K, V> {
         Self { root: null_mut() }
     }
 
+
+    unsafe fn promote(&mut self, x: *mut LLRBNode<K, V>) {
+        debug_assert!(!x.is_null());
+        if (*x).paren.is_null() {
+            set_black(x);
+            return;
+        }
+
+        let x_paren = (*x).paren;
+        if (*x).dir().is_left() {
+            let x_sibling = (*x_paren).right;
+
+            if is_red(x_sibling) {
+                debug_assert!( is_black(x_paren));
+                debug_assert!( is_black((*x_sibling).left));
+                debug_assert!( is_black((*x_sibling).right));
+
+                // 4-node is just ok
+            } else {  // x_sibling is black
+
+                if is_red(x_paren) {
+                    // Already left-learning
+                    let u = x_paren;
+                    let u_paren = (*u).paren;
+
+                    if (*u).dir().is_left() {
+                        if is_black((*u_paren).right) {
+                            self.rotate(u_paren, Either::Right(()));
+                        } else {
+                            // u_paren is overfilled
+                            (*u_paren).color_flip();
+
+                            self.promote(u_paren);
+                        }
+                    } else {  // u_dir is right
+                        if is_black((*u_paren).left) {
+                            self.double_rotate(u_paren, Either::Left(()));
+                        } else {
+                            // u_paren is overfilled
+                            (*u_paren).color_flip();
+
+                            self.promote(u_paren);
+                        }
+                    }
+                } else {
+
+                    // 3-node is just ok!
+                }
+
+            }
+
+
+        } else {  // x_dir is right
+            let x_sibling = (*x_paren).left;
+            if is_red(x_sibling) {
+
+                // 4-node is just ok
+            } else {  // sibling is black
+                if is_red(x_paren) {
+                    let u = x_paren;
+                    let u_paren = (*u).paren;
+
+                    if (*u).dir().is_left() {
+                        let u_sibling = (*u_paren).right;
+
+                        if is_black(u_sibling) {
+                            self.double_rotate(u_paren, Either::Right(()));
+                        } else {
+                            (*u_paren).color_flip();
+
+                            self.promote(u_paren);
+                        }
+
+                    } else {  // u_dir is right
+                        let u_sibling = (*u_paren).left;
+
+                        if is_black(u_sibling) {
+                            self.rotate(u_paren, Either::Left(()));
+                        } else {
+                            (*u_paren).color_flip();
+                            self.rotate(u, Either::Left(()));
+
+                            self.promote(u_paren);
+                        }
+
+                    }
+                } else {
+                    // Just Fix right-learning for 3-node
+                    self.rotate(x_paren, Either::Left(()));
+
+                }
+            }
+
+        }
+
+    }
+
+    /// dir: direction of removed child of paren
+    unsafe fn unpromote(&mut self, paren: *mut LLRBNode<K, V>, dir: Either<(), ()>) {
+        debug_assert!(!paren.is_null());
+
+        let removed
+        = BSTNode::child(&*paren, dir) as *mut LLRBNode<K, V>;
+
+        let sibling
+        = BSTNode::child(&*paren, dir.reverse()) as *mut LLRBNode<K, V>;
+
+        debug_assert!(!removed.is_null());
+        debug_assert!(!sibling.is_null());
+
+        if (*sibling).b4_node_size() > 1 {  // Check >= 3-node sibling
+            // split
+            let popped
+                = self.b4_node_pop(sibling, dir);
+            self.subtree_shift(removed, popped);
+
+            // redistribute
+            (*paren).swap_with(popped);
+
+            if !(*popped).is_leaf() {  // recursively go dwon
+                self.unpromote(popped, dir.reverse());
+            }
+        } else {
+            let paren_b4_centre = (*paren).get_b4_centre();
+
+            // move down
+            let popped
+            = self.b4_node_pop(paren_b4_centre, dir);
+
+            // merge
+            self.b4_single_node_merge(sibling, popped);
+
+        }
+
+
+    }
+
     unsafe fn remove_retracing(
         &mut self,
         mut n: *mut LLRBNode<K, V>,
     ) -> *mut LLRBNode<K, V> {
-        todo!()
-    }
+        /* Prepare Deleting */
+        if !(*n).right.is_null() {
+            let successor = (*(*n).right).minimum() as *mut LLRBNode<K, V>;
+            (*n).swap_with(successor);
 
-    unsafe fn insert_retracing(&mut self, x: *mut LLRBNode<K, V>) {
-        let p = (*x).paren;
-        if p.is_null() {
-            return;
-
+            n = successor;  // left is null
         }
+
+        // Either n.left or n.right is null
+        if is_red(n) {
+            // sibling of n is red or not, self.root is black
+            let dir_n = (*n).dir();
+            debug_assert!(BSTNode::child(&*n, dir_n).is_null());
+
+            return self.b4_node_pop((*n).paren, dir_n)
+        }
+
+
+        let u = n;
+        let (v, dir_v) = if (*u).left.is_null() {
+            ((*u).right, Either::Right(()))
+        } else {
+            ((*u).left, Either::Left(()))
+        };
+
+        if is_red(v) {  // u must be top node of 3-node
+            debug_assert!(dir_v.is_left());
+            return self.b4_node_pop(u, dir_v.reverse())
+        }
+
+        // u is root
+        if (*u).paren.is_null() {
+            debug_assert!(v.is_null());
+            self.root = null_mut();
+
+            return u;
+        }
+
+        // u is non-root and both u, v are black
+        self.unpromote((*u).paren, (*u).dir());
+
+        u
     }
+
+    // unsafe fn insert_retracing(&mut self, x: *mut LLRBNode<K, V>) {
+    //     let p = (*x).paren;
+    //     if p.is_null() {
+    //         return;
+
+    //     }
+    // }
 
     // insert at x
     unsafe fn insert_at(&mut self, mut x:  *mut LLRBNode<K, V>, key: K, value: V) -> Result<*mut LLRBNode<K, V>, ()> {
@@ -377,22 +668,161 @@ impl<'a, K: DictKey + 'a, V: 'a> LLRB<K, V> {
             unsafe { (*self.root).echo_stdout() }
         }
     }
+
+
+    /// Equivalence of 2-4 tree remove_node && shift with child if it's not leaf (non-knuth-leaf)
+    unsafe fn b4_node_pop(&mut self, x: *mut LLRBNode<K, V>, pop_dir: Either<(), ()>) -> *mut LLRBNode<K, V> {
+
+        let popped_node;
+        if (*x).b4_node_size() == 3 {
+            if pop_dir.is_right() {  // pop right、pop back
+                popped_node = (*x).right;
+            } else {
+                popped_node = (*x).left;
+            }
+
+
+        } else if (*x).b4_node_size() == 2 {
+            if pop_dir.is_right() {
+                popped_node = x;
+            } else {
+                popped_node = (*x).left;
+            }
+
+        } else {  // nonsense
+            unimplemented!()
+
+        }
+
+        if pop_dir.is_right() {
+            self.subtree_shift(popped_node, (*popped_node).left);
+            (*popped_node).left = null_mut();
+
+        } else {
+            self.subtree_shift(popped_node, (*popped_node).right);
+            (*popped_node).right = null_mut();
+
+        }
+
+        set_black(popped_node);
+
+        popped_node
+    }
+
+    // unsafe fn b4_node_merge(
+    //     &mut self,
+    //     fixed_x: *mut LLRBNode<K, V>,
+    //     y: *mut LLRBNode<K, V>  // y is single node
+    // ) {
+    //     // fix_x should be b4node formal leaf (non-nil)
+
+    //     let node_size = (*fixed_x).node_size();
+
+    //     if node_size == 3 {
+    //         unimplemented!()
+    //     } else if node_size == 2 {
+    //         if *(*y).key < *(*(*fixed_x).left).key {
+    //             (*fixed_x).swap_with((*fixed_x).left);
+    //             (*(*fixed_x).left).swap_with(y);
+    //         } else if *(*y).key < *(*fixed_x).key {
+    //             (*fixed_x).swap_with(y);
+    //         }
+
+    //         (*fixed_x).connect_right(y);
+
+    //     } else if node_size == 1 {
+    //         if *(*y).key > *(*fixed_x).key {
+    //             (*fixed_x).swap_with(y);
+    //         }
+
+    //         (*fixed_x).connect_left(y);
+
+    //     } else {
+    //         unreachable!()
+    //     }
+
+    //     set_red(y);
+
+    // }
+
+
+    /// Reture new centre node
+    unsafe fn b4_single_node_merge(
+        &mut self,
+        fixed_x: *mut LLRBNode<K, V>,
+        y: *mut LLRBNode<K, V>
+    ) -> *mut LLRBNode<K, V> {
+        debug_assert!((*fixed_x).node_size() == 1 && is_black(fixed_x));
+        debug_assert!((*y).node_size() == 1 && is_black(y));
+
+        if *(*fixed_x).key > *(*y).key {
+            (*fixed_x).connect_left(y);
+            set_red(y);
+        } else {
+            self.subtree_shift(fixed_x, y);
+            (*y).connect_left(fixed_x);
+        }
+
+        todo!()
+    }
+
 }
 
 
 
 impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for LLRB<K, V> {
+    // fn insert(&mut self, key: K, value: V) -> bool {
+    //     unsafe{
+    //         let res;
+    //         if self.root.is_null() {
+    //             self.root = LLRBNode::new(key, value);
+
+    //             res = true;
+    //         } else {
+    //             res = self.insert_at(self.root, key, value).is_ok();
+    //         }
+
+    //         set_black(self.root);
+    //         res
+    //     }
+    // }
+
+
     fn insert(&mut self, key: K, value: V) -> bool {
-        unsafe{
-            if self.root.is_null() {
-                self.root = LLRBNode::new(key, value);
+        unsafe {
+            let new_node = LLRBNode::new(key, value);
+            let key = BSTNode::key(&*new_node);
+
+            let approxi_node =
+                (self.search_approximately(&key)) as *mut LLRBNode<K, V>;
+
+            if approxi_node.is_null() {
+                self.root = new_node;
+                set_black(new_node);
 
                 return true;
             }
 
-            self.insert_at(self.root, key, value).is_ok()
+            if key == BSTNode::key(&*approxi_node) {
+                return false;
+            }
+
+            // let insert_entry = (*approxi_node).get_b4_centre();
+
+            // default: red
+            if *key < *(*approxi_node).key {
+                (*approxi_node).connect_left(new_node);
+            } else {
+                (*approxi_node).connect_right(new_node);
+            }
+
+            self.promote(new_node);  // or alias as fixup
+
+            true
         }
+
     }
+
 
 
     fn remove(&mut self, key: &K) -> Option<V> {
@@ -415,8 +845,6 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for LLRB<K, V> {
         }
     }
 
-
-
     fn modify(&mut self, key: &K, value: V) -> bool {
         self.basic_modify(key, value)
     }
@@ -431,6 +859,8 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for LLRB<K, V> {
 
     fn self_validate(&self) -> Result<(), Box<dyn std::error::Error>> {
         self.basic_self_validate()?;
+
+        assert!(is_black(self.root));
 
         if !self.root.is_null() {
             unsafe {
@@ -468,7 +898,7 @@ impl<'a, K: DictKey + 'a, V: 'a> BST<'a, K, V> for LLRB<K, V> {
     unsafe fn rotate_cleanup(
         &mut self,
         x: *mut (dyn BSTNode<'a, K, V> + 'a),
-        z: *mut (dyn BSTNode<'a, K, V> + 'a),
+        z: *mut (dyn BSTNode<'a, K, V> + 'a),  // new root
     ) {
         debug_assert!(!x.is_null());
         debug_assert!(!z.is_null());

@@ -104,7 +104,9 @@ impl<'a, K: DictKey + 'a, V: 'a> B4Node<K, V> {
     }
 
     unsafe fn merge_node(&mut self, income_node: *mut B4Node<K, V>) {
-        for _ in 0..self.keys.len() {
+        let income_item_len = (*income_node).node_size();
+
+        for _ in 0..income_item_len {
             self.node_insert(
                 (*income_node).keys.pop_front().unwrap(),
                 (*income_node).values.pop_front().unwrap()
@@ -303,6 +305,7 @@ impl<'a, K: DictKey + 'a, V: 'a> B4<K, V> {
                     (*split_sibling).children.push_back(null_mut());
                     (*split_sibling).connect_child_append(sibling_child);
 
+                    // handle 1-key-val, 1 br with child of split sibling, the other br is regarded removed
                     self.unpromote_(split_sibling, 0)
                 }
 

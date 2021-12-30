@@ -103,7 +103,9 @@ impl<'a, K: DictKey + 'a, V: 'a> B3Node<K, V> {
     }
 
     unsafe fn merge_node(&mut self, income_node: *mut B3Node<K, V>) {
-        for _ in 0..self.keys.len() {
+        let income_item_len = (*income_node).node_size();
+
+        for _ in 0..income_item_len {
             self.node_insert(
                 (*income_node).keys.pop_front().unwrap(),
                 (*income_node).values.pop_front().unwrap()
