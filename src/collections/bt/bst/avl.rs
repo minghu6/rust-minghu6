@@ -393,7 +393,7 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for AVL<K, V> {
         }
 
         unsafe {
-            if BSTNode::key(&*z) != key {
+            if BSTNode::key_bst(&*z) != key {
                 return None;
             }
 
@@ -405,7 +405,7 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for AVL<K, V> {
                 retracing_entry = (*z).paren;
                 self.subtree_shift(z, (*z).left());
             } else {
-                let y = BSTNode::successor(&*z);
+                let y = BSTNode::successor_bst(&*z);
                 retracing_entry = if (*y).paren() != z {
                     (*y).paren_bst()
                 } else {

@@ -16,6 +16,7 @@
 use std::{ops::Bound, fmt, fmt::Write, collections::VecDeque, ptr};
 
 use itertools::Itertools;
+use either::Either;
 
 use self::bst::{BSTNode, BST};
 
@@ -138,6 +139,8 @@ pub trait BT<'a, K: DictKey + 'a, V: 'a>: Dictionary<K, V> {
     fn just_echo_stdout(&self) {
         if !self.root().is_null() {
             unsafe { (*self.root()).just_echo_stdout() }
+        } else {
+            println!("EMPTY.")
         }
     }
 

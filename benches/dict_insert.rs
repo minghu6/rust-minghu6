@@ -94,3 +94,7 @@ fn bench_rb_insert(b: &mut Bencher) {
     bench_insert::<u32, Inode>(b, &mut rb::RB::new(), &InodeProvider{})
 }
 
+#[bench]
+fn bench_llrb_insert(b: &mut Bencher) {
+    bench_insert::<u32, Inode>(b, &mut llrb::LLRB::new(), &InodeProvider{})
+}

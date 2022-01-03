@@ -523,7 +523,7 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for RB<K, V> {
                 return None;
             }
 
-            if BSTNode::key(&*approxi_node) != key {
+            if BSTNode::key_bst(&*approxi_node) != key {
                 return None;
             }
 

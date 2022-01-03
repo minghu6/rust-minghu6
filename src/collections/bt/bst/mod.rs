@@ -28,11 +28,11 @@ pub trait BST<'a, K: DictKey + 'a, V: 'a>: BT<'a, K, V> {
         new_node: *mut (dyn BSTNode<'a, K, V> + 'a),
     ) -> bool {
         unsafe {
-            let key = BSTNode::key(&*new_node);
+            let key = BSTNode::key_bst(&*new_node);
             let approxi_node =
                 (*self.search_approximately(&key)).try_as_bst_mut().unwrap();
 
-            if !approxi_node.is_null() && BSTNode::key(&*approxi_node) == key {
+            if !approxi_node.is_null() && BSTNode::key_bst(&*approxi_node) == key {
                 return false;
             }
 
@@ -41,7 +41,7 @@ pub trait BST<'a, K: DictKey + 'a, V: 'a>: BT<'a, K, V> {
                 (*new_node).assign_paren(approxi_node);
 
                 self.assign_root(new_node)
-            } else if key < BSTNode::key(&*approxi_node) {
+            } else if key < BSTNode::key_bst(&*approxi_node) {
                 (*approxi_node).connect_left(new_node)
             } else {
                 (*approxi_node).connect_right(new_node)
@@ -63,7 +63,7 @@ pub trait BST<'a, K: DictKey + 'a, V: 'a>: BT<'a, K, V> {
                 return None;
             }
 
-            if BSTNode::key(&*approxi_node) != key {
+            if BSTNode::key_bst(&*approxi_node) != key {
                 return None;
             }
 
@@ -72,7 +72,7 @@ pub trait BST<'a, K: DictKey + 'a, V: 'a>: BT<'a, K, V> {
             } else if (*approxi_node).right().is_null() {
                 self.subtree_shift(approxi_node, (*approxi_node).left())
             } else {
-                let y = BSTNode::successor(&*approxi_node);
+                let y = BSTNode::successor_bst(&*approxi_node);
                 // y should be leaf.
 
                 if (*y).paren_bst() != approxi_node {
@@ -246,7 +246,7 @@ pub trait BST<'a, K: DictKey + 'a, V: 'a>: BT<'a, K, V> {
                 writeln!(
                     cache,
                     "ROOT: {:?}",
-                    BSTNode::key(&*self.root_bst())
+                    BSTNode::key_bst(&*self.root_bst())
                 )?;
 
                 BSTNode::echo_in_mm(&*self.root_bst(), cache, action)
@@ -288,13 +288,13 @@ pub trait BSTNode<'a, K: DictKey + 'a, V: 'a>: BTNode<'a, K, V> {
         }
     }
 
-    fn key(&self) -> &K {
+    fn key_bst(&self) -> &K {
         BTNode::key(self, 0).unwrap()
     }
-    fn value(&self) -> &V {
+    fn value_bst(&self) -> &V {
         BTNode::value(self, 0).unwrap()
     }
-    fn value_mut(&mut self) -> &mut V {
+    fn value_bst_mut(&mut self) -> &mut V {
         BTNode::value_mut(self, 0).unwrap()
     }
 
@@ -392,7 +392,7 @@ pub trait BSTNode<'a, K: DictKey + 'a, V: 'a>: BTNode<'a, K, V> {
     }
 
 
-    fn successor(&self) -> *mut (dyn BSTNode<'a, K, V> + 'a) {
+    fn successor_bst(&self) -> *mut (dyn BSTNode<'a, K, V> + 'a) {
         let mut x = self.itself_bst_mut();
 
         unsafe {
@@ -466,7 +466,7 @@ pub trait BSTNode<'a, K: DictKey + 'a, V: 'a>: BTNode<'a, K, V> {
         ) -> fmt::Result,
     ) -> fmt::Result {
         unsafe {
-            writeln!(cache, "Entry: {:?}", BSTNode::key(self))?;
+            writeln!(cache, "Entry: {:?}", BSTNode::key_bst(self))?;
 
             let mut this_level_queue: VecDeque<
                 *mut (dyn BSTNode<'a, K, V> + 'a),
@@ -498,26 +498,26 @@ pub trait BSTNode<'a, K: DictKey + 'a, V: 'a>: BTNode<'a, K, V> {
                         writeln!(
                             cache,
                             "{:?} -L-> {:?}",
-                            BSTNode::key(&*x),
-                            BSTNode::key(&*(*x).left())
+                            BSTNode::key_bst(&*x),
+                            BSTNode::key_bst(&*(*x).left())
                         )?;
 
                         nxt_level_queue.push_back((*x).left())
                     } else {
-                        writeln!(cache, "{:?} -L-> null", BSTNode::key(&*x))?;
+                        writeln!(cache, "{:?} -L-> null", BSTNode::key_bst(&*x))?;
                     }
 
                     if !(*x).right().is_null() {
                         writeln!(
                             cache,
                             "{:?} -R-> {:?}",
-                            BSTNode::key(&*x),
-                            BSTNode::key(&*(*x).right())
+                            BSTNode::key_bst(&*x),
+                            BSTNode::key_bst(&*(*x).right())
                         )?;
 
                         nxt_level_queue.push_back((*x).right())
                     } else {
-                        writeln!(cache, "{:?} -R-> null", BSTNode::key(&*x))?;
+                        writeln!(cache, "{:?} -R-> null", BSTNode::key_bst(&*x))?;
                     }
 
                     writeln!(cache)?;
@@ -536,7 +536,7 @@ pub trait BSTNode<'a, K: DictKey + 'a, V: 'a>: BTNode<'a, K, V> {
     }
 }
 
-
+#[allow(unused)]
 pub(crate) static mut ROTATE_NUM: usize = 0;
 
 

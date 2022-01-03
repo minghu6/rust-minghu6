@@ -98,3 +98,8 @@ fn bench_bstar4_lookup(b: &mut Bencher) {
 fn bench_rb_lookup(b: &mut Bencher) {
     bench_lookup::<u32, Inode>(b, &mut rb::RB::new(), &InodeProvider {})
 }
+
+#[bench]
+fn bench_llrb_lookup(b: &mut Bencher) {
+    bench_lookup::<u32, Inode>(b, &mut llrb::LLRB::new(), &InodeProvider {})
+}
