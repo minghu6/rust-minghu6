@@ -17,7 +17,7 @@ use rand::prelude::SliceRandom;
 use rand::thread_rng;
 use test::Bencher;
 
-const BATCH_NUM: usize = 5000;
+const BATCH_NUM: usize = 9000;
 
 
 #[bench]

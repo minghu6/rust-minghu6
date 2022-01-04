@@ -5,6 +5,7 @@ pub mod avl;
 pub mod rawst;
 pub mod rb;
 pub mod llrb;
+pub mod aa;
 
 
 use std::{
@@ -259,6 +260,19 @@ pub trait BST<'a, K: DictKey + 'a, V: 'a>: BT<'a, K, V> {
             unsafe { BSTNode::just_echo_stdout(&*self.root_bst()) }
         }
     }
+
+
+    fn nodes_iter(&'a self) -> Box<dyn Iterator<Item = *mut (dyn BSTNode<'a, K, V> + 'a)> + 'a> {
+        if self.root_bst().is_null() {
+            return box std::iter::from_fn(|| None);
+        }
+
+        unsafe {
+            (*self.root_bst()).nodes_iter()
+        }
+
+    }
+
 }
 
 
@@ -534,6 +548,26 @@ pub trait BSTNode<'a, K: DictKey + 'a, V: 'a>: BTNode<'a, K, V> {
 
         Ok(())
     }
+
+
+    // Infix order (DFS)
+    fn nodes_iter(&'a self) -> Box<dyn Iterator<Item = *mut (dyn BSTNode<'a, K, V> + 'a)> + 'a> {
+        unsafe {
+            let mut x = (*self.minimum()).try_as_bst_mut().unwrap();
+
+            box std::iter::from_fn(move || {
+                if !x.is_null() {
+                    let prev = x;
+                    x = (*x).successor_bst();
+                    Some(prev)
+                } else {
+                    None
+                }
+
+            })
+        }
+    }
+
 }
 
 #[allow(unused)]

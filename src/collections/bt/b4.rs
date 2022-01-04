@@ -676,6 +676,7 @@ mod tests {
 
         b4.self_validate().unwrap();
         b4.just_echo_stdout();
+
     }
 
 

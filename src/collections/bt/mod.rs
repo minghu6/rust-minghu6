@@ -803,7 +803,6 @@ pub trait BTNode<'a, K: DictKey + 'a, V: 'a> {
         Ok(())
     }
 
-
     fn bfs_do(
         &self,
         action: fn(
@@ -906,6 +905,7 @@ pub trait BTNode<'a, K: DictKey + 'a, V: 'a> {
 }
 
 
+#[derive(Clone)]
 pub struct BTItem<'a, K, V> {
     node: *mut (dyn BTNode<'a, K, V> + 'a),
     idx: usize

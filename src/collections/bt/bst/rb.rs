@@ -438,6 +438,7 @@ impl<'a, K: DictKey + 'a, V: 'a> RB<K, V> {
     unsafe fn insert_retracing(&mut self, x: *mut RBNode<K, V>) {
         let p = (*x).paren;
         if p.is_null() {
+            set_black(x);
             return;
         }
 
@@ -445,47 +446,60 @@ impl<'a, K: DictKey + 'a, V: 'a> RB<K, V> {
             return;
         }
 
-        // P is RED, G is BLACK
-        let g = (*p).paren;
+        // p is red
+        let g = (*p).paren;  // grand paren
         if g.is_null() {
-            (*p).color = Color::BLACK;
-
+            set_black(p);
             return;
         }
 
-        let pdir = if x == (*p).left {
-            Either::Left(())
-        } else {
-            Either::Right(())
-        };
-        let u
-        = BSTNode::child(&*g, pdir.reverse()) as *mut RBNode<K, V>;
 
-        if is_red(u) {
+        let u = (*p).sibling() as *mut RBNode<K, V>;  // uncle
+
+        if is_red(u) {  // g should be black
             // Repaint
-            (*p).color = Color::BLACK;
-            (*u).color = Color::BLACK;
-            (*g).color = Color::RED;
+            set_black(p);
+            set_black(u);
+            set_red(g);
 
             self.insert_retracing(g)
-        } else {
+
+        } else {  // uncle is black
+            let pdir = (*p).dir();
+            let x_dir = (*x).dir();
+
             let new_root;
             let the_other_child;
 
-            if p as *const ()
-                == BSTNode::child(&*g, pdir.reverse()) as *const ()
-            {
-                new_root = self.double_rotate(g, pdir) as *mut RBNode<K, V>;
-                the_other_child =
-                    BSTNode::child(&*new_root, pdir) as *mut RBNode<K, V>;
-            } else {
-                new_root = self.rotate(g, pdir.reverse()) as *mut RBNode<K, V>;
-                the_other_child = BSTNode::child(&*new_root, pdir.reverse())
-                    as *mut RBNode<K, V>;
+            match (pdir, x_dir) {
+                (Either::Left(_), Either::Left(_)) => {
+                    new_root = self.rotate(g, Either::Right(()));
+                },
+                (Either::Left(_), Either::Right(_)) => {
+                    new_root = self.double_rotate(g, Either::Right(()));
+                },
+                (Either::Right(_), Either::Left(_)) => {
+                    new_root = self.double_rotate(g, Either::Left(()));
+                },
+                (Either::Right(_), Either::Right(_)) => {
+                    new_root = self.rotate(g, Either::Left(()));
+                },
             }
 
-            (*new_root).color = Color::BLACK;
-            (*the_other_child).color = Color::RED;
+            let the_other_dir = if pdir == x_dir {
+                x_dir.reverse()
+            } else {
+                x_dir
+            };
+
+            the_other_child = (*new_root).child_bst(the_other_dir);
+
+            let new_root_self = new_root as *mut RBNode<K, V>;
+            let the_other_child_self = the_other_child as *mut RBNode<K, V>;
+
+            set_black(new_root_self);
+            set_red(the_other_child_self);
+
         }
     }
 
@@ -555,12 +569,14 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for RB<K, V> {
             unsafe {
                 (*self.root).self_validate()?;
 
-                assert!((*self.root)
+                let is_black_balance = (*self.root)
                     .leafs()
                     .into_iter()
                     .map(|leaf| (*leaf).black_depth())
                     .tuple_windows()
-                    .all(|(a, b)| a == b))
+                    .all(|(a, b)| a == b);
+
+                assert!(is_black_balance)
             }
         }
 
@@ -801,5 +817,6 @@ mod test {
         dict.self_validate().unwrap();
 
         rb.echo_stdout();
+
     }
 }
