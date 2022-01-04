@@ -171,7 +171,7 @@ impl GetKey<u32> for Inode {
         let uid_u32 = self.uid as u32;
         let gid_u32 = self.gid as u32;
 
-        ((gid_u32 << 16) + uid_u32) % 10000
+        ((gid_u32 << 16) + uid_u32) % 1000_000
     }
 }
 

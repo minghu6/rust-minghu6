@@ -405,6 +405,24 @@ pub trait BSTNode<'a, K: DictKey + 'a, V: 'a>: BTNode<'a, K, V> {
         }
     }
 
+    fn precessor_bst(&self) -> *mut (dyn BSTNode<'a, K, V> + 'a) {
+        let mut x = self.itself_bst_mut();
+
+        unsafe {
+            if !(*x).left().is_null() {
+                return (*(*(*x).left()).maximum()).try_as_bst_mut().unwrap();
+            }
+
+            let mut y = (*x).paren_bst();
+
+            while !y.is_null() && x == (*y).left() {
+                x = y;
+                y = (*y).paren_bst();
+            }
+
+            y
+        }
+    }
 
     fn successor_bst(&self) -> *mut (dyn BSTNode<'a, K, V> + 'a) {
         let mut x = self.itself_bst_mut();

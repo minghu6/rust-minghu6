@@ -17,7 +17,7 @@ use rand::prelude::SliceRandom;
 use rand::thread_rng;
 use test::Bencher;
 
-const BATCH_NUM: usize = 10000;
+const BATCH_NUM: usize = 10_0000;
 
 
 #[bench]
@@ -68,6 +68,7 @@ fn bench_rawst_lookup(b: &mut Bencher) {
 }
 
 
+#[ignore = "run too long"]
 #[bench]
 fn bench_vecdict_lookup(b: &mut Bencher) {
     bench_lookup::<u32, Inode>(b, &mut Vec::new(), &InodeProvider {})
@@ -103,3 +104,9 @@ fn bench_rb_lookup(b: &mut Bencher) {
 fn bench_llrb_lookup(b: &mut Bencher) {
     bench_lookup::<u32, Inode>(b, &mut llrb::LLRB::new(), &InodeProvider {})
 }
+
+#[bench]
+fn bench_aa_lookup(b: &mut Bencher) {
+    bench_lookup::<u32, Inode>(b, &mut aa::AA::new(), &InodeProvider {})
+}
+
