@@ -443,9 +443,11 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for AA<K, V> {
             }
 
             let mut res = Vec::new();
-            self.root = self.remove_at(self.root, key, &mut res);
+            let t = self.remove_at(self.root, key, &mut res);
 
             if let Some(vp) = res.pop() {
+                self.root = t;
+
                 Some(*Box::from_raw(vp))
 
             } else {

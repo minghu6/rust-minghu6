@@ -100,6 +100,11 @@ fn bench_rb_remove(b: &mut Bencher) {
 }
 
 #[bench]
+fn bench_llrb_remove(b: &mut Bencher) {
+    bench_remove::<u32, Inode>(b, &mut llrb::LLRB::new(), &InodeProvider {})
+}
+
+#[bench]
 fn bench_aa_remove(b: &mut Bencher) {
     bench_remove::<u32, Inode>(b, &mut aa::AA::new(), &InodeProvider {})
 }
