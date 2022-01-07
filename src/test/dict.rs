@@ -100,7 +100,7 @@ where
 
     fn prepare_batch(&self, batch_num: usize) -> Vec<(K, V)> {
         // let mut fake_now = 0;
-        let mut res = Vec::with_capacity(batch_num);
+        let mut res = Vec::with_capacity(batch_num / 3);
 
         for _ in 0..batch_num {
             let e = self.get_one();
@@ -108,6 +108,12 @@ where
 
             res.push((k, e));
         }
+
+        // rand
+        // in order
+        // in reverse order
+
+        res[.. batch_num / 3].sort_by_cached_key(|(k, _)| k.clone());
 
         res
     }

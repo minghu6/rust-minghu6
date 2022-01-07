@@ -15,7 +15,7 @@ use itertools::Itertools;
 use serde::de::DeserializeSeed;
 use serde::{Deserialize, Deserializer, Serialize};
 
-use super::{BSTNode, BST};
+use super::{BSTNode, BST, ROTATE_NUM};
 use crate::collections::bt::{BTNode, BT};
 use crate::collections::{DictKey, Dictionary};
 use crate::etc::Reverse;
@@ -307,6 +307,10 @@ impl<'a, K: DictKey + 'a, V: 'a> BSTNode<'a, K, V> for RBNode<K, V> {}
 
 impl<'a, K: DictKey + 'a, V: 'a> RB<K, V> {
     pub fn new() -> Self {
+        #[cfg(test)] {
+            unsafe { ROTATE_NUM = 0; }
+        }
+
         Self { root: null_mut() }
     }
 

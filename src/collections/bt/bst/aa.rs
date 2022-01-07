@@ -24,7 +24,7 @@ use std::ptr::{null, null_mut};
 use either::Either;
 use itertools::Itertools;
 
-use super::{BSTNode, BST};
+use super::{BSTNode, BST, ROTATE_NUM};
 use crate::collections::bt::{BTNode, BT};
 use crate::collections::{DictKey, Dictionary};
 use crate::etc::Reverse;

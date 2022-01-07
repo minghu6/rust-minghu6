@@ -17,7 +17,7 @@ use rand::prelude::SliceRandom;
 use rand::thread_rng;
 use test::Bencher;
 
-const BATCH_NUM: usize = 10_0000;
+const BATCH_NUM: usize = 10_000;
 
 
 #[bench]
@@ -110,3 +110,7 @@ fn bench_aa_lookup(b: &mut Bencher) {
     bench_lookup::<u32, Inode>(b, &mut aa::AA::new(), &InodeProvider {})
 }
 
+#[bench]
+fn bench_treap_lookup(b: &mut Bencher) {
+    bench_lookup::<u32, Inode>(b, &mut treap::Treap::new(), &InodeProvider {})
+}

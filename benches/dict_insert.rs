@@ -18,7 +18,7 @@ use rand::prelude::SliceRandom;
 use rand::thread_rng;
 use test::Bencher;
 
-const BATCH_NUM: usize = 10000;
+const BATCH_NUM: usize = 10_000;
 
 
 #[bench]
@@ -106,4 +106,8 @@ fn bench_aa_insert(b: &mut Bencher) {
     bench_insert::<u32, Inode>(b, || box aa::AA::new(), &InodeProvider{})
 }
 
+#[bench]
+fn bench_treap_insert(b: &mut Bencher) {
+    bench_insert::<u32, Inode>(b, || box treap::Treap::new(), &InodeProvider{})
+}
 

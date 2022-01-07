@@ -57,7 +57,7 @@ use either::Either;
 use itertools::Itertools;
 
 use super::rb::Color;
-use super::{BSTNode, BST};
+use super::{BSTNode, BST, ROTATE_NUM};
 use crate::collections::bt::{BTNode, BT};
 use crate::collections::{DictKey, Dictionary};
 use crate::etc::Reverse;
@@ -647,14 +647,6 @@ impl<'a, K: DictKey + 'a, V: 'a> LLRBNode<K, V> {
         })
     }
 
-    #[allow(unused)]
-    fn node_into_value(node: *mut LLRBNode<K, V>) -> V {
-        unsafe {
-            let origin_node = Box::from_raw(node);
-            *Box::from_raw(origin_node.value)
-        }
-    }
-
     /// validate red/black
     pub fn self_validate(&self) -> Result<(), Box<dyn std::error::Error>> {
         self.basic_self_validate()?;
@@ -918,6 +910,10 @@ impl<'a, K: DictKey + 'a, V: 'a> BSTNode<'a, K, V> for LLRBNode<K, V> {}
 
 impl<'a, K: DictKey + 'a, V: 'a> LLRB<K, V> {
     pub fn new() -> Self {
+        #[cfg(test)] {
+            unsafe { ROTATE_NUM = 0; }
+        }
+
         Self { root: null_mut() }
     }
 
@@ -1367,14 +1363,14 @@ impl<'a, K: DictKey + 'a, V: 'a> LLRB<K, V> {
         self.fixup(x)
     }
 
-    ///
+    ///```no_run
     ///    | r                     | r
     ///   (a)      <-- x -->      (b)
     /// b / \ r       ===>      b / \ b
     ///     (c)                 (a) (c)
     ///   r / \               r / b / \ b
     ///   (b)
-    ///
+    ///```
     unsafe fn move_red_left(&mut self, mut x: *mut LLRBNode<K, V>)
     -> *mut LLRBNode<K, V>
     {
@@ -1403,19 +1399,22 @@ impl<'a, K: DictKey + 'a, V: 'a> LLRB<K, V> {
         x
     }
 
-    // Ret: (Normal Node | Removed Node)
     #[allow(unused)]
-    unsafe fn remove_(&mut self, mut x: *mut LLRBNode<K, V>, key: &K, res: &mut Vec<*mut V>)
+    unsafe fn remove_(&mut self, mut x: *mut LLRBNode<K, V>, key: &K, res: &mut Vec<V>)
     -> *mut LLRBNode<K, V>
     {
         if key < (*x).key_bst() {
-            if (!is_red((*x).left) && !is_red((*(*x).left).left)) {
-                x = self.move_red_left(x);
-            }
+            let x_lf = (*x).left;
 
-            (*x).connect_left(
-                self.remove_((*x).left, key, res)
-            );
+            if !x_lf.is_null() {
+                if (!is_red(x_lf) && !is_red((*x_lf).left)) {
+                    x = self.move_red_left(x);
+                }
+
+                (*x).connect_left(
+                    self.remove_((*x).left, key, res)
+                );
+            }
 
         } else {
 
@@ -1424,7 +1423,7 @@ impl<'a, K: DictKey + 'a, V: 'a> LLRB<K, V> {
             }
 
             if key == (*x).key_bst() && (*x).right.is_null() {
-                res.push((*x).value);
+                res.push(*Box::from_raw((*x).value));
 
                 return null_mut();
             }
@@ -1437,7 +1436,7 @@ impl<'a, K: DictKey + 'a, V: 'a> LLRB<K, V> {
                 if key == (*x).key_bst() {
                     let nxt = (*x).successor_bst();
 
-                    res.push((*x).value);
+                    res.push(*Box::from_raw((*x).value));
 
                     (*x).key = (*nxt).key_ptr(0);
                     (*x).value = (*nxt).val_ptr(0);
@@ -1540,15 +1539,10 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for LLRB<K, V> {
 
             let mut res = Vec::new();
             let t = self.remove_(self.root, key, &mut res);
+            self.reset_root(t);
+            set_black(self.root);
 
-            if let Some(vp) = res.pop() {
-                self.root = t;
-                set_black(self.root);
-
-                Some(*Box::from_raw(vp))
-            } else {
-                None
-            }
+            res.pop()
 
         }
 
@@ -1877,8 +1871,6 @@ mod test {
                 i += 1;
             }
 
-            // let mut dict_debug = dict.clone();
-
             collected_elems.shuffle(&mut thread_rng());
 
             // Remove-> Verify
@@ -1917,16 +1909,6 @@ mod test {
         dict.insert(96, ());
 
         assert!(dict.remove(&13).is_some());
-        // assert!(dict.remove(&233).is_some());
-
-        // assert!(!dict.lookup(&14).is_some());
-
-        // assert!(dict.remove(&1663).is_some());
-        // assert!(!dict.lookup(&1663).is_some());
-
-        // assert!(dict.remove(&7333).is_some());
-        // assert!(!dict.lookup(&7333).is_some());
-
 
         dict.self_validate().unwrap();
 
@@ -1941,36 +1923,58 @@ mod test {
 
         let dict = &mut llrb as &mut dyn Dictionary<i32, ()>;
 
-        dict.insert(11, ());
-        assert!(dict.self_validate().is_ok());
+        dict.insert(2, ());
+        dict.insert(22, ());
+        dict.insert(14, ());
+        dict.insert(92, ());
+        dict.insert(3, ());
+        dict.insert(28, ());
+        dict.insert(14, ());
+        dict.insert(35, ());
+        dict.insert(14, ());
+        dict.insert(58, ());
 
-        dict.insert(25, ());
-        dict.self_validate().unwrap();
+        dict.remove(&22);
+        dict.remove(&14);
+        dict.remove(&92);
+        dict.remove(&58);
+        dict.remove(&14);
+        dict.remove(&35);
+        dict.remove(&14);
 
-        dict.insert(15, ());
-        dict.self_validate().unwrap();
-
-        dict.insert(16, ());
-        dict.self_validate().unwrap();
-
-        dict.insert(44, ());
-        dict.self_validate().unwrap();
-
-        dict.insert(98, ());
-        dict.self_validate().unwrap();
-
-        dict.insert(87, ());
-        dict.self_validate().unwrap();
-
-        dict.insert(49, ());
-        dict.self_validate().unwrap();
-
-        dict.insert(31, ());
-        dict.self_validate().unwrap();
-
-        dict.insert(53, ());
-        dict.self_validate().unwrap();
 
         llrb.echo_stdout();
     }
+
+    #[test]
+    fn test_llrb_bench() {
+        let mut llrb = LLRB::<u32, ()>::new();
+        let dict = &mut llrb as &mut dyn Dictionary<u32, ()>;
+        let provider = InodeProvider {};
+        let batch_num = 10;
+
+        let mut rng = thread_rng();
+        let batch = provider.prepare_batch(batch_num);
+        let mut keys = batch.iter().map(|(k, _)| k.clone()).collect_vec();
+
+        for (k, _v) in batch.into_iter() {
+            let k = k % 100;
+
+            println!("insert: {}", k);
+
+            dict.insert(k, ());
+        }
+        keys.shuffle(&mut rng);
+
+        for k in keys.iter() {
+            let k = k % 100;
+
+            println!("remove: {}", k);
+            dict.remove(&k);
+        }
+
+        // provider.bench_dict_remove(dict, &keys);
+
+    }
+
 }
