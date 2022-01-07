@@ -114,3 +114,8 @@ fn bench_aa_lookup(b: &mut Bencher) {
 fn bench_treap_lookup(b: &mut Bencher) {
     bench_lookup::<u32, Inode>(b, &mut treap::Treap::new(), &InodeProvider {})
 }
+
+#[bench]
+fn bench_splay_lookup(b: &mut Bencher) {
+    bench_lookup::<u32, Inode>(b, &mut splay::Splay::new(), &InodeProvider {})
+}

@@ -113,3 +113,9 @@ fn bench_aa_remove(b: &mut Bencher) {
 fn bench_treap_remove(b: &mut Bencher) {
     bench_remove::<u32, Inode>(b, &mut treap::Treap::new(), &InodeProvider {})
 }
+
+#[bench]
+fn bench_splay_remove(b: &mut Bencher) {
+    bench_remove::<u32, Inode>(b, &mut splay::Splay::new(), &InodeProvider {})
+}
+

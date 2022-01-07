@@ -111,3 +111,8 @@ fn bench_treap_insert(b: &mut Bencher) {
     bench_insert::<u32, Inode>(b, || box treap::Treap::new(), &InodeProvider{})
 }
 
+#[bench]
+fn bench_splay_insert(b: &mut Bencher) {
+    bench_insert::<u32, Inode>(b, || box splay::Splay::new(), &InodeProvider{})
+}
+
