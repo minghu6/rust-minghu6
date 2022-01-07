@@ -33,6 +33,15 @@ pub trait BT<'a, K: DictKey + 'a, V: 'a>: Dictionary<K, V> {
     fn order(&self) -> usize;  // >= 2
     fn root(&self) -> *mut (dyn BTNode<'a, K, V> + 'a);
     fn assign_root(&mut self, root: *mut (dyn BTNode<'a, K, V> + 'a));
+    fn reset_root(&mut self, root: *mut (dyn BTNode<'a, K, V> + 'a)) {
+        unsafe {
+            if !root.is_null() {
+                (*root).assign_paren((*root).null_mut());
+            }
+        }
+
+        self.assign_root(root);
+    }
 
     /// alias as transplant
     fn subtree_shift(
@@ -290,14 +299,6 @@ pub trait BTNode<'a, K: DictKey + 'a, V: 'a> {
         self.child(0)
     }
     fn child_last(&self) -> *mut (dyn BTNode<'a, K, V> + 'a) {
-        for i in 0..self.order() - 1 {
-            // as *const () just to ignore the vtable variant from the fat pointer
-            if self.child(i + 1).is_null() {
-                return self.child(i);
-            }
-
-        }
-
         self.child(self.order() - 1)
     }
 

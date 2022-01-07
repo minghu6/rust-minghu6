@@ -6,6 +6,7 @@ pub mod rawst;
 pub mod rb;
 pub mod llrb;
 pub mod aa;
+pub mod treap;
 
 
 use std::{
@@ -272,7 +273,6 @@ pub trait BST<'a, K: DictKey + 'a, V: 'a>: BT<'a, K, V> {
         }
 
     }
-
 }
 
 

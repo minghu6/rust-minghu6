@@ -114,9 +114,11 @@ where
 
     fn bench_dict_insert(
         &self,
-        dict: &mut dyn Dictionary<K, V>,
+        dict_new: fn() -> Box<(dyn Dictionary<K, V>)>,
         batch: Vec<(K, V)>,
     ) {
+        let mut dict = dict_new();
+
         for (k, v) in batch.into_iter() {
             dict.insert(k, v);
         }

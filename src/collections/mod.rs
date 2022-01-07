@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 
 
 pub mod bloom_filter;
@@ -52,7 +53,17 @@ pub trait DictKey = Eq + Ord + std::fmt::Debug;
 // }
 
 
+pub trait Heap<W: Weight, T> {
+    // max for max-heap and min for min-heap respectly.
+    fn top(&self) -> Option<&T>;
 
+    fn pop_top(&mut self) -> Option<T>;
+
+    fn insert(&mut self, w: W, item: T);
+
+}
+
+pub trait Weight = Ord + Debug;
 
 
 ////////////////////////////////////////////////////////////////////////////////

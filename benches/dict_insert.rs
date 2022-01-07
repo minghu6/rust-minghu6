@@ -1,4 +1,6 @@
 #![feature(test)]
+#![feature(box_syntax)]
+
 #![allow(dead_code)]
 #![allow(unused_imports)]
 
@@ -38,7 +40,7 @@ fn bench_insert<
     V: GetKey<K> + Eq + Clone + std::fmt::Debug,
 >(
     b: &mut Bencher,
-    dict: &mut (dyn Dictionary<K, V>),
+    dict_new: fn() -> Box<(dyn Dictionary<K, V>)>,
     provider: &(dyn DictProvider<K, V>),
 ) {
     let mut batch = provider.prepare_batch(BATCH_NUM);
@@ -46,62 +48,62 @@ fn bench_insert<
 
     b.iter( || {
         batch.shuffle(&mut rng);
-        provider.bench_dict_insert(dict, batch.clone())
+        provider.bench_dict_insert(dict_new, batch.clone())
     })
 }
 
 
 #[bench]
 fn bench_avl_insert(b: &mut Bencher) {
-    bench_insert::<u32, Inode>(b, &mut avl::AVL::new(), &InodeProvider{})
+    bench_insert::<u32, Inode>(b, || box avl::AVL::new(), &InodeProvider{})
 }
 
 
 #[bench]
 fn bench_rawst_insert(b: &mut Bencher) {
-    bench_insert::<u32, Inode>(b, &mut rawst::RawST::new(), &InodeProvider{})
+    bench_insert::<u32, Inode>(b, || box rawst::RawST::new(), &InodeProvider{})
 }
 
 
 #[bench]
 fn bench_vecdict_insert(b: &mut Bencher) {
-    bench_insert::<u32, Inode>(b, &mut Vec::new(), &InodeProvider{})
+    bench_insert::<u32, Inode>(b, || box Vec::new(), &InodeProvider{})
 }
 
 
 #[bench]
 fn bench_hashmapdict_insert(b: &mut Bencher) {
-    bench_insert::<u32, Inode>(b, &mut HashMap::new(), &InodeProvider{})
+    bench_insert::<u32, Inode>(b, || box HashMap::new(), &InodeProvider{})
 }
 
 #[bench]
 fn bench_b3_insert(b: &mut Bencher) {
-    bench_insert::<u32, Inode>(b, &mut b3::B3::new(), &InodeProvider{})
+    bench_insert::<u32, Inode>(b, || box b3::B3::new(), &InodeProvider{})
 }
 
 #[bench]
 fn bench_b4_insert(b: &mut Bencher) {
-    bench_insert::<u32, Inode>(b, &mut b4::B4::new(), &InodeProvider{})
+    bench_insert::<u32, Inode>(b, || box b4::B4::new(), &InodeProvider{})
 }
 
 #[bench]
 fn bench_bstar4_insert(b: &mut Bencher) {
-    bench_insert::<u32, Inode>(b, &mut bstar4::BStar4::new(), &InodeProvider{})
+    bench_insert::<u32, Inode>(b, || box bstar4::BStar4::new(), &InodeProvider{})
 }
 
 #[bench]
 fn bench_rb_insert(b: &mut Bencher) {
-    bench_insert::<u32, Inode>(b, &mut rb::RB::new(), &InodeProvider{})
+    bench_insert::<u32, Inode>(b, || box rb::RB::new(), &InodeProvider{})
 }
 
 #[bench]
 fn bench_llrb_insert(b: &mut Bencher) {
-    bench_insert::<u32, Inode>(b, &mut llrb::LLRB::new(), &InodeProvider{})
+    bench_insert::<u32, Inode>(b, || box llrb::LLRB::new(), &InodeProvider{})
 }
 
 #[bench]
 fn bench_aa_insert(b: &mut Bencher) {
-    bench_insert::<u32, Inode>(b, &mut aa::AA::new(), &InodeProvider{})
+    bench_insert::<u32, Inode>(b, || box aa::AA::new(), &InodeProvider{})
 }
 
 

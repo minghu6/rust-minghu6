@@ -1,6 +1,7 @@
 pub mod spm;
 pub mod sort;
 pub mod dict;
+pub mod heap;
 
 
 pub trait Provider<T> {
