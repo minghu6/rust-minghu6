@@ -433,16 +433,14 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for LSG<'a, K, V> {
             let sgnode = LSG::find_scapegoat(entry, self.alpha);
 
             if !sgnode.is_null() {
-
-                // let mut x = sgnode;
-                // while !x.is_null() {
-                //     self.partial_refact(x);
-                //     x = (*x).paren;
-                // }
-
                 self.partial_refact(sgnode);
-
             }
+
+            // let mut x = sgnode;
+            // while !x.is_null() {
+            //     self.partial_refact(x);
+            //     x = LSG::find_scapegoat((*x).paren, self.alpha);
+            // }
 
             true
         }
