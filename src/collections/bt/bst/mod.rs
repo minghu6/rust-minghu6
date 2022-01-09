@@ -8,6 +8,7 @@ pub mod llrb;
 pub mod aa;
 pub mod treap;
 pub mod splay;
+pub mod lsg;
 
 
 use std::{

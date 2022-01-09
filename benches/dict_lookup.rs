@@ -119,3 +119,21 @@ fn bench_treap_lookup(b: &mut Bencher) {
 fn bench_splay_lookup(b: &mut Bencher) {
     bench_lookup::<u32, Inode>(b, &mut splay::Splay::new(), &InodeProvider {})
 }
+
+#[bench]
+fn bench_lsg_lookup(b: &mut Bencher) {
+    bench_lookup::<u32, Inode>(b, &mut lsg::LSG::new(), &InodeProvider {})
+}
+
+#[ignore]
+#[bench]
+fn bench_lsg_06_lookup(b: &mut Bencher) {
+    bench_lookup::<u32, Inode>(b, &mut lsg::LSG::with_alpha(0.6), &InodeProvider {})
+}
+
+#[ignore]
+#[bench]
+fn bench_lsg_08_lookup(b: &mut Bencher) {
+    bench_lookup::<u32, Inode>(b, &mut lsg::LSG::with_alpha(0.8), &InodeProvider {})
+}
+

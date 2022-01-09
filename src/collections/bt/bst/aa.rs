@@ -1,3 +1,6 @@
+//!
+//! By Arne Andersson
+//!
 //! 1. https://en.wikipedia.org/wiki/AA_tree
 //!
 //! 1. https://iq.opengenus.org/aa-trees/

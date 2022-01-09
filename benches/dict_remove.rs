@@ -119,3 +119,12 @@ fn bench_splay_remove(b: &mut Bencher) {
     bench_remove::<u32, Inode>(b, &mut splay::Splay::new(), &InodeProvider {})
 }
 
+#[bench]
+fn bench_lsg_remove(b: &mut Bencher) {
+    bench_remove::<u32, Inode>(b, &mut lsg::LSG::new(), &InodeProvider {})
+}
+
+#[bench]
+fn bench_lsg_06_remove(b: &mut Bencher) {
+    bench_remove::<u32, Inode>(b, &mut lsg::LSG::with_alpha(0.6), &InodeProvider {})
+}

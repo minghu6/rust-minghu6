@@ -116,3 +116,13 @@ fn bench_splay_insert(b: &mut Bencher) {
     bench_insert::<u32, Inode>(b, || box splay::Splay::new(), &InodeProvider{})
 }
 
+#[bench]
+fn bench_lsg_insert(b: &mut Bencher) {
+    bench_insert::<u32, Inode>(b, || box lsg::LSG::new(), &InodeProvider{})
+}
+
+#[bench]
+fn bench_lsg_06_insert(b: &mut Bencher) {
+    bench_insert::<u32, Inode>(b, || box lsg::LSG::with_alpha(0.6), &InodeProvider{})
+}
+
