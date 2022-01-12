@@ -2,6 +2,7 @@ pub mod spm;
 pub mod sort;
 pub mod dict;
 pub mod heap;
+pub mod persistent;
 
 
 pub trait Provider<T> {
