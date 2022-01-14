@@ -51,6 +51,7 @@ impl<'a, T: 'a> PList<'a, T> {
         }
     }
 
+    #[allow(unused)]
     fn nil() -> Self {
         Self {
             ptr: null_mut(),

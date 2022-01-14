@@ -1,6 +1,10 @@
 //! Persistent Data Structure
 
+use std::fmt::Debug;
+
+
 pub mod list;
+pub mod vector;
 
 
 
@@ -27,4 +31,22 @@ pub fn ht<'a, T>(
 ) -> (*mut T, Box<dyn List<'a, T> + 'a>) {
     l.ht()
 }
+
+
+pub trait Vector<'a, T: Debug>: Debug {
+    fn nth(&self, idx: usize) -> *mut T;
+
+    // get last index of Vector
+    fn peek(&self) -> *mut T;
+
+    fn push(&self, item: *mut T) -> Box<dyn Vector<'a, T> + 'a>;
+
+    fn pop(&self, item: *mut T) -> Box<dyn Vector<'a, T> + 'a>;
+
+    fn assoc(&self, idx: usize, item: *mut T) -> Box<dyn Vector<'a, T> + 'a>;
+
+    fn duplicate(&self) -> Box<dyn Vector<'a, T> + 'a>;
+
+}
+
 

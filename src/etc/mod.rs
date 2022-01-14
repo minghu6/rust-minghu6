@@ -1,3 +1,5 @@
+use std::mem::size_of;
+
 use either::Either;
 
 
@@ -11,6 +13,10 @@ pub trait Reverse {
 
 pub trait Conjugation<T> {
     fn adjoint(&self, baseline: &str) -> T;
+}
+
+pub trait BitLen {
+    fn bit_len(&self) -> usize;
 }
 
 
@@ -29,12 +35,22 @@ impl Reverse for Either<(), ()> {
 }
 
 
+impl BitLen for usize {
+    fn bit_len(&self) -> usize {
+        size_of::<usize>() * 8 - self.leading_zeros() as usize
+    }
+}
+
+impl BitLen for u32 {
+    fn bit_len(&self) -> usize {
+        size_of::<u32>() - self.leading_zeros() as usize
+    }
+}
 
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Declare Macro
 
-/// (literal | expr | ident): 3x3
 #[macro_export]
 macro_rules! ht {
     ( $head_expr:expr, $tail_expr:expr ) => {
@@ -54,3 +70,4 @@ macro_rules! ht {
     };
 
 }
+
