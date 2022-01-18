@@ -62,7 +62,14 @@ pub trait VectorProvider<T: PartialEq + Debug>: Provider<T> {
 
         }
 
+        for i in (0..batch_num).rev() {
+            vec = vec.pop().unwrap();
 
+            for j in 0..i {
+                assert_eq!(vec.nth(j), plain_elem_vec[j]);
+            }
+
+        }
 
 
     }

@@ -71,3 +71,46 @@ macro_rules! ht {
 
 }
 
+
+/// should be used inner function which return Result<(), Box<dyn Error>>
+#[macro_export]
+macro_rules! should {
+    ($cond:expr $(,)?) => {{
+        use crate::XXXError;
+
+        if !$cond {
+            return Err(XXXError::new_box_err(
+                ""
+            ))
+        }
+
+     }};
+    ($cond:expr, $args:tt) => {{
+        use crate::XXXError;
+
+        if !$cond {
+            return Err(XXXError::new_box_err(
+                format!($args).as_str()
+            ))
+        }
+
+     }};
+}
+
+
+#[cfg(test)]
+mod tests {
+
+    use crate::*;
+
+    use std::error::Error;
+
+    #[test]
+    fn test_should() -> Result<(), Box<dyn Error>> {
+
+        should!(2 < 2, "2 shoud lt 2");
+
+        Ok(())
+    }
+
+}

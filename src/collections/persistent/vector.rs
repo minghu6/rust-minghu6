@@ -10,7 +10,7 @@ use std::{
     fmt::Debug,
     fmt::Display,
     ops::{Index, IndexMut},
-    ptr::null_mut,
+    ptr::null_mut, error::Error,
 };
 
 use itertools::Itertools;
@@ -19,12 +19,13 @@ use super::Vector;
 use crate::{
     array,
     collections::{as_ptr, bare::array::Array},
-    etc::BitLen,
+    etc::BitLen, should,
 };
 
-const BIT_WIDTH: usize = 1;
+const BIT_WIDTH: usize = 5;
 const NODE_SIZE: usize = 2usize.pow(BIT_WIDTH as u32);
 const MASK: usize = NODE_SIZE - 1;
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Structure
@@ -82,9 +83,9 @@ impl<T> Node<T> {
         as_ptr(Node::LEAF(Array::new(cap)))
     }
 
-    // fn duplicate(&self) -> *mut Self {
-    //     as_ptr(self.clone())
-    // }
+    fn duplicate(&self) -> *mut Self {
+        as_ptr(self.clone())
+    }
 
     #[allow(unused)]
     fn is_empty(&self) -> bool {
@@ -149,14 +150,14 @@ impl<T: Display> Debug for Node<T> {
                         3 => writeln!(
                             f,
                             "[{}, {}, {}]",
-                            *arr[0], *arr[1], *arr[2]
+                            *arr[0], *arr[1], *arr[2],
                         ),
                         upper => writeln!(
                             f,
                             "[{}, {}, ... {}]",
                             *arr[0],
                             *arr[1],
-                            *arr[upper - 1]
+                            *arr[upper - 1],
                         ),
                     }
                 }
@@ -171,17 +172,19 @@ impl<T: Debug> PVec<T> {
     pub fn empty() -> Self {
         PVec {
             cnt: 0,
-            root: Node::new_br(0),
-            tail: Node::new_leaf(0),
+            root: null_mut(),
+            tail: null_mut(),
         }
     }
+
 
     fn new(cnt: usize, root: *mut Node<T>, tail: *mut Node<T>) -> Self {
         Self { cnt, root, tail }
     }
 
+
     /// Tail Offset (elements number before tail)
-    fn tail_off(&self) -> usize {
+    fn tailoff(&self) -> usize {
         if self.cnt == 0 {
             return 0;
         }
@@ -189,24 +192,32 @@ impl<T: Debug> PVec<T> {
         ((self.cnt - 1) >> BIT_WIDTH) << BIT_WIDTH
     }
 
+
     /// Indicate the trie structure.
-    ///
-    /// It's compute based on tailoff.
     fn shift(&self) -> i32 {
-        let tailoff = self.tail_off();
-
-        if tailoff == 0 {
-            return -(BIT_WIDTH as i32);
-        }
-
-        (tailoff - 1).bit_len() as i32 - BIT_WIDTH as i32
+        (self.height() as i32 - 1) * BIT_WIDTH as i32
     }
+
 
     /// Leaf should be same level
-    #[allow(unused)]
     fn height(&self) -> usize {
-        (self.tail_off() - 1).bit_len() / BIT_WIDTH
+        Self::height_(self.tailoff())
     }
+    fn height_(trie_size: usize) -> usize {
+        if trie_size == 0 {
+            return 0;
+        }
+
+        let mut h = 1;
+        let mut shift = (trie_size - 1) >> BIT_WIDTH;
+        while shift > 0 {
+            shift >>= BIT_WIDTH;
+            h += 1;
+        }
+
+        h
+    }
+
 
     pub fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = *mut T> + 'a> {
         let mut i = 0;
@@ -223,12 +234,13 @@ impl<T: Debug> PVec<T> {
         })
     }
 
+
     /// Get the Bucket
     fn array_for(&self, idx: usize) -> *mut Node<T> {
         debug_assert!(idx < self.cnt);
 
         unsafe {
-            if idx >= self.tail_off() {
+            if idx >= self.tailoff() {
                 return self.tail;
             }
 
@@ -236,8 +248,7 @@ impl<T: Debug> PVec<T> {
             let mut cur = self.root;
 
             while shift > 0 {
-                let i = (idx >> shift) & MASK;
-                cur = (*cur).as_br()[i];
+                cur = (*cur).as_br()[(idx >> shift) & MASK];
 
                 shift -= BIT_WIDTH as i32;
             }
@@ -246,11 +257,20 @@ impl<T: Debug> PVec<T> {
         }
     }
 
+
     unsafe fn push_(&self, item: *mut T) -> Self {
         let cnt = self.cnt + 1;
 
+        if self.tail.is_null() {
+            let root = self.root;
+            let tail = Node::new_leaf(1);
+            (*tail).as_leaf_mut()[0] = item;
+
+            return Self::new(cnt, root, tail);
+        }
+
         // tail isn't full
-        if self.cnt - self.tail_off() < NODE_SIZE {
+        if self.cnt - self.tailoff() < NODE_SIZE {
             let root = self.root;
 
             let old_tail_arr = (*self.tail).as_leaf();
@@ -269,16 +289,8 @@ impl<T: Debug> PVec<T> {
 
         // check overflow root?
         // that's: tailoff == Full Trie Nodes Number
-        //
-        // Full Trie Nodes Number = 1 << ((H(trie) * BIT_WIDTH) - 1)
-        // H(trie) = len_b(tailoff(cnt)) / BIT_WIDTH
-        // shift = len_b(tailoff(cnt)) - BIT_WIDTH
-        //
-        // Full Trie Nodes Number = 1 << (shift + BIT_WIDTH)
-        //
-        // So: tailoff == 1 << ((shift + BIT_WIDTH) - 1)
-        //              == 1 << (len_b(tailoff(cnt)) - 1)
-        let tailoff = self.tail_off();
+        // So: tailoff == NODE_SIZE ^ H(trie)
+        let tailoff = self.tailoff();
         if tailoff == 0 {
             root = self.tail;
 
@@ -286,20 +298,22 @@ impl<T: Debug> PVec<T> {
         }
 
         let leaf = self.tail;
+        let shift = self.shift();
 
-        if tailoff == 1 << (tailoff.bit_len() - 1) {
+        if tailoff == NODE_SIZE.pow(self.height() as u32) {
             root = Node::new_br(2);
             (*root).as_br_mut()[0] = self.root;
-            (*root).as_br_mut()[1] = Self::new_path(self.shift(), leaf);
+            (*root).as_br_mut()[1] = Self::new_path(shift, leaf);
         } else {
-            root = self.push_leaf(self.shift(), self.root, leaf)
+            root = self.push_tail_into_trie(shift, self.root, leaf)
         }
 
         Self::new(cnt, root, tail)
     }
 
+
     fn new_path(shift: i32, node: *mut Node<T>) -> *mut Node<T> {
-        if shift == 0 {
+        if shift == 0 as i32 {
             return node;
         }
 
@@ -313,8 +327,9 @@ impl<T: Debug> PVec<T> {
         ret
     }
 
-    // push the leaf(tail) into the Trie
-    unsafe fn push_leaf(
+
+    // The Trie isn't full.
+    unsafe fn push_tail_into_trie(
         &self,
         shift: i32,
         paren: *mut Node<T>,
@@ -330,29 +345,110 @@ impl<T: Debug> PVec<T> {
         if shift == BIT_WIDTH as i32 {
             node_to_insert = leaf;
         } else {
+
             node_to_insert = if (*paren).len() > sub_idx
                 && !(*paren).as_br()[sub_idx].is_null()
             {
                 let child = (*paren).as_br()[sub_idx];
-                self.push_leaf(shift - BIT_WIDTH as i32, child, leaf)
+                self.push_tail_into_trie(shift - BIT_WIDTH as i32, child, leaf)
             } else {
                 Self::new_path(shift - BIT_WIDTH as i32, leaf)
             };
         }
 
-        // match *node_to_insert {
-        //     Node::BR(_) => {
-        //         2+4;
-        //     },
-        //     Node::LEAF(_) => {
-        //         1+1;
-        //     },
-        // }
-
         (*ret).as_br_mut()[sub_idx] = node_to_insert;
 
         ret
     }
+
+
+    unsafe fn pop_(&self) -> Result<Self, Box<dyn Error>> {
+        should!(self.cnt > 0, "Can't pop empty vector");
+
+        if self.cnt == 1 {
+            return Ok(Self::empty());
+        }
+
+        let cnt = self.cnt - 1;
+
+        if (*self.tail).len() > 1 {
+            let tail = Node::new_leaf((*self.tail).len() - 1);
+            Array::copy(
+                (*self.tail).as_leaf(),
+                (*tail).as_leaf(),
+                (*tail).len()
+            );
+
+            let root = self.root;
+
+            return Ok(Self::new(cnt, root, tail))
+        }
+
+        let tail = self.array_for(self.cnt - 2);
+
+        let mut root;
+        if self.cnt == NODE_SIZE + 1 {
+            root = Node::new_br(0);
+        }
+        else {
+            let shift = self.shift();
+
+            root = self.pop_tail_from_trie(shift, self.root);
+
+            if shift >= BIT_WIDTH as i32 && (*root).as_br()[1].is_null() {
+                root = (*root).as_br()[0];  // remove empty root
+            }
+        }
+
+        Ok(Self::new(cnt, root, tail))
+    }
+
+
+    unsafe fn pop_tail_from_trie(
+        &self,
+        shift: i32,
+        node: *mut Node<T>
+    ) -> *mut Node<T> {
+        let sub_id = ((self.cnt - 2) >> shift) & MASK;
+
+        if shift > BIT_WIDTH as i32 {
+
+            debug_assert!((*node).len() > sub_id);
+
+            let child = self.pop_tail_from_trie(
+                shift - BIT_WIDTH as i32,
+                (*node).as_br()[sub_id]
+            );
+
+            if child.is_null() && sub_id == 0 {
+                child
+            }
+            else {
+                let ret = (*node).duplicate();
+                (*ret).as_br_mut()[sub_id] = child;
+
+                ret
+            }
+
+        }
+
+        else if sub_id == 0 {
+            null_mut()
+        }
+
+        else {
+
+            let ret = (*node).duplicate();
+
+            if (*ret).len() > sub_id {
+                (*ret).as_br_mut()[sub_id] = null_mut();
+            }
+
+            ret
+        }
+
+    }
+
 
     pub fn bfs_display(&self)
     where
@@ -361,11 +457,17 @@ impl<T: Debug> PVec<T> {
         unsafe {
             let mut lv = 1usize;
             let mut cur_q = VecDeque::new();
-            cur_q.push_back(self.root);
 
             println!();
             println!("MAIN TRIE:");
             println!();
+
+            if !self.root.is_null() {
+                cur_q.push_back(self.root);
+            } else {
+                println!("null\n");
+            }
+
             while !cur_q.is_empty() {
                 println!("############ Level: {} #############", lv);
 
@@ -390,11 +492,17 @@ impl<T: Debug> PVec<T> {
             // print tail
             println!("###################################\n");
             println!("TAIL: \n");
-            println!("{:?}", (*self.tail));
+
+            if !self.tail.is_null() {
+                println!("{:?}", (*self.tail));
+            } else {
+                println!("null");
+            }
 
             println!("------------- end --------------");
         }
     }
+
 }
 
 
@@ -408,16 +516,25 @@ impl<'a, T: 'a + Debug> Vector<'a, T> for PVec<T> {
         unsafe { (*arr).as_leaf()[idx & MASK] }
     }
 
-    fn peek(&self) -> *mut T {
-        todo!()
+    fn peek(&self) -> Option<*mut T> {
+        if self.cnt == 0 {
+            return None;
+        }
+
+        Some(self.nth(self.cnt - 1))
     }
 
     fn push(&self, item: *mut T) -> Box<dyn Vector<'a, T> + 'a> {
         unsafe { box self.push_(item) }
     }
 
-    fn pop(&self, _item: *mut T) -> Box<dyn Vector<'a, T> + 'a> {
-        todo!()
+    fn pop(&self) -> Result<Box<dyn Vector<'a, T> + 'a>, Box<dyn Error>> {
+        unsafe {
+            match self.pop_() {
+                Ok(it) => Ok(box it),
+                Err(err) => Err(err),
+            }
+        }
     }
 
     fn assoc(
@@ -431,7 +548,11 @@ impl<'a, T: 'a + Debug> Vector<'a, T> for PVec<T> {
     }
 
     fn duplicate(&self) -> Box<dyn Vector<'a, T> + 'a> {
-        todo!()
+        box Self {
+            cnt: self.cnt,
+            root: self.root.clone(),
+            tail: self.tail.clone(),
+        }
     }
 }
 
@@ -467,58 +588,57 @@ mod tests {
     fn test_pvec_manually() {
         let pv = PVec::empty();
 
-        let mut bpv = (box pv) as Box<dyn Vector<usize>>;
-        // let mut bpv = pv;
+        // let mut bpv = (box pv) as Box<dyn Vector<usize>>;
+        let mut bpv = pv;
 
         unsafe {
-            // fst
-            bpv = bpv.push(as_ptr(0));
-            bpv = bpv.push(as_ptr(1));
 
-            // tail full
-            bpv = bpv.push(as_ptr(2));
-            bpv = bpv.push(as_ptr(3));
+            bpv = bpv.push_(as_ptr(0));
+            bpv = bpv.push_(as_ptr(1));
 
-            // root overflow
-            bpv = bpv.push(as_ptr(4));
-            bpv = bpv.push(as_ptr(5));
-            bpv = bpv.push(as_ptr(6));
+            bpv = bpv.push_(as_ptr(2));
+            bpv = bpv.push_(as_ptr(3));
 
-            // root re-overflow
-            bpv = bpv.push(as_ptr(7));
-            bpv = bpv.push(as_ptr(8));
-            bpv = bpv.push(as_ptr(9));
-            bpv = bpv.push(as_ptr(10));
+            bpv = bpv.push_(as_ptr(4));
+            bpv = bpv.push_(as_ptr(5));
+            bpv = bpv.push_(as_ptr(6));
+            bpv = bpv.push_(as_ptr(7));
 
-            bpv = bpv.push(as_ptr(11));
+            bpv = bpv.push_(as_ptr(8));
+            bpv = bpv.push_(as_ptr(9));
+            bpv = bpv.push_(as_ptr(10));
+            bpv = bpv.push_(as_ptr(11));
 
 
-            println!("0: {:?}", (*bpv.nth(0)));
-            println!("1: {:?}", (*bpv.nth(1)));
-            println!("2: {:?}", (*bpv.nth(2)));
-            println!("3: {:?}", (*bpv.nth(3)));
-            println!("4: {:?}", (*bpv.nth(4)));
-            println!("5: {:?}", (*bpv.nth(5)));
-            println!("6: {:?}", (*bpv.nth(6)));
-            println!("7: {:?}", (*bpv.nth(7)));
-            println!("8: {:?}", (*bpv.nth(8)));
-            println!("9: {:?}", (*bpv.nth(9)));
-            println!("10: {:?}", (*bpv.nth(10)));
-
-
-            for i in 11..35 {
-                bpv = bpv.push(as_ptr(i));
-            }
-
-            // for i in 0..15 {
-            //     bpv.nth(i);
-            // }
+            // println!("0: {:?}", (*bpv.nth(0)));
+            // println!("1: {:?}", (*bpv.nth(1)));
+            // println!("2: {:?}", (*bpv.nth(2)));
+            // println!("3: {:?}", (*bpv.nth(3)));
+            // println!("4: {:?}", (*bpv.nth(4)));
+            // println!("5: {:?}", (*bpv.nth(5)));
+            // println!("6: {:?}", (*bpv.nth(6)));
+            // println!("7: {:?}", (*bpv.nth(7)));
+            // println!("8: {:?}", (*bpv.nth(8)));
+            // println!("9: {:?}", (*bpv.nth(9)));
+            // println!("10: {:?}", (*bpv.nth(10)));
 
             // bpv = bpv.push_(as_ptr(12));
 
-            // println!("{:?}", bpv);
+            // bpv = bpv.pop_().unwrap();
+            for i in 12..21 {
+                bpv = bpv.push_(as_ptr(i));
+                println!("{}: {:?}", i, (*bpv.nth(i)));
 
-            // bpv.bfs_display();
+            }
+
+            for _ in 0..20 {
+                bpv = bpv.pop_().unwrap();
+            }
+
+            bpv = bpv.pop_().unwrap();
+
+
+            bpv.bfs_display();
         }
     }
 

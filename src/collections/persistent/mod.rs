@@ -1,6 +1,6 @@
 //! Persistent Data Structure
 
-use std::fmt::Debug;
+use std::{fmt::Debug, error::Error};
 
 
 pub mod list;
@@ -37,11 +37,11 @@ pub trait Vector<'a, T: Debug>: Debug {
     fn nth(&self, idx: usize) -> *mut T;
 
     // get last index of Vector
-    fn peek(&self) -> *mut T;
+    fn peek(&self) -> Option<*mut T>;
 
     fn push(&self, item: *mut T) -> Box<dyn Vector<'a, T> + 'a>;
 
-    fn pop(&self, item: *mut T) -> Box<dyn Vector<'a, T> + 'a>;
+    fn pop(&self) -> Result<Box<dyn Vector<'a, T> + 'a>, Box<dyn Error>>;
 
     fn assoc(&self, idx: usize, item: *mut T) -> Box<dyn Vector<'a, T> + 'a>;
 
