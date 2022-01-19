@@ -62,15 +62,26 @@ pub trait VectorProvider<T: PartialEq + Debug>: Provider<T> {
 
         }
 
+        let mut uvec = vec.duplicate();
+        let mut uelem_vec = vec![];
+        for _ in 0..batch_num {
+            let e = as_ptr(self.get_one());
+            uelem_vec.push(e);
+        }
+        for i in 0..batch_num {
+            uvec = uvec.assoc(i, uelem_vec[i]);
+
+            assert_eq!(uvec.nth(i), uelem_vec[i])
+        }
+
+
         for i in (0..batch_num).rev() {
             vec = vec.pop().unwrap();
 
             for j in 0..i {
                 assert_eq!(vec.nth(j), plain_elem_vec[j]);
             }
-
         }
-
 
     }
 

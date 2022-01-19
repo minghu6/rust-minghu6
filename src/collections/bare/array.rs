@@ -11,7 +11,6 @@ use std::{
 ////////////////////////////////////////////////////////////////////////////////
 //// Structure
 
-#[derive(Clone)]
 #[repr(C)]
 pub struct Array<T> {
     len: usize,
@@ -126,6 +125,15 @@ impl<T> IndexMut<usize> for Array<T> {
         debug_assert!(index < self.len);
 
         unsafe { &mut *self.ptr.add(index) }
+    }
+}
+
+impl<T> Clone for Array<T> {
+    fn clone(&self) -> Self {
+        let cloned = Self::new(self.len);
+        Self::copy(self, &cloned, self.len);
+
+        cloned
     }
 }
 

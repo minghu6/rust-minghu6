@@ -22,7 +22,7 @@ use crate::{
     etc::BitLen, should,
 };
 
-const BIT_WIDTH: usize = 5;
+const BIT_WIDTH: usize = 2;
 const NODE_SIZE: usize = 2usize.pow(BIT_WIDTH as u32);
 const MASK: usize = NODE_SIZE - 1;
 
@@ -449,6 +449,62 @@ impl<T: Debug> PVec<T> {
 
     }
 
+    unsafe fn assoc_(&self, idx: usize, item: *mut T) -> Self {
+        assert!(self.cnt >= idx);
+
+        if idx == self.cnt {
+            return self.push_(item);
+        }
+
+        debug_assert!(self.cnt > 0);
+
+        let cnt = self.cnt;
+        let root;
+        let tail;
+        if idx >= self.tailoff() {
+            root = self.root;
+            tail = (*self.tail).duplicate();
+
+            (*tail).as_leaf_mut()[idx & MASK] = item;
+        }
+        else {
+            let shift = self.shift();
+            root = Self::do_assoc(shift, self.root, idx, item);
+            tail = self.tail;
+        }
+
+        Self::new(cnt, root, tail)
+
+    }
+
+    unsafe fn do_assoc(
+        shift: i32,
+        node: *mut Node<T>,
+        idx: usize,
+        item: *mut T
+    ) -> *mut Node<T> {
+
+        let ret = (*node).duplicate();
+
+        if shift == 0 {
+            (*ret).as_leaf_mut()[idx & MASK] = item;
+        }
+        else {
+            let sub_idx = (idx >> shift) & MASK;
+            let child = (*node).as_br()[sub_idx];
+
+            (*ret).as_br_mut()[sub_idx]
+            = Self::do_assoc(
+                shift - BIT_WIDTH as i32,
+                child,
+                idx,
+                item
+            );
+
+        }
+
+        ret
+    }
 
     pub fn bfs_display(&self)
     where
@@ -539,13 +595,15 @@ impl<'a, T: 'a + Debug> Vector<'a, T> for PVec<T> {
 
     fn assoc(
         &self,
-        _idx: usize,
-        _item: *mut T,
+        idx: usize,
+        item: *mut T,
     ) -> Box<dyn Vector<'a, T> + 'a> {
-        // search_approximately
 
-        todo!()
+        unsafe {
+            box self.assoc_(idx, item)
+        }
     }
+
 
     fn duplicate(&self) -> Box<dyn Vector<'a, T> + 'a> {
         box Self {
@@ -572,6 +630,8 @@ impl<T: Debug> Debug for PVec<T> {
 
 #[cfg(test)]
 mod tests {
+    use itertools::Itertools;
+
     use super::PVec;
     use crate::{
         collections::{as_ptr, persistent::Vector},
@@ -599,15 +659,17 @@ mod tests {
             bpv = bpv.push_(as_ptr(2));
             bpv = bpv.push_(as_ptr(3));
 
-            bpv = bpv.push_(as_ptr(4));
-            bpv = bpv.push_(as_ptr(5));
-            bpv = bpv.push_(as_ptr(6));
-            bpv = bpv.push_(as_ptr(7));
+            // let upv = bpv.assoc_(3, as_ptr(30));
 
-            bpv = bpv.push_(as_ptr(8));
-            bpv = bpv.push_(as_ptr(9));
-            bpv = bpv.push_(as_ptr(10));
-            bpv = bpv.push_(as_ptr(11));
+            // bpv = bpv.push_(as_ptr(4));
+            // bpv = bpv.push_(as_ptr(5));
+            // bpv = bpv.push_(as_ptr(6));
+            // bpv = bpv.push_(as_ptr(7));
+
+            // bpv = bpv.push_(as_ptr(8));
+            // bpv = bpv.push_(as_ptr(9));
+            // bpv = bpv.push_(as_ptr(10));
+            // bpv = bpv.push_(as_ptr(11));
 
 
             // println!("0: {:?}", (*bpv.nth(0)));
@@ -625,17 +687,33 @@ mod tests {
             // bpv = bpv.push_(as_ptr(12));
 
             // bpv = bpv.pop_().unwrap();
-            for i in 12..21 {
-                bpv = bpv.push_(as_ptr(i));
-                println!("{}: {:?}", i, (*bpv.nth(i)));
+            // let total = 1000;
 
-            }
+            // for i in 12..total {
+            //     bpv = bpv.push_(as_ptr(i));
+            //     // println!("{}: {:?}", i, (*bpv.nth(i)));
 
-            for _ in 0..20 {
-                bpv = bpv.pop_().unwrap();
-            }
+            // }
 
-            bpv = bpv.pop_().unwrap();
+            // let update_vec = (0..total)
+            //     .into_iter()
+            //     .map(|i| as_ptr(i * 100))
+            //     .collect_vec();
+
+            // for i in 0..total {
+            //     bpv = bpv.assoc_(i, update_vec[i]);
+
+            //     assert_eq!(*update_vec[i], *bpv.nth(i));
+            // }
+
+
+            // bpv = bpv.assoc_(200, as_ptr(99));
+
+            // for _ in 0..20 {
+            //     bpv = bpv.pop_().unwrap();
+            // }
+
+            // bpv = bpv.pop_().unwrap();
 
 
             bpv.bfs_display();
