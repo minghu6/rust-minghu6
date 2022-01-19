@@ -69,6 +69,11 @@ pub trait Heap<W: Weight, T> {
 pub trait Weight = Ord + Debug;
 
 
+pub trait Collection {
+    fn len(&self) -> usize;
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //// Implments
 

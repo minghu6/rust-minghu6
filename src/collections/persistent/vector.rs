@@ -18,11 +18,11 @@ use itertools::Itertools;
 use super::Vector;
 use crate::{
     array,
-    collections::{as_ptr, bare::array::Array},
+    collections::{as_ptr, bare::array::Array, Collection},
     etc::BitLen, should,
 };
 
-const BIT_WIDTH: usize = 2;
+const BIT_WIDTH: usize = 5;
 const NODE_SIZE: usize = 2usize.pow(BIT_WIDTH as u32);
 const MASK: usize = NODE_SIZE - 1;
 
@@ -32,7 +32,7 @@ const MASK: usize = NODE_SIZE - 1;
 
 pub struct PVec<T> {
     cnt: usize,
-    root: *mut Node<T>, // C void*
+    root: *mut Node<T>,
     tail: *mut Node<T>,
 }
 
@@ -43,9 +43,18 @@ enum Node<T> {
 }
 
 
+pub struct TVec<T> {
+    cnt: usize,
+    root: *mut Node<T>, // C void*
+    tail: *mut Node<T>,
+}
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //// Implement
 
+/// Impl Node
 impl<T> Node<T> {
     fn as_br(&self) -> &Array<*mut Node<T>> {
         match self {
@@ -143,7 +152,8 @@ impl<T: Display> Debug for Node<T> {
                 write!(f, "leaf: ")?;
 
                 unsafe {
-                    match arr.len() {
+                    match arr.iter().filter(|&&x| !x.is_null()).collect_vec().len()
+                    {
                         0 => writeln!(f, "[]"),
                         1 => writeln!(f, "[{}]", *arr[0]),
                         2 => writeln!(f, "[{}, {}]", *arr[0], *arr[1]),
@@ -168,9 +178,10 @@ impl<T: Display> Debug for Node<T> {
 
 
 
+/// Impl Persistent Vec
 impl<T: Debug> PVec<T> {
     pub fn empty() -> Self {
-        PVec {
+        Self {
             cnt: 0,
             root: null_mut(),
             tail: null_mut(),
@@ -371,7 +382,7 @@ impl<T: Debug> PVec<T> {
 
         let cnt = self.cnt - 1;
 
-        if (*self.tail).len() > 1 {
+        if self.cnt - self.tailoff() > 1 {
             let tail = Node::new_leaf((*self.tail).len() - 1);
             Array::copy(
                 (*self.tail).as_leaf(),
@@ -388,7 +399,7 @@ impl<T: Debug> PVec<T> {
 
         let mut root;
         if self.cnt == NODE_SIZE + 1 {
-            root = Node::new_br(0);
+            root = null_mut();
         }
         else {
             let shift = self.shift();
@@ -612,6 +623,7 @@ impl<'a, T: 'a + Debug> Vector<'a, T> for PVec<T> {
             tail: self.tail.clone(),
         }
     }
+
 }
 
 
@@ -621,10 +633,479 @@ impl<T: Debug> Debug for PVec<T> {
             unsafe { write!(f, "{:?} ", (*t))? }
         }
 
+        Ok(())
+    }
+}
+
+
+impl<T> Collection for PVec<T> {
+    fn len(&self) -> usize {
+        self.cnt
+    }
+}
+
+
+
+/// Impl Transient Vec
+impl<T: Debug> TVec<T> {
+    pub fn empty() -> Self {
+        TVec {
+            cnt: 0,
+            root: null_mut(),
+            tail: null_mut(),
+        }
+    }
+
+    // fn new(cnt: usize, root: *mut Node<T>, tail: *mut Node<T>) -> Self {
+    //     Self { cnt, root, tail }
+    // }
+
+
+    /// Tail Offset (elements number before tail)
+    fn tailoff(&self) -> usize {
+        if self.cnt == 0 {
+            return 0;
+        }
+
+        ((self.cnt - 1) >> BIT_WIDTH) << BIT_WIDTH
+    }
+
+
+    /// Indicate the trie structure.
+    fn shift(&self) -> i32 {
+        (self.height() as i32 - 1) * BIT_WIDTH as i32
+    }
+
+
+    /// Leaf should be same level
+    fn height(&self) -> usize {
+        Self::height_(self.tailoff())
+    }
+    fn height_(trie_size: usize) -> usize {
+        if trie_size == 0 {
+            return 0;
+        }
+
+        let mut h = 1;
+        let mut shift = (trie_size - 1) >> BIT_WIDTH;
+        while shift > 0 {
+            shift >>= BIT_WIDTH;
+            h += 1;
+        }
+
+        h
+    }
+
+
+    /// Get the Bucket
+    fn array_for(&self, idx: usize) -> *mut Node<T> {
+        debug_assert!(idx < self.cnt);
+
+        unsafe {
+            if idx >= self.tailoff() {
+                return self.tail;
+            }
+
+            let mut shift = self.shift();
+            let mut cur = self.root;
+
+            while shift > 0 {
+                cur = (*cur).as_br()[(idx >> shift) & MASK];
+
+                shift -= BIT_WIDTH as i32;
+            }
+
+            cur
+        }
+    }
+
+
+    pub fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = *mut T> + 'a> {
+        let mut i = 0;
+
+        box std::iter::from_fn(move || {
+            if i == self.cnt {
+                return None;
+            }
+
+            let nxt = self.nth(i);
+            i += 1;
+
+            Some(nxt)
+        })
+    }
+
+
+    unsafe fn push_(&mut self, item: *mut T) -> Self {
+        if self.tail.is_null() {
+            self.tail = Node::new_leaf(NODE_SIZE);
+            (*self.tail).as_leaf_mut()[0] = item;
+            self.cnt += 1;
+
+            return self.clone()
+        }
+
+        // tail isn't full
+        if self.cnt - self.tailoff() < NODE_SIZE {
+            let idx = self.cnt;
+
+            (*self.tail).as_leaf_mut()[idx & MASK] = item;
+            self.cnt += 1;
+
+            return self.clone();
+        }
+
+        let root;
+
+        let tail = Node::new_leaf(NODE_SIZE);
+        (*tail).as_leaf_mut()[0] = item;
+
+        // check overflow root?
+        // that's: tailoff == Full Trie Nodes Number
+        // So: tailoff == NODE_SIZE ^ H(trie)
+        let tailoff = self.tailoff();
+        if tailoff == 0 {
+            self.root = self.tail;
+            self.tail = tail;
+            self.cnt += 1;
+
+            return self.clone()
+        }
+
+        let leaf = self.tail;
+        let shift = self.shift();
+
+        if tailoff == NODE_SIZE.pow(self.height() as u32) {
+            root = Node::new_br(NODE_SIZE);
+            (*root).as_br_mut()[0] = self.root;
+            (*root).as_br_mut()[1] = Self::new_path(shift, leaf);
+        } else {
+            root = self.push_tail_into_trie(shift, self.root, leaf)
+        }
+
+        self.root = root;
+        self.tail = tail;
+        self.cnt += 1;
+
+        return self.clone();
+    }
+
+
+    // The Trie isn't full.
+    unsafe fn push_tail_into_trie(
+        &self,
+        shift: i32,
+        paren: *mut Node<T>,
+        leaf: *mut Node<T>,
+    ) -> *mut Node<T> {
+        let sub_idx = ((self.cnt - 1) >> shift) & MASK;
+
+        let ret = paren;
+
+        let node_to_insert;
+        if shift == BIT_WIDTH as i32 {
+            node_to_insert = leaf;
+        } else {
+            let child = (*paren).as_br()[sub_idx];
+
+            node_to_insert = if !child.is_null()
+            {
+                self.push_tail_into_trie(shift - BIT_WIDTH as i32, child, leaf)
+            } else {
+                Self::new_path(shift - BIT_WIDTH as i32, leaf)
+            };
+        }
+
+        (*ret).as_br_mut()[sub_idx] = node_to_insert;
+
+        ret
+    }
+
+    fn new_path(shift: i32, node: *mut Node<T>) -> *mut Node<T> {
+        if shift == 0 as i32 {
+            return node;
+        }
+
+        let ret = Node::new_br(NODE_SIZE);
+
+        unsafe {
+            (*ret).as_br_mut()[0] =
+                Self::new_path(shift - BIT_WIDTH as i32, node);
+        }
+
+        ret
+    }
+
+    unsafe fn pop_(&mut self) -> Result<Self, Box<dyn Error>> {
+        should!(self.cnt > 0, "Can't pop empty vector");
+
+        if self.cnt == 1 || self.cnt - self.tailoff() > 1 {
+            self.cnt -= 1;
+
+            return Ok(self.clone())
+        }
+
+        let tail = self.array_for(self.cnt - 2);
+
+        let mut root;
+        if self.cnt == NODE_SIZE + 1 {
+            root = null_mut();
+        }
+        else {
+            let shift = self.shift();
+
+            root = self.pop_tail_from_trie(shift, self.root);
+
+            if shift >= BIT_WIDTH as i32 && (*root).as_br()[1].is_null() {
+                root = (*root).as_br()[0];  // remove empty root
+            }
+        }
+
+        self.root = root;
+        self.tail = tail;
+        self.cnt -= 1;
+
+        Ok(self.clone())
+    }
+
+
+    unsafe fn pop_tail_from_trie(
+        &self,
+        shift: i32,
+        node: *mut Node<T>
+    ) -> *mut Node<T> {
+        let sub_id = ((self.cnt - 2) >> shift) & MASK;
+
+        if shift > BIT_WIDTH as i32 {
+
+            debug_assert!((*node).len() > sub_id);
+
+            let child = self.pop_tail_from_trie(
+                shift - BIT_WIDTH as i32,
+                (*node).as_br()[sub_id]
+            );
+
+            if child.is_null() && sub_id == 0 {
+                child
+            }
+            else {
+                let ret = node;
+                (*ret).as_br_mut()[sub_id] = child;
+
+                ret
+            }
+
+        }
+
+        else if sub_id == 0 {
+            null_mut()
+        }
+
+        else {
+
+            let ret = node;
+
+            if (*ret).len() > sub_id {
+                (*ret).as_br_mut()[sub_id] = null_mut();
+            }
+
+            ret
+        }
+
+    }
+
+
+    unsafe fn assoc_(&mut self, idx: usize, item: *mut T) -> Self {
+        assert!(self.cnt >= idx);
+
+        if idx == self.cnt {
+            return self.push_(item);
+        }
+
+        debug_assert!(self.cnt > 0);
+
+        if idx >= self.tailoff() {
+            (*self.tail).as_leaf_mut()[idx & MASK] = item;
+        }
+        else {
+            let shift = self.shift();
+            self.root = Self::do_assoc(shift, self.root, idx, item);
+        }
+
+        self.clone()
+    }
+
+    unsafe fn do_assoc(
+        shift: i32,
+        node: *mut Node<T>,
+        idx: usize,
+        item: *mut T
+    ) -> *mut Node<T> {
+
+        let ret = node;
+
+        if shift == 0 {
+            (*ret).as_leaf_mut()[idx & MASK] = item;
+        }
+        else {
+            let sub_idx = (idx >> shift) & MASK;
+            let child = (*node).as_br()[sub_idx];
+
+            (*ret).as_br_mut()[sub_idx]
+            = Self::do_assoc(
+                shift - BIT_WIDTH as i32,
+                child,
+                idx,
+                item
+            );
+
+        }
+
+        ret
+    }
+
+
+    pub fn bfs_display(&self)
+    where
+        T: Display,
+    {
+        unsafe {
+            let mut lv = 1usize;
+            let mut cur_q = VecDeque::new();
+
+            println!();
+            println!("MAIN TRIE: {}", self.cnt);
+            println!();
+
+            if !self.root.is_null() {
+                cur_q.push_back(self.root);
+            } else {
+                println!("null\n");
+            }
+
+            while !cur_q.is_empty() {
+                println!("############ Level: {} #############", lv);
+
+                let mut nxt_q = VecDeque::new();
+
+                while !cur_q.is_empty() {
+                    let x = cur_q.pop_front().unwrap();
+
+                    // print all x chidren
+                    println!();
+                    println!("{:?}", (*x));
+
+                    if let Node::BR(arr) = &(*x) {
+                        nxt_q.extend(arr.iter().filter(|&&x| !x.is_null()))
+                    }
+                }
+
+                cur_q = nxt_q;
+                lv += 1;
+            }
+
+            // print tail
+            println!("###################################\n");
+            println!("TAIL: \n");
+
+            if !self.tail.is_null() {
+                println!("{:?}", (*self.tail));
+            } else {
+                println!("null");
+            }
+
+            println!("------------- end --------------");
+        }
+    }
+
+}
+
+
+
+impl<'a, T: 'a + Debug> Vector<'a, T> for TVec<T> {
+    fn nth(&self, idx: usize) -> *mut T {
+        debug_assert!(idx < self.cnt);
+
+        let arr = self.array_for(idx);
+
+        unsafe { (*arr).as_leaf()[idx & MASK] }
+    }
+
+    fn peek(&self) -> Option<*mut T> {
+        if self.cnt == 0 {
+            return None;
+        }
+
+        Some(self.nth(self.cnt - 1))
+    }
+
+    fn push(&self, item: *mut T) -> Box<dyn Vector<'a, T> + 'a> {
+        unsafe {
+            let mut_self = &mut *(self as *const Self as *mut Self);
+
+            box mut_self.push_(item)
+        }
+    }
+
+    fn pop(&self) -> Result<Box<dyn Vector<'a, T> + 'a>, Box<dyn Error>> {
+        unsafe {
+            let mut_self = &mut *(self as *const Self as *mut Self);
+
+            match mut_self.pop_() {
+                Ok(it) => Ok(box it),
+                Err(err) => Err(err),
+            }
+        }
+    }
+
+    fn assoc(
+        &self,
+        idx: usize,
+        item: *mut T,
+    ) -> Box<dyn Vector<'a, T> + 'a> {
+
+        unsafe {
+            let mut_self = &mut *(self as *const Self as *mut Self);
+
+            box mut_self.assoc_(idx, item)
+        }
+    }
+
+
+    fn duplicate(&self) -> Box<dyn Vector<'a, T> + 'a> {
+        box self.clone()
+    }
+}
+
+
+impl<T: Debug> Debug for TVec<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for t in self.iter() {
+            unsafe { write!(f, "{:?} ", (*t))? }
+        }
 
         Ok(())
     }
 }
+
+
+impl<T> Collection for TVec<T> {
+    fn len(&self) -> usize {
+        self.cnt
+    }
+}
+
+
+impl<T> Clone for TVec<T> {
+    fn clone(&self) -> Self {
+        Self {
+            cnt: self.cnt,
+            root: self.root,
+            tail: self.tail
+        }
+    }
+}
+
 
 
 
@@ -632,15 +1113,20 @@ impl<T: Debug> Debug for PVec<T> {
 mod tests {
     use itertools::Itertools;
 
-    use super::PVec;
+    use super::{ TVec, PVec };
     use crate::{
-        collections::{as_ptr, persistent::Vector},
+        collections::{as_ptr, persistent::Vector, Collection},
         test::{dict::InodeProvider, persistent::VectorProvider},
     };
 
     #[test]
     fn test_pvec_randomedata() {
-        unsafe { InodeProvider {}.test_vec(|| box PVec::empty()) }
+        unsafe { InodeProvider {}.test_pvec(|| box PVec::empty()) }
+    }
+
+    #[test]
+    fn test_tvec_randomedata() {
+        unsafe { InodeProvider {}.test_tvec(|| box TVec::empty()) }
     }
 
 
@@ -721,26 +1207,64 @@ mod tests {
     }
 
 
-    // #[test]
-    // fn hack_pvec() {
+    #[test]
+    fn test_tvec_manually() {
+        let tv = TVec::empty();
 
-    //     let batch_num = 1000;
-    //     let mut vec= (box PVec::empty()) as Box<dyn Vector<usize>>;
+        // let mut bpv = (box pv) as Box<dyn Vector<usize>>;
+        let mut btv = tv;
 
-    //     let mut plain_elem_vec = vec![];
-    //     for i in 0..batch_num {
-    //         let e = as_ptr(i);
-    //         plain_elem_vec.push(e);
-    //     }
+        unsafe {
 
-    //     for i in 0..batch_num {
-    //         vec = vec.push(plain_elem_vec[i]);
+            btv = btv.push_(as_ptr(0));
+            btv = btv.push_(as_ptr(1));
+            btv = btv.push_(as_ptr(2));
+            btv = btv.push_(as_ptr(3));
+            btv = btv.push_(as_ptr(4));
+            btv = btv.push_(as_ptr(5));
+            btv = btv.push_(as_ptr(6));
+            btv = btv.push_(as_ptr(7));
+            btv = btv.push_(as_ptr(8));
+            btv = btv.push_(as_ptr(9));
+            btv = btv.push_(as_ptr(10));
+            btv = btv.push_(as_ptr(11));
 
-    //         for j in 0..i+1 {
-    //             assert_eq!(vec.nth(j), plain_elem_vec[j]);
-    //         }
-    //     }
+            let total = 500;
 
-    // }
+            for i in 12..total {
+                btv = btv.push_(as_ptr(i));
+            }
+
+            for i in 0..total {
+                btv = btv.assoc_(i, as_ptr(i * 100));
+            }
+
+            let mut uvec = btv.duplicate();
+            let mut uelem_vec = vec![];
+            for i in 0..total {
+                let e = as_ptr(i * 100);
+                uelem_vec.push(e);
+            }
+            for i in 0..total {
+                uvec = uvec.assoc(i, uelem_vec[i]);
+
+                assert_eq!(uvec.nth(i), uelem_vec[i])
+            }
+
+
+            for i in (0..total).rev() {
+                btv = btv.pop_().unwrap();
+
+                for j in 0..i {
+                    assert_eq!(btv.nth(j), uelem_vec[j]);
+                }
+            }
+
+
+            btv.bfs_display();
+
+        }
+
+    }
 
 }

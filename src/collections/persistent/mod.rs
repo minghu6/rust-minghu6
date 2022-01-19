@@ -2,6 +2,8 @@
 
 use std::{fmt::Debug, error::Error};
 
+use super::Collection;
+
 
 pub mod list;
 pub mod vector;
@@ -33,7 +35,7 @@ pub fn ht<'a, T>(
 }
 
 
-pub trait Vector<'a, T: Debug>: Debug {
+pub trait Vector<'a, T: Debug>: Debug + Collection {
     fn nth(&self, idx: usize) -> *mut T;
 
     // get last index of Vector
