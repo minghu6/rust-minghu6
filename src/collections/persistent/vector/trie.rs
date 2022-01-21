@@ -33,7 +33,7 @@ const MASK: usize = NODE_SIZE - 1;
 ////////////////////////////////////////////////////////////////////////////////
 //// Structure
 
-pub struct PVec<T> {
+pub struct PTrieVec<T> {
     cnt: usize,
     root: *mut Node<T>,
     tail: *mut Node<T>,
@@ -46,7 +46,7 @@ enum Node<T> {
 }
 
 
-pub struct TVec<T> {
+pub struct TTrieVec<T> {
     cnt: usize,
     root: *mut Node<T>, // C void*
     tail: *mut Node<T>,
@@ -213,7 +213,7 @@ impl<T: Display> Debug for Node<T> {
 
 
 /// Impl Persistent Vec
-impl<T: Debug> PVec<T> {
+impl<T: Debug> PTrieVec<T> {
     pub fn empty() -> Self {
         Self {
             cnt: 0,
@@ -312,57 +312,59 @@ impl<T: Debug> PVec<T> {
     }
 
 
-    unsafe fn push_(&self, item: T) -> Self {
-        let cnt = self.cnt + 1;
+    pub fn push_(&self, item: T) -> Self {
+        unsafe {
+            let cnt = self.cnt + 1;
 
-        if self.cnt == 0 {
-            let root = self.root;
+            if self.cnt == 0 {
+                let root = self.root;
+                let tail = Node::new_leaf(self.id(), 1);
+                (*tail).as_leaf_mut()[0] = item;
+
+                return Self::new(cnt, root, tail);
+            }
+
+            // tail isn't full
+            if self.cnt - self.tailoff() < NODE_SIZE {
+                let root = self.root;
+
+                let old_tail_arr = (*self.tail).as_leaf();
+                let tail = Node::new_leaf(self.id(), old_tail_arr.len() + 1);
+
+                Array::copy(old_tail_arr, (*tail).as_leaf(), old_tail_arr.len());
+                (*tail).as_leaf_mut()[old_tail_arr.len()] = item;
+
+                return Self::new(cnt, root, tail);
+            }
+
+            let root;
+
             let tail = Node::new_leaf(self.id(), 1);
             (*tail).as_leaf_mut()[0] = item;
 
-            return Self::new(cnt, root, tail);
+            // check overflow root?
+            // that's: tailoff == Full Trie Nodes Number
+            // So: tailoff == NODE_SIZE ^ H(trie)
+            let tailoff = self.tailoff();
+            if tailoff == 0 {
+                root = self.tail;
+
+                return Self::new(cnt, root, tail);
+            }
+
+            let leaf = self.tail;
+            let shift = self.shift();
+
+            if tailoff == NODE_SIZE.pow(self.height() as u32) {
+                root = Node::new_br(self.id(), 2);
+                (*root).as_br_mut()[0] = self.root;
+                (*root).as_br_mut()[1] = Self::new_path(self.id(), shift, leaf);
+            } else {
+                root = self.push_tail_into_trie(shift, self.root, leaf)
+            }
+
+            Self::new(cnt, root, tail)
         }
-
-        // tail isn't full
-        if self.cnt - self.tailoff() < NODE_SIZE {
-            let root = self.root;
-
-            let old_tail_arr = (*self.tail).as_leaf();
-            let tail = Node::new_leaf(self.id(), old_tail_arr.len() + 1);
-
-            Array::copy(old_tail_arr, (*tail).as_leaf(), old_tail_arr.len());
-            (*tail).as_leaf_mut()[old_tail_arr.len()] = item;
-
-            return Self::new(cnt, root, tail);
-        }
-
-        let root;
-
-        let tail = Node::new_leaf(self.id(), 1);
-        (*tail).as_leaf_mut()[0] = item;
-
-        // check overflow root?
-        // that's: tailoff == Full Trie Nodes Number
-        // So: tailoff == NODE_SIZE ^ H(trie)
-        let tailoff = self.tailoff();
-        if tailoff == 0 {
-            root = self.tail;
-
-            return Self::new(cnt, root, tail);
-        }
-
-        let leaf = self.tail;
-        let shift = self.shift();
-
-        if tailoff == NODE_SIZE.pow(self.height() as u32) {
-            root = Node::new_br(self.id(), 2);
-            (*root).as_br_mut()[0] = self.root;
-            (*root).as_br_mut()[1] = Self::new_path(self.id(), shift, leaf);
-        } else {
-            root = self.push_tail_into_trie(shift, self.root, leaf)
-        }
-
-        Self::new(cnt, root, tail)
     }
 
 
@@ -539,11 +541,11 @@ impl<T: Debug> PVec<T> {
         ret
     }
 
-    fn transient_(&self) -> TVec<T>{
-        TVec {
+    fn transient_(&self) -> TTrieVec<T>{
+        TTrieVec {
             cnt: self.cnt,
-            root: TVec::editable(self.root),
-            tail: TVec::editable(self.tail)
+            root: TTrieVec::editable(self.root),
+            tail: TTrieVec::editable(self.tail)
         }
     }
 
@@ -604,7 +606,7 @@ impl<T: Debug> PVec<T> {
 
 
 
-impl<'a, T: 'a + Debug> Vector<'a, T> for PVec<T> {
+impl<'a, T: 'a + Debug> Vector<'a, T> for PTrieVec<T> {
     fn nth(&self, idx: usize) -> &T {
         debug_assert!(idx < self.cnt);
 
@@ -656,7 +658,7 @@ impl<'a, T: 'a + Debug> Vector<'a, T> for PVec<T> {
 }
 
 
-impl<T: Debug> Debug for PVec<T> {
+impl<T: Debug> Debug for PTrieVec<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for t in self.iter() {
             write!(f, "{:?} ", (*t))?
@@ -667,14 +669,14 @@ impl<T: Debug> Debug for PVec<T> {
 }
 
 
-impl<T> Collection for PVec<T> {
+impl<T> Collection for PTrieVec<T> {
     fn len(&self) -> usize {
         self.cnt
     }
 }
 
 
-impl<T> Clone for PVec<T> {
+impl<T> Clone for PTrieVec<T> {
     fn clone(&self) -> Self {
         Self {
             cnt: self.cnt,
@@ -687,9 +689,9 @@ impl<T> Clone for PVec<T> {
 
 
 /// Impl Transient Vec
-impl<T: Debug> TVec<T> {
+impl<T: Debug> TTrieVec<T> {
     pub fn empty() -> Self {
-        TVec {
+        TTrieVec {
             cnt: 0,
             root: null_mut(),
             tail: null_mut(),
@@ -1054,7 +1056,7 @@ impl<T: Debug> TVec<T> {
     }
 
 
-    fn persistent_(&self) -> PVec<T> {
+    fn persistent_(&self) -> PTrieVec<T> {
         unsafe {
 
             let root = if self.root.is_null() {
@@ -1082,7 +1084,7 @@ impl<T: Debug> TVec<T> {
                 tail
             };
 
-            PVec { cnt: self.cnt, root, tail }
+            PTrieVec { cnt: self.cnt, root, tail }
 
         }
 
@@ -1148,7 +1150,7 @@ impl<T: Debug> TVec<T> {
 
 
 
-impl<'a, T: 'a + Debug> Vector<'a, T> for TVec<T> {
+impl<'a, T: 'a + Debug> Vector<'a, T> for TTrieVec<T> {
     fn nth(&self, idx: usize) -> &T {
         debug_assert!(idx < self.cnt);
 
@@ -1206,7 +1208,7 @@ impl<'a, T: 'a + Debug> Vector<'a, T> for TVec<T> {
 }
 
 
-impl<T: Debug> Debug for TVec<T> {
+impl<T: Debug> Debug for TTrieVec<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for t in self.iter() {
             write!(f, "{:?} ", (*t))?
@@ -1217,14 +1219,14 @@ impl<T: Debug> Debug for TVec<T> {
 }
 
 
-impl<T> Collection for TVec<T> {
+impl<T> Collection for TTrieVec<T> {
     fn len(&self) -> usize {
         self.cnt
     }
 }
 
 
-impl<T> Clone for TVec<T> {
+impl<T> Clone for TTrieVec<T> {
     fn clone(&self) -> Self {
         Self {
             cnt: self.cnt,
@@ -1241,106 +1243,71 @@ impl<T> Clone for TVec<T> {
 mod tests {
     use itertools::Itertools;
 
-    use super::{PVec, TVec};
+    use super::{PTrieVec, TTrieVec};
     use crate::{
-        collections::{as_ptr, persistent::Vector, Collection},
-        test::{dict::InodeProvider, persistent::VectorProvider},
+        collections::{as_ptr, persistent::vector::Vector, Collection},
+        test::{dict::{InodeProvider, Inode}, persistent::VectorProvider, Provider},
     };
 
     #[test]
-    fn test_pvec_randomedata() {
-        unsafe { InodeProvider {}.test_pvec(|| box PVec::empty()) }
+    fn test_ptrievec_randomedata() {
+        unsafe { InodeProvider {}.test_pvec(|| box PTrieVec::empty()) }
     }
 
     #[test]
-    fn test_tvec_randomedata() {
-        unsafe { InodeProvider {}.test_tvec(|| box TVec::empty()) }
+    fn test_ttrievec_randomedata() {
+        unsafe { InodeProvider {}.test_tvec(|| box TTrieVec::empty()) }
     }
 
     #[test]
-    fn test_pttran_randomdata() {
-        unsafe { InodeProvider {}.test_pttran(|| box PVec::empty()) }
+    fn test_pttrietran_randomdata() {
+        unsafe { InodeProvider {}.test_pttran(|| box PTrieVec::empty()) }
     }
 
     #[test]
-    fn test_pvec_manually() {
-        let pv = PVec::empty();
+    fn test_ptrievec_manually() {
+        // let pv = PTrieVec::empty();
 
-        // let mut bpv = (box pv) as Box<dyn Vector<usize>>;
-        let mut bpv = pv;
+        // let mut bpv = (box pv) as Box<dyn Vector<Inode>>;
+        // // let mut bpv = pv;
 
-        unsafe {
-            bpv = bpv.push_(0);
-            bpv = bpv.push_(1);
+        // // let batch = provider.prepare_batch(BATCH_NUM);
+        // let provider = InodeProvider {};
+        // let batch_num = 1000;
+        // let batch = (0..batch_num).into_iter().map(|_| provider.get_one()).collect_vec();
+        // let batch = batch.clone();
 
-            bpv = bpv.push_(2);
-            bpv = bpv.push_(3);
+        // let mut i = 0;
+        // for e in batch.into_iter() {
+        //     bpv = bpv.push(e);
 
-            // let upv = bpv.assoc_(3, as_ptr(30));
+        //     // println!("{}", i);
+        //     i += 1;
+        // }
 
-            // bpv = bpv.push_(as_ptr(4));
-            // bpv = bpv.push_(as_ptr(5));
-            // bpv = bpv.push_(as_ptr(6));
-            // bpv = bpv.push_(as_ptr(7));
+        let provider = &InodeProvider{};
+        let batch = provider.prepare_batch(500);
 
-            // bpv = bpv.push_(as_ptr(8));
-            // bpv = bpv.push_(as_ptr(9));
-            // bpv = bpv.push_(as_ptr(10));
-            // bpv = bpv.push_(as_ptr(11));
+        for _ in 0..10 {
+            let mut vec = (box PTrieVec::empty()) as Box<dyn Vector<Inode>>;
+            let batch = batch.clone();
 
+            let mut i = 0;
+            for e in batch.into_iter() {
+                vec = vec.push(e);
 
-            // println!("0: {:?}", (*bpv.nth(0)));
-            // println!("1: {:?}", (*bpv.nth(1)));
-            // println!("2: {:?}", (*bpv.nth(2)));
-            // println!("3: {:?}", (*bpv.nth(3)));
-            // println!("4: {:?}", (*bpv.nth(4)));
-            // println!("5: {:?}", (*bpv.nth(5)));
-            // println!("6: {:?}", (*bpv.nth(6)));
-            // println!("7: {:?}", (*bpv.nth(7)));
-            // println!("8: {:?}", (*bpv.nth(8)));
-            // println!("9: {:?}", (*bpv.nth(9)));
-            // println!("10: {:?}", (*bpv.nth(10)));
-
-            // bpv = bpv.push_(as_ptr(12));
-
-            // bpv = bpv.pop_().unwrap();
-            // let total = 1000;
-
-            // for i in 12..total {
-            //     bpv = bpv.push_(as_ptr(i));
-            //     // println!("{}: {:?}", i, (*bpv.nth(i)));
-
-            // }
-
-            // let update_vec = (0..total)
-            //     .into_iter()
-            //     .map(|i| as_ptr(i * 100))
-            //     .collect_vec();
-
-            // for i in 0..total {
-            //     bpv = bpv.assoc_(i, update_vec[i]);
-
-            //     assert_eq!(*update_vec[i], *bpv.nth(i));
-            // }
-
-
-            // bpv = bpv.assoc_(200, as_ptr(99));
-
-            // for _ in 0..20 {
-            //     bpv = bpv.pop_().unwrap();
-            // }
-
-            // bpv = bpv.pop_().unwrap();
-
-
-            bpv.bfs_display();
+                // println!("{}", i);
+                i += 1;
+            }
         }
+
+        // bpv.bfs_display();
     }
 
 
     #[test]
-    fn test_tvec_manually() {
-        let tv = TVec::empty();
+    fn test_ttrievec_manually() {
+        let tv = TTrieVec::empty();
 
         // let mut bpv = (box pv) as Box<dyn Vector<usize>>;
         let mut btv = tv;
@@ -1397,11 +1364,11 @@ mod tests {
 
 
     #[test]
-    fn test_pttran_manually() {
+    fn test_pttrietran_manually() {
         unsafe {
 
             // let mut vec = (box PVec::empty()) as Box<dyn Vector<usize>>;
-            let mut pvec = PVec::empty();
+            let mut pvec = PTrieVec::empty();
             let pbatchnum = 300;
             for i in 0..pbatchnum {
                 pvec = pvec.push_(i);

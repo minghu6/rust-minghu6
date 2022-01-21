@@ -4,7 +4,6 @@
 #![feature(stmt_expr_attributes)]
 #![feature(is_sorted)]
 #![feature(type_ascription)]
-#![feature(destructuring_assignment)]
 #![feature(trait_alias)]
 #![feature(box_syntax)]
 #![feature(trait_upcasting)]

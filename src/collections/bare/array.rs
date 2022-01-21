@@ -3,7 +3,7 @@
 
 use std::{
     alloc::{alloc, dealloc, Layout},
-    ops::{Index, IndexMut},
+    ops::{Index, IndexMut}, ptr::null_mut,
 };
 
 
@@ -25,8 +25,13 @@ pub struct Array<T> {
 impl<T> Array<T> {
     pub fn new(cap: usize) -> Self {
         unsafe {
-            let ptr = alloc(Self::layout(cap)) as *mut T;
             let len = cap;
+
+            let ptr = if cap == 0 {
+                null_mut()
+            } else {
+                alloc(Self::layout(cap)) as *mut T
+            };
 
             Self { len, ptr }
         }
@@ -98,16 +103,15 @@ impl<T> Array<T> {
     // }
 }
 
-impl<T> Drop for Array<T> {
-    fn drop(&mut self) {
-        unsafe {
-            if self.len > 0 {
-                dealloc(self.ptr as *mut u8, Self::layout(self.len));
-                self.len = 0;
-            }
-        }
-    }
-}
+// impl<T> Drop for Array<T> {
+//     fn drop(&mut self) {
+//         unsafe {
+//             if self.len > 0 {
+//                 dealloc(self.ptr as *mut u8, Self::layout(self.len));
+//             }
+//         }
+//     }
+// }
 
 
 impl<T> Index<usize> for Array<T> {

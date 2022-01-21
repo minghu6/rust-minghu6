@@ -1,7 +1,9 @@
 
 use std::fmt::Debug;
 
-use crate::collections::{persistent::*, as_ptr};
+use itertools::Itertools;
+
+use crate::collections::{persistent::{*, vector::Vector}, as_ptr};
 
 use super::{Provider, dict::{Inode, InodeProvider}};
 
@@ -32,13 +34,10 @@ pub trait ListProvider<T: PartialEq + Debug>: Provider<T> {
 
     }
 
-
 }
 
 
-
 impl ListProvider<Inode> for InodeProvider {}
-
 
 
 pub trait VectorProvider<T: PartialEq + Debug>: Provider<T> where T: Clone {
@@ -169,10 +168,13 @@ pub trait VectorProvider<T: PartialEq + Debug>: Provider<T> where T: Clone {
 
     }
 
+
+    fn prepare_batch(&self, batch_num: usize) -> Vec<T> {
+        (0..batch_num).into_iter().map(|_| { self.get_one() }).collect_vec()
+    }
+
 }
 
 
-
 impl VectorProvider<Inode> for InodeProvider {}
-
 

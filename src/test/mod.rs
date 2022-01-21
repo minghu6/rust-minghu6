@@ -8,7 +8,7 @@ pub mod persistent;
 pub trait Provider<T> {
     fn get_one(&self) -> T;
 
-    // fn iter(&self) -> impl Iterator<Item = T> + '_ {
-    //     std::iter::from_fn(move || Some(self.get_one()))
-    // }
+    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = T> + 'a> {
+        box std::iter::from_fn(move || Some(self.get_one()))
+    }
 }

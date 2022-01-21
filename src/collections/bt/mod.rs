@@ -873,7 +873,7 @@ pub trait BTNode<'a, K: DictKey + 'a, V: 'a> {
             if self.paren().is_null() {
                 assert!(children_num >= 2);
             } else {
-                assert!(children_num >= self.order().unstable_div_ceil(2));
+                assert!(children_num >= self.order().div_ceil(2));
             }
 
             for i in 0..self.key_num() {
