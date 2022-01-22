@@ -102,7 +102,7 @@ impl<T> Node<T> {
     fn duplicate_with(&self, id: Option<Uuid>, cap: usize) -> *mut Self {
         as_ptr(match self {
             Node::BR(_id, arr) => {
-                debug_assert!(cap >= arr.len());
+                debug_assert!(cap >= arr.len(), "cap: {}, arr.len: {}", cap, arr.len());
 
                 let newarr = Array::new(cap);
                 Array::copy(arr, &newarr, arr.len());
@@ -142,6 +142,29 @@ impl<T> Node<T> {
             Node::LEAF(id, _) => id,
         }
         .clone()
+    }
+
+    #[allow(unused)]
+    fn clone_tree(&self) -> *mut Node<T> {
+        unsafe {
+            Self::clone_tree_(self as *const Node<T> as *mut Node<T>)
+        }
+    }
+
+    unsafe fn clone_tree_(node: *mut Node<T>) -> *mut Node<T> {
+        if node.is_null() {
+            return node;
+        }
+
+        let cloned_node = as_ptr((*node).clone());
+
+        if let Self::BR(_, ref mut arr) = &mut *cloned_node {
+            for i in 0..arr.len() {
+                arr[i] = Self::clone_tree_(arr[i]);
+            }
+        }
+
+        cloned_node
     }
 
 }
@@ -624,7 +647,7 @@ impl<'a, T: 'a + Debug> Vector<'a, T> for PTrieVec<T> {
     }
 
     fn push(&self, item: T) -> Box<dyn Vector<'a, T> + 'a> {
-        unsafe { box self.push_(item) }
+        box self.push_(item)
     }
 
     fn pop(&self) -> Result<Box<dyn Vector<'a, T> + 'a>, Box<dyn Error>> {
@@ -698,9 +721,6 @@ impl<T: Debug> TTrieVec<T> {
         }
     }
 
-    // fn new(cnt: usize, root: *mut Node<T>, tail: *mut Node<T>) -> Self {
-    //     Self { cnt, root, tail }
-    // }
 
     unsafe fn ensure_editable(&self, node: *mut Node<T>) -> *mut Node<T> {
         if self.id() == (*node).id() {
@@ -723,11 +743,6 @@ impl<T: Debug> TTrieVec<T> {
             )
         }
     }
-
-    // #[allow(unused)]
-    // fn ensure_editable(&self) {
-    //     debug_assert!(self.id().is_none(), "Transient used after persistent used!")
-    // }
 
 
     /// Tail Offset (elements number before tail)
@@ -811,7 +826,7 @@ impl<T: Debug> TTrieVec<T> {
             (*self.tail).as_leaf_mut()[0] = item;
             self.cnt += 1;
 
-            return self.clone();
+            return self.clone_head();
         }
 
         // tail isn't full
@@ -825,7 +840,7 @@ impl<T: Debug> TTrieVec<T> {
             (*self.tail).as_leaf_mut()[idx & MASK] = item;
             self.cnt += 1;
 
-            return self.clone();
+            return self.clone_head();
         }
 
         let root;
@@ -842,7 +857,7 @@ impl<T: Debug> TTrieVec<T> {
             self.tail = tail;
             self.cnt += 1;
 
-            return self.clone();
+            return self.clone_head();
         }
 
         let leaf = self.tail;
@@ -860,7 +875,7 @@ impl<T: Debug> TTrieVec<T> {
         self.tail = tail;
         self.cnt += 1;
 
-        return self.clone();
+        return self.clone_head();
     }
 
 
@@ -939,7 +954,7 @@ impl<T: Debug> TTrieVec<T> {
         if self.cnt == 1 || self.cnt - self.tailoff() > 1 {
             self.cnt -= 1;
 
-            return Ok(self.clone());
+            return Ok(self.clone_head());
         }
 
         let tail = self.editable_array_for(self.cnt - 2);
@@ -962,7 +977,7 @@ impl<T: Debug> TTrieVec<T> {
         self.tail = tail;
         self.cnt -= 1;
 
-        Ok(self.clone())
+        Ok(self.clone_head())
     }
 
 
@@ -1020,7 +1035,7 @@ impl<T: Debug> TTrieVec<T> {
             self.root = self.do_assoc(shift, self.root, idx, item);
         }
 
-        self.clone()
+        self.clone_head()
     }
 
 
@@ -1088,6 +1103,25 @@ impl<T: Debug> TTrieVec<T> {
 
         }
 
+    }
+
+
+    pub fn clone_tree(&self) -> Self {
+        unsafe {
+            Self {
+                cnt: self.cnt,
+                root: Node::clone_tree_(self.root),
+                tail: Node::clone_tree_(self.tail),
+            }
+        }
+    }
+
+    pub fn clone_head(&self) -> Self {
+        Self {
+            cnt: self.cnt,
+            root: self.root,
+            tail: self.tail,
+        }
     }
 
 
@@ -1195,11 +1229,11 @@ impl<'a, T: 'a + Debug> Vector<'a, T> for TTrieVec<T> {
     }
 
     fn duplicate(&self) -> Box<dyn Vector<'a, T> + 'a> {
-        box self.clone()
+        box self.clone_tree()
     }
 
     fn transient(&self) -> Result<Box<dyn Vector<'a, T> + 'a>, ()> {
-        Ok(box self.clone())
+        Ok(box self.clone_head())
     }
 
     fn persistent(&self) -> Result<Box<dyn Vector<'a, T> + 'a>, ()> {
@@ -1226,16 +1260,15 @@ impl<T> Collection for TTrieVec<T> {
 }
 
 
-impl<T> Clone for TTrieVec<T> {
-    fn clone(&self) -> Self {
-        Self {
-            cnt: self.cnt,
-            root: self.root,
-            tail: self.tail,
-        }
-    }
-}
-
+// impl<T> Clone for TTrieVec<T> {
+//     fn clone(&self) -> Self {
+//         Self {
+//             cnt: self.cnt,
+//             root: self.root,
+//             tail: self.tail,
+//         }
+//     }
+// }
 
 
 
@@ -1246,7 +1279,7 @@ mod tests {
     use super::{PTrieVec, TTrieVec};
     use crate::{
         collections::{as_ptr, persistent::vector::Vector, Collection},
-        test::{dict::{InodeProvider, Inode}, persistent::VectorProvider, Provider},
+        test::{ persistent::VectorProvider, * },
     };
 
     #[test]
@@ -1285,21 +1318,27 @@ mod tests {
         //     i += 1;
         // }
 
-        let provider = &InodeProvider{};
-        let batch = provider.prepare_batch(500);
+        let bench = || {
+            let provider = &InodeProvider{};
+            let batch = provider.prepare_batch(500);
 
-        for _ in 0..10 {
-            let mut vec = (box PTrieVec::empty()) as Box<dyn Vector<Inode>>;
-            let batch = batch.clone();
+            for _ in 0..10 {
+                let mut vec = (box PTrieVec::empty()) as Box<dyn Vector<Inode>>;
+                let batch = batch.clone();
 
-            let mut i = 0;
-            for e in batch.into_iter() {
-                vec = vec.push(e);
+                let mut _i = 0;
+                for e in batch.into_iter() {
+                    vec = vec.push(e);
 
-                // println!("{}", i);
-                i += 1;
+                    // println!("{}", _i);
+                    _i += 1;
+                }
             }
-        }
+        };
+
+
+        bench();
+        bench();
 
         // bpv.bfs_display();
     }
@@ -1356,6 +1395,8 @@ mod tests {
                     assert_eq!(btv.nth(j), &uelem_vec[j]);
                 }
             }
+
+            // btv = btv.pop_().unwrap();
 
 
             btv.bfs_display();

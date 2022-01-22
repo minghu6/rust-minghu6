@@ -19,6 +19,7 @@ pub trait Vector<'a, T: Debug>: Debug + Collection {
 
     fn assoc(&self, idx: usize, item: T) -> Box<dyn Vector<'a, T> + 'a>;
 
+    /// Deep Copy
     fn duplicate(&self) -> Box<dyn Vector<'a, T> + 'a>;
 
     fn transient(&self) -> Result<Box<dyn Vector<'a, T> + 'a>, ()>;

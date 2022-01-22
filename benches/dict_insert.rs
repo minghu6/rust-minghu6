@@ -11,7 +11,7 @@ use minghu6::collections::Dictionary;
 use minghu6::collections::bt::bst::*;
 use minghu6::collections::bt::*;
 use minghu6::test::dict::*;
-use minghu6::test::Provider;
+use minghu6::test::{ Provider, InodeProvider };
 
 extern crate test;
 use rand::prelude::SliceRandom;

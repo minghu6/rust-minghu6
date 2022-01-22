@@ -7,7 +7,7 @@ extern crate test;
 
 use std::fmt::Debug;
 
-use minghu6::test::dict::{InodeProvider, Inode};
+use minghu6::test::*;
 use minghu6::test::persistent::VectorProvider;
 use minghu6::collections::persistent::vector::{ *, Vector };
 
@@ -42,12 +42,12 @@ fn bench_vec_push<'a, T: PartialEq + Debug + Clone>
         let mut vec = vec_new();
         let batch = batch.clone();
 
-        let mut i = 0;
+        // let mut i = 0;
         for e in batch.into_iter() {
             vec = vec.push(e);
 
             // println!("{}", i);
-            i += 1;
+            // i += 1;
         }
 
     })
@@ -82,31 +82,18 @@ fn bench_vec_tran_push<'a, T: PartialEq + Debug + Clone>
 
 #[bench]
 fn bench_ptrie_vec_push(b: &mut Bencher) {
-    // bench_vec_push::<Inode>(b, || box trie::PTrieVec::empty(), &InodeProvider{})
-    let provider = &InodeProvider{};
-    let batch = provider.prepare_batch(BATCH_NUM);
-
-    // let mut vec = (box trie::PTrieVec::empty()) as Box<dyn Vector<Inode>>;
-    let mut vec = trie::PTrieVec::empty();
-    let mut batch = batch.clone();
-
-    for i in 0..BATCH_NUM - 1 {
-        vec = vec.push_(batch.pop().unwrap());
-    }
-
-    vec = vec.push_(batch.pop().unwrap());
-
+    bench_vec_push::<Inode>(b, || box trie::PTrieVec::empty(), &InodeProvider{})
 }
 
 
-// #[bench]
-// fn bench_ttrie_vec_push(b: &mut Bencher) {
-//     bench_vec_push::<Inode>(b, || box trie::TTrieVec::empty(), &InodeProvider{})
-// }
+#[bench]
+fn bench_ttrie_vec_push(b: &mut Bencher) {
+    bench_vec_push::<Inode>(b, || box trie::TTrieVec::empty(), &InodeProvider{})
+}
 
 
-// #[bench]
-// fn bench_trie_tran_vec_push(b: &mut Bencher) {
-//     bench_vec_tran_push::<Inode>(b, || box trie::PTrieVec::empty(), &InodeProvider{})
-// }
+#[bench]
+fn bench_trie_tran_vec_push(b: &mut Bencher) {
+    bench_vec_tran_push::<Inode>(b, || box trie::PTrieVec::empty(), &InodeProvider{})
+}
 

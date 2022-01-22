@@ -319,8 +319,8 @@ pub(crate) mod tests {
             Dictionary,
         },
         test::{
-            dict::{DictProvider, GetKey, Inode, InodeProvider},
-            Provider,
+            dict::{DictProvider, GetKey},
+            *,
         },
     };
 

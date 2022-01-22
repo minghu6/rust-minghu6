@@ -1820,8 +1820,8 @@ mod test {
             Dictionary,
         },
         test::{
-            dict::{DictProvider, GetKey, Inode, InodeProvider},
-            Provider,
+            dict::{DictProvider, GetKey},
+            *,
         },
     };
 

@@ -2,10 +2,12 @@ use std::hash::Hash;
 use std::{collections::HashMap, fmt::Debug};
 
 use itertools::Itertools;
-use rand::{prelude::SliceRandom, random, thread_rng};
+use rand::{prelude::SliceRandom, thread_rng};
 
-use super::Provider;
+use super::*;
 use crate::collections::{DictKey, Dictionary};
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Traits
@@ -149,28 +151,6 @@ where
 
 
 
-
-////////////////////////////////////////////////////////////////////////////////
-//// Concrete Types
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-#[repr(C)]
-pub struct Inode {
-    pub mode: u16,
-    pub num_links: u16,
-    pub uid: u16,
-    pub gid: u16,
-    pub size: u32,
-    pub atime: u32, // access time
-    pub mtime: u32, // modified time
-    pub ctime: u32, // create time
-    pub zones: [u32; 10],
-}
-
-
-pub struct InodeProvider {}
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //// Implements
 
@@ -189,22 +169,6 @@ impl GetKey<u32> for Inode {
 //     }
 // }
 
-
-impl Provider<Inode> for InodeProvider {
-    fn get_one(&self) -> Inode {
-        Inode {
-            mode: now_secs() as u16,
-            num_links: now_secs() as u16,
-            uid: now_secs() as u16,
-            gid: now_secs() as u16,
-            size: now_secs() as u32,
-            atime: now_secs() as u32,
-            mtime: now_secs() as u32,
-            ctime: now_secs() as u32,
-            zones: [now_secs() as u32; 10],
-        }
-    }
-}
 
 impl DictProvider<u32, Inode> for InodeProvider {}
 
@@ -290,20 +254,13 @@ impl<K: DictKey + Clone + Hash, V: GetKey<K>> Dictionary<K, V>
 }
 
 
-////////////////////////////////////////////////////////////////////////////////
-//// Common Utils
-
-#[inline]
-fn now_secs() -> u64 {
-    random::<u32>() as u64
-}
-
 
 #[cfg(test)]
 mod test {
     use std::collections::HashMap;
 
-    use super::{DictProvider, Inode, InodeProvider};
+    use super::DictProvider;
+    use super::super::*;
 
 
     #[test]

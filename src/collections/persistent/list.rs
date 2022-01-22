@@ -96,7 +96,7 @@ impl<'a, T: 'a> List<'a, T> for PList<'a, T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::test::{persistent::ListProvider, dict::InodeProvider};
+    use crate::test::{persistent::ListProvider, *};
 
     use super::PList;
 

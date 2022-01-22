@@ -2,7 +2,7 @@
 
 
 use std::{
-    alloc::{alloc, dealloc, Layout},
+    alloc::{alloc_zeroed, dealloc, Layout},
     ops::{Index, IndexMut}, ptr::null_mut,
 };
 
@@ -30,7 +30,7 @@ impl<T> Array<T> {
             let ptr = if cap == 0 {
                 null_mut()
             } else {
-                alloc(Self::layout(cap)) as *mut T
+                alloc_zeroed(Self::layout(cap)) as *mut T
             };
 
             Self { len, ptr }
@@ -103,15 +103,15 @@ impl<T> Array<T> {
     // }
 }
 
-// impl<T> Drop for Array<T> {
-//     fn drop(&mut self) {
-//         unsafe {
-//             if self.len > 0 {
-//                 dealloc(self.ptr as *mut u8, Self::layout(self.len));
-//             }
-//         }
-//     }
-// }
+impl<T> Drop for Array<T> {
+    fn drop(&mut self) {
+        unsafe {
+            if self.len > 0 {
+                dealloc(self.ptr as *mut u8, Self::layout(self.len));
+            }
+        }
+    }
+}
 
 
 impl<T> Index<usize> for Array<T> {

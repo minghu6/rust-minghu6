@@ -1,3 +1,5 @@
+// use num_format::{ Locale, ToFormattedString };
+// use std::fmt::{ Debug, self };
 use std::mem::size_of;
 
 use either::Either;
@@ -19,6 +21,9 @@ pub trait BitLen {
     fn bit_len(&self) -> usize;
 }
 
+// pub trait NumENDebug: Debug {
+//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result;
+// }
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -46,6 +51,14 @@ impl BitLen for u32 {
         size_of::<u32>() - self.leading_zeros() as usize
     }
 }
+
+
+// impl NumENDebug for usize {
+
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
+//         write!(f, "{}", self.to_formatted_string(&Locale::en))
+//     }
+// }
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -102,7 +115,7 @@ macro_rules! should {
 mod tests {
 
     use crate::*;
-
+    // use super::NumENDebug;
     use std::error::Error;
 
     #[test]
@@ -112,5 +125,11 @@ mod tests {
 
         Ok(())
     }
+
+    // #[test]
+    // fn test_debug_num() {
+
+    //     println!("{:?}", 10000000usize);
+    // }
 
 }

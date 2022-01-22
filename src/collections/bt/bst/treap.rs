@@ -539,8 +539,9 @@ mod test {
             Dictionary, Heap,
         },
         test::{
-            dict::{DictProvider, GetKey, Inode, InodeProvider},
+            dict::{DictProvider, GetKey},
             Provider, heap::HeapProvider,
+            *
         },
     };
 

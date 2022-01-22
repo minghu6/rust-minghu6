@@ -5,7 +5,7 @@ use itertools::Itertools;
 
 use crate::collections::{persistent::{*, vector::Vector}, as_ptr};
 
-use super::{Provider, dict::{Inode, InodeProvider}};
+use super::*;
 
 
 pub trait ListProvider<T: PartialEq + Debug>: Provider<T> {
@@ -178,3 +178,4 @@ pub trait VectorProvider<T: PartialEq + Debug>: Provider<T> where T: Clone {
 
 impl VectorProvider<Inode> for InodeProvider {}
 
+impl VectorProvider<usize> for UZProvider {}
