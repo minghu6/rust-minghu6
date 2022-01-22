@@ -40,7 +40,7 @@ pub trait ListProvider<T: PartialEq + Debug>: Provider<T> {
 impl ListProvider<Inode> for InodeProvider {}
 
 
-pub trait VectorProvider<T: PartialEq + Debug>: Provider<T> where T: Clone {
+pub trait VectorProvider<T: PartialEq + Debug>: Provider<T> where T: Clone + Debug {
 
     unsafe fn test_pvec<'a>(&self, vector_new: fn() -> Box<(dyn Vector<'a, T> + 'a)>) {
         let batch_num = 1000;
@@ -103,7 +103,7 @@ pub trait VectorProvider<T: PartialEq + Debug>: Provider<T> where T: Clone {
             }
         }
 
-        let mut uvec = vec.duplicate();
+        let mut uvec = vec;
         let mut uelem_vec = vec![];
         for _ in 0..batch_num {
             let e = self.get_one();
@@ -115,6 +115,7 @@ pub trait VectorProvider<T: PartialEq + Debug>: Provider<T> where T: Clone {
             assert_eq!(uvec.nth(i), &uelem_vec[i])
         }
 
+        let mut vec = uvec;
 
         for i in (0..batch_num).rev() {
             vec = vec.pop().unwrap();

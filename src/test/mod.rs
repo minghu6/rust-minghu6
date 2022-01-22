@@ -26,7 +26,7 @@ pub trait Provider<T> {
 //// Structures
 
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 #[repr(C)]
 pub struct Inode {
     pub mode: u16,
@@ -49,6 +49,7 @@ pub struct UZProvider {}
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Implements
+
 
 impl Provider<Inode> for InodeProvider {
     fn get_one(&self) -> Inode {

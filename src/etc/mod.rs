@@ -1,6 +1,7 @@
 // use num_format::{ Locale, ToFormattedString };
 // use std::fmt::{ Debug, self };
 use std::mem::size_of;
+use std::ptr;
 
 use either::Either;
 
@@ -19,6 +20,10 @@ pub trait Conjugation<T> {
 
 pub trait BitLen {
     fn bit_len(&self) -> usize;
+}
+
+pub trait DeepCopy {
+    fn deep_copy(&self) -> Self;
 }
 
 // pub trait NumENDebug: Debug {
@@ -59,6 +64,31 @@ impl BitLen for u32 {
 //         write!(f, "{}", self.to_formatted_string(&Locale::en))
 //     }
 // }
+
+impl<T: Default> DeepCopy for Vec<T> {
+    fn deep_copy(&self) -> Self {
+        if self.is_empty() {
+            return Vec::new();
+        }
+
+        let cap = self.capacity();
+
+        let mut new_vec = Vec::<T>::with_capacity(cap);
+
+        let new_ptr = new_vec.as_mut_ptr();
+
+        unsafe {
+            let self_ptr = self.as_ptr() as *mut T;
+
+            new_vec.resize_with(self.len(), || T::default());
+
+            ptr::copy_nonoverlapping(self_ptr, new_ptr, self.len());
+        }
+
+        new_vec
+    }
+}
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -118,6 +148,8 @@ mod tests {
     // use super::NumENDebug;
     use std::error::Error;
 
+    use super::DeepCopy;
+
     #[test]
     fn test_should() -> Result<(), Box<dyn Error>> {
 
@@ -126,10 +158,20 @@ mod tests {
         Ok(())
     }
 
-    // #[test]
-    // fn test_debug_num() {
+    #[test]
+    fn test_deep_copy() {
 
-    //     println!("{:?}", 10000000usize);
-    // }
+        let mut vec0 = vec!['a', 'b', 'c'];
+
+        let mut vec1 = vec0.deep_copy();
+
+        vec1[1] = 'e';
+
+        vec0[1] = '0';
+
+        println!("{:?}", vec0);
+        println!("{:?}", vec1);
+
+    }
 
 }

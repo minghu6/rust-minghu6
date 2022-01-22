@@ -25,7 +25,7 @@ use crate::{
     should,
 };
 
-const BIT_WIDTH: usize = 1;
+const BIT_WIDTH: usize = 5;
 const NODE_SIZE: usize = 2usize.pow(BIT_WIDTH as u32);
 const MASK: usize = NODE_SIZE - 1;
 
@@ -1283,22 +1283,22 @@ mod tests {
     };
 
     #[test]
-    fn test_ptrievec_randomedata() {
+    fn test_ptrie_vec_randomedata() {
         unsafe { InodeProvider {}.test_pvec(|| box PTrieVec::empty()) }
     }
 
     #[test]
-    fn test_ttrievec_randomedata() {
+    fn test_ttrie_vec_randomedata() {
         unsafe { InodeProvider {}.test_tvec(|| box TTrieVec::empty()) }
     }
 
     #[test]
-    fn test_pttrietran_randomdata() {
+    fn test_pttrie_tran_randomdata() {
         unsafe { InodeProvider {}.test_pttran(|| box PTrieVec::empty()) }
     }
 
     #[test]
-    fn test_ptrievec_manually() {
+    fn test_ptrie_vec_manually() {
         // let pv = PTrieVec::empty();
 
         // let mut bpv = (box pv) as Box<dyn Vector<Inode>>;

@@ -17,16 +17,16 @@ use test::Bencher;
 const BATCH_NUM: usize = 15_;
 
 
-#[bench]
-#[allow(unused)]
-fn bench_pvec_push_prepare(b: &mut Bencher) {
-    let provider = InodeProvider {};
-    let mut batch = provider.prepare_batch(BATCH_NUM);
+// #[bench]
+// #[allow(unused)]
+// fn bench_pvec_push_prepare(b: &mut Bencher) {
+//     let provider = InodeProvider {};
+//     let mut batch = provider.prepare_batch(BATCH_NUM);
 
-    b.iter( || {
-        batch.clone();
-    })
-}
+//     b.iter( || {
+//         batch.clone();
+//     })
+// }
 
 
 fn bench_vec_push<'a, T: PartialEq + Debug + Clone>
@@ -95,5 +95,23 @@ fn bench_ttrie_vec_push(b: &mut Bencher) {
 #[bench]
 fn bench_trie_tran_vec_push(b: &mut Bencher) {
     bench_vec_tran_push::<Inode>(b, || box trie::PTrieVec::empty(), &InodeProvider{})
+}
+
+
+
+
+#[bench]
+fn bench_praw_vec_push(b: &mut Bencher) {
+    bench_vec_push::<Inode>(b, || box raw::PRawVec::empty(), &InodeProvider{})
+}
+
+#[bench]
+fn bench_traw_vec_push(b: &mut Bencher) {
+    bench_vec_push::<Inode>(b, || box raw::TRawVec::empty(), &InodeProvider{})
+}
+
+#[bench]
+fn bench_raw_tran_vec_push(b: &mut Bencher) {
+    bench_vec_tran_push::<Inode>(b, || box raw::PRawVec::empty(), &InodeProvider{})
 }
 

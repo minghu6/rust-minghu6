@@ -142,3 +142,22 @@ fn bench_trie_tran_vec_assoc(b: &mut Bencher) {
     bench_vec_tran_assoc::<Inode>(b, || box trie::PTrieVec::empty(), &InodeProvider{})
 }
 
+
+
+
+#[bench]
+fn bench_praw_vec_assoc(b: &mut Bencher) {
+    bench_vec_assoc::<Inode>(b, || box raw::PRawVec::empty(), &InodeProvider{})
+}
+
+
+#[bench]
+fn bench_traw_vec_assoc(b: &mut Bencher) {
+    bench_vec_assoc::<Inode>(b, || box raw::TRawVec::empty(), &InodeProvider{})
+}
+
+
+#[bench]
+fn bench_raw_tran_vec_assoc(b: &mut Bencher) {
+    bench_vec_tran_assoc::<Inode>(b, || box raw::PRawVec::empty(), &InodeProvider{})
+}
