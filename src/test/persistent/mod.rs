@@ -40,7 +40,7 @@ pub trait ListProvider<T: PartialEq + Debug>: Provider<T> {
 impl ListProvider<Inode> for InodeProvider {}
 
 
-pub trait VectorProvider<T: PartialEq + Debug>: Provider<T> where T: Clone + Debug {
+pub trait VectorProvider<T: PartialEq + Debug + Clone>: Provider<T> where T: Clone + Debug {
 
     unsafe fn test_pvec<'a>(&self, vector_new: fn() -> Box<(dyn Vector<'a, T> + 'a)>) {
         let batch_num = 1000;

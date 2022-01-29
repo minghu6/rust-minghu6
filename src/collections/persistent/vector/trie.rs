@@ -26,7 +26,7 @@ use crate::{
 };
 
 const BIT_WIDTH: usize = 5;
-const NODE_SIZE: usize = 2usize.pow(BIT_WIDTH as u32);
+const NODE_SIZE: usize = 1 << BIT_WIDTH;
 const MASK: usize = NODE_SIZE - 1;
 
 
@@ -236,7 +236,7 @@ impl<T: Display> Debug for Node<T> {
 
 
 /// Impl Persistent Vec
-impl<T: Debug> PTrieVec<T> {
+impl<T: Debug + Clone> PTrieVec<T> {
     pub fn empty() -> Self {
         Self {
             cnt: 0,
@@ -629,7 +629,7 @@ impl<T: Debug> PTrieVec<T> {
 
 
 
-impl<'a, T: 'a + Debug> Vector<'a, T> for PTrieVec<T> {
+impl<'a, T: 'a + Debug + Clone> Vector<'a, T> for PTrieVec<T> {
     fn nth(&self, idx: usize) -> &T {
         debug_assert!(idx < self.cnt);
 
@@ -681,7 +681,7 @@ impl<'a, T: 'a + Debug> Vector<'a, T> for PTrieVec<T> {
 }
 
 
-impl<T: Debug> Debug for PTrieVec<T> {
+impl<T: Debug + Clone> Debug for PTrieVec<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for t in self.iter() {
             write!(f, "{:?} ", (*t))?
@@ -712,7 +712,7 @@ impl<T> Clone for PTrieVec<T> {
 
 
 /// Impl Transient Vec
-impl<T: Debug> TTrieVec<T> {
+impl<T: Debug + Clone> TTrieVec<T> {
     pub fn empty() -> Self {
         TTrieVec {
             cnt: 0,
@@ -1184,7 +1184,7 @@ impl<T: Debug> TTrieVec<T> {
 
 
 
-impl<'a, T: 'a + Debug> Vector<'a, T> for TTrieVec<T> {
+impl<'a, T: 'a + Debug + Clone> Vector<'a, T> for TTrieVec<T> {
     fn nth(&self, idx: usize) -> &T {
         debug_assert!(idx < self.cnt);
 
@@ -1242,7 +1242,7 @@ impl<'a, T: 'a + Debug> Vector<'a, T> for TTrieVec<T> {
 }
 
 
-impl<T: Debug> Debug for TTrieVec<T> {
+impl<T: Debug + Clone> Debug for TTrieVec<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for t in self.iter() {
             write!(f, "{:?} ", (*t))?

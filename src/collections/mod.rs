@@ -6,6 +6,7 @@ pub mod bt;
 pub mod compact;
 pub mod persistent;
 pub mod bare;
+pub mod aux;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -71,12 +72,15 @@ pub trait Weight = Ord + Debug;
 
 pub trait Collection {
     fn len(&self) -> usize;
+
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Implments
-
 
 
 
@@ -86,4 +90,3 @@ pub trait Collection {
 pub fn as_ptr<T>(value: T) -> *mut T {
     Box::into_raw(box value)
 }
-

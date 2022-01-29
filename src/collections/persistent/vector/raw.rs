@@ -48,7 +48,7 @@ impl<T> PRawVec<T> {
 
 }
 
-impl<'a, T: 'a + Debug + Default> Vector<'a, T> for PRawVec<T> {
+impl<'a, T: 'a + Debug + Default + Clone> Vector<'a, T> for PRawVec<T> {
     fn nth(&self, idx: usize) -> &T {
         &self.raw[idx]
     }
@@ -122,7 +122,7 @@ impl<T> Collection for PRawVec<T> {
 
 
 
-impl<'a, T: 'a + Debug + Default> TRawVec<T> {
+impl<'a, T: 'a + Debug + Default + Clone> TRawVec<T> {
 
     pub fn empty() -> Self {
         Self {
@@ -182,7 +182,7 @@ impl<'a, T: 'a + Debug + Default> TRawVec<T> {
 }
 
 
-impl<'a, T: 'a + Debug + Default> Vector<'a, T> for TRawVec<T> {
+impl<'a, T: 'a + Debug + Default + Clone> Vector<'a, T> for TRawVec<T> {
     fn nth(&self, idx: usize) -> &T {
         debug_assert!(self.len > idx);
 

@@ -1,9 +1,12 @@
 #![allow(path_statements)]
 
 
+use itertools::Itertools;
+
+use crate::collections::Collection;
 use std::{
     alloc::{alloc_zeroed, dealloc, Layout},
-    ops::{Index, IndexMut}, ptr::null_mut,
+    ops::{Index, IndexMut}, ptr::{ null_mut, copy }, fmt::Debug,
 };
 
 
@@ -13,7 +16,7 @@ use std::{
 
 #[repr(C)]
 pub struct Array<T> {
-    len: usize,
+    len: usize,  // and capacity
     ptr: *mut T,
 }
 
@@ -23,6 +26,14 @@ pub struct Array<T> {
 
 /// Heap Array
 impl<T> Array<T> {
+
+    ///////////////////////////////////////
+    //// static method
+
+    pub fn empty() -> Self {
+        Self::new(0)
+    }
+
     pub fn new(cap: usize) -> Self {
         unsafe {
             let len = cap;
@@ -52,16 +63,16 @@ impl<T> Array<T> {
         }
     }
 
-    pub fn layout(cap: usize) -> Layout {
-        Layout::array::<T>(cap).unwrap()
-    }
 
-    pub fn len(&self) -> usize {
-        self.len
-    }
+    pub fn merge(lf: &Self, rh: &Self) -> Self {
+        let arr = Array::new(lf.len() + rh.len());
 
-    pub fn is_empty(&self) -> bool {
-        self.len == 0
+        unsafe {
+            copy(lf.ptr, arr.ptr, lf.len());
+            copy(rh.ptr, arr.ptr.add(lf.len()), rh.len());
+        }
+
+        arr
     }
 
     /// src, dst, len
@@ -70,6 +81,23 @@ impl<T> Array<T> {
         debug_assert!(dst.len() >= len);
 
         unsafe { dst.ptr.copy_from(src.ptr, len) }
+    }
+
+    ///////////////////////////////////////
+    //// dynamic method
+
+    pub fn layout(cap: usize) -> Layout {
+        Layout::array::<T>(cap).unwrap()
+    }
+
+    /// cap may greater than len
+    pub fn clone_with(&self, len: usize, cap: usize) -> Self where T: Clone {
+        debug_assert!(cap >= len);
+
+        let newit = Self::new(cap);
+        Self::copy(self, &newit, len);
+
+        newit
     }
 
     pub fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = &T> + 'a> {
@@ -87,8 +115,8 @@ impl<T> Array<T> {
         })
     }
 
-    pub fn as_ptr(&self) -> *mut Self {
-        self as *const Self as *mut Self
+    pub fn as_ptr(&self) -> *mut T {
+        self.ptr
     }
 
     // pub unsafe fn from_ptr(ptr: *mut T) -> Self {
@@ -101,6 +129,12 @@ impl<T> Array<T> {
     //     }
 
     // }
+}
+
+impl<T> Collection for Array<T> {
+    fn len(&self) -> usize {
+        self.len
+    }
 }
 
 impl<T> Drop for Array<T> {
@@ -138,6 +172,19 @@ impl<T> Clone for Array<T> {
         Self::copy(self, &cloned, self.len);
 
         cloned
+    }
+}
+
+impl Debug for Array<usize> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for chunk in &self.iter().chunks(10) {
+            for item in chunk {
+                write!(f, "{:>4}, ", item)?;
+            }
+            writeln!(f)?;
+        }
+
+        Ok(())
     }
 }
 

@@ -5,9 +5,10 @@ use std::{fmt::Debug, error::Error};
 
 pub mod trie;
 pub mod raw;
+pub mod rrb;
 
 
-pub trait Vector<'a, T: Debug>: Debug + Collection {
+pub trait Vector<'a, T: Debug + Clone>: Debug + Collection {
     fn nth(&self, idx: usize) -> &T;
 
     // get last index of Vector

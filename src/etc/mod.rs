@@ -2,6 +2,7 @@
 // use std::fmt::{ Debug, self };
 use std::mem::size_of;
 use std::ptr;
+use std::fmt::Write;
 
 use either::Either;
 
@@ -26,9 +27,9 @@ pub trait DeepCopy {
     fn deep_copy(&self) -> Self;
 }
 
-// pub trait NumENDebug: Debug {
-//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result;
-// }
+pub trait StrJoin {
+    fn strjoin(&mut self, sep: &str) -> String;
+}
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -58,13 +59,6 @@ impl BitLen for u32 {
 }
 
 
-// impl NumENDebug for usize {
-
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
-//         write!(f, "{}", self.to_formatted_string(&Locale::en))
-//     }
-// }
-
 impl<T: Default> DeepCopy for Vec<T> {
     fn deep_copy(&self) -> Self {
         if self.is_empty() {
@@ -87,6 +81,37 @@ impl<T: Default> DeepCopy for Vec<T> {
 
         new_vec
     }
+}
+
+
+impl<'a, T: ToString> StrJoin for dyn Iterator<Item=&T> + 'a {
+    fn strjoin(&mut self, sep: &str) -> String {
+        let mut seq = vec![];
+
+        for item in self.into_iter() {
+            seq.push(item.to_string());
+        }
+
+        seq.join(sep)
+    }
+}
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//// Utils
+
+pub fn strshift<T: ToString>(it: T, pad: &str) -> String {
+    let mut cache = String::new();
+
+    write!(cache, "{}", it.to_string()).unwrap();
+
+    let mut res = vec![];
+    for line in cache.split('\n') {
+        res.push(pad.to_string() + line);
+    }
+
+    res.join("\n")
 }
 
 
