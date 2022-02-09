@@ -12,7 +12,7 @@ pub(crate) struct RoadMap {
     data: Vec<i32>,
 }
 
-
+#[allow(unused)]
 impl RoadMap {
     pub(crate) fn empty() -> Self {
         Self { data: Vec::new() }

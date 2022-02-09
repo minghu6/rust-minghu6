@@ -15,12 +15,12 @@ use std::{
 };
 
 use itertools::Itertools;
+use m6arr::{array, Array};
 use uuid::Uuid;
 
 use super::Vector;
 use crate::{
-    array,
-    collections::{as_ptr, bare::array::Array, Collection},
+    collections::{as_ptr, Collection},
     etc::BitLen,
     should,
 };
@@ -58,7 +58,7 @@ pub struct TTrieVec<T> {
 //// Implement
 
 /// Impl Node
-impl<T> Node<T> {
+impl<T: Clone> Node<T> {
     fn as_br(&self) -> &Array<*mut Node<T>> {
         match self {
             Node::BR(_, arr) => arr,
@@ -102,18 +102,23 @@ impl<T> Node<T> {
     fn duplicate_with(&self, id: Option<Uuid>, cap: usize) -> *mut Self {
         as_ptr(match self {
             Node::BR(_id, arr) => {
-                debug_assert!(cap >= arr.len(), "cap: {}, arr.len: {}", cap, arr.len());
+                debug_assert!(
+                    cap >= arr.len(),
+                    "cap: {}, arr.len: {}",
+                    cap,
+                    arr.len()
+                );
 
-                let newarr = Array::new(cap);
-                Array::copy(arr, &newarr, arr.len());
+                let mut newarr = Array::new(cap);
+                newarr[..arr.len()].copy_from_slice(&arr[..]);
 
                 Node::BR(id, newarr)
             }
             Node::LEAF(_id, arr) => {
                 debug_assert!(cap >= arr.len());
 
-                let newarr = Array::new(cap);
-                Array::copy(arr, &newarr, arr.len());
+                let mut newarr = Array::new(cap);
+                newarr[..arr.len()].clone_from_slice(&arr[..]);
 
                 Node::LEAF(id, newarr)
             }
@@ -146,9 +151,7 @@ impl<T> Node<T> {
 
     #[allow(unused)]
     fn clone_tree(&self) -> *mut Node<T> {
-        unsafe {
-            Self::clone_tree_(self as *const Node<T> as *mut Node<T>)
-        }
+        unsafe { Self::clone_tree_(self as *const Node<T> as *mut Node<T>) }
     }
 
     unsafe fn clone_tree_(node: *mut Node<T>) -> *mut Node<T> {
@@ -166,11 +169,10 @@ impl<T> Node<T> {
 
         cloned_node
     }
-
 }
 
 
-impl<T> Clone for Node<T> {
+impl<T: Clone> Clone for Node<T> {
     fn clone(&self) -> Self {
         match self {
             Node::BR(uuid, arr) => Node::BR(uuid.clone(), arr.clone()),
@@ -210,16 +212,11 @@ impl<T: Display> Debug for Node<T> {
             Node::LEAF(_, arr) => {
                 write!(f, "leaf: ")?;
 
-                match arr.len()
-                {
+                match arr.len() {
                     0 => writeln!(f, "[]"),
                     1 => writeln!(f, "[{}]", arr[0]),
                     2 => writeln!(f, "[{}, {}]", arr[0], arr[1]),
-                    3 => writeln!(
-                        f,
-                        "[{}, {}, {}]",
-                        arr[0], arr[1], arr[2],
-                    ),
+                    3 => writeln!(f, "[{}, {}, {}]", arr[0], arr[1], arr[2],),
                     upper => writeln!(
                         f,
                         "[{}, {}, ... {}]",
@@ -354,7 +351,7 @@ impl<T: Debug + Clone> PTrieVec<T> {
                 let old_tail_arr = (*self.tail).as_leaf();
                 let tail = Node::new_leaf(self.id(), old_tail_arr.len() + 1);
 
-                Array::copy(old_tail_arr, (*tail).as_leaf(), old_tail_arr.len());
+                (*tail).as_leaf_mut()[..old_tail_arr.len()].clone_from_slice(&old_tail_arr[..]);
                 (*tail).as_leaf_mut()[old_tail_arr.len()] = item;
 
                 return Self::new(cnt, root, tail);
@@ -381,7 +378,8 @@ impl<T: Debug + Clone> PTrieVec<T> {
             if tailoff == NODE_SIZE.pow(self.height() as u32) {
                 root = Node::new_br(self.id(), 2);
                 (*root).as_br_mut()[0] = self.root;
-                (*root).as_br_mut()[1] = Self::new_path(self.id(), shift, leaf);
+                (*root).as_br_mut()[1] =
+                    Self::new_path(self.id(), shift, leaf);
             } else {
                 root = self.push_tail_into_trie(shift, self.root, leaf)
             }
@@ -391,7 +389,11 @@ impl<T: Debug + Clone> PTrieVec<T> {
     }
 
 
-    fn new_path(id: Option<Uuid>, shift: i32, node: *mut Node<T>) -> *mut Node<T> {
+    fn new_path(
+        id: Option<Uuid>,
+        shift: i32,
+        node: *mut Node<T>,
+    ) -> *mut Node<T> {
         if shift == 0 as i32 {
             return node;
         }
@@ -418,7 +420,7 @@ impl<T: Debug + Clone> PTrieVec<T> {
 
         let paren_arr = (*paren).as_br();
         let ret = Node::new_br(self.id(), min(paren_arr.len() + 1, NODE_SIZE));
-        Array::copy(paren_arr, (*ret).as_br(), paren_arr.len());
+        (*ret).as_br_mut()[..paren_arr.len()].copy_from_slice(&paren_arr[..]);
 
         let node_to_insert;
         if shift == BIT_WIDTH as i32 {
@@ -451,11 +453,8 @@ impl<T: Debug + Clone> PTrieVec<T> {
 
         if self.cnt - self.tailoff() > 1 {
             let tail = Node::new_leaf(self.id(), (*self.tail).len() - 1);
-            Array::copy(
-                (*self.tail).as_leaf(),
-                (*tail).as_leaf(),
-                (*tail).len(),
-            );
+            (*tail).as_leaf_mut()[..]
+                .clone_from_slice(&(*self.tail).as_leaf()[..(*tail).len()]);
 
             let root = self.root;
 
@@ -564,11 +563,11 @@ impl<T: Debug + Clone> PTrieVec<T> {
         ret
     }
 
-    fn transient_(&self) -> TTrieVec<T>{
+    fn transient_(&self) -> TTrieVec<T> {
         TTrieVec {
             cnt: self.cnt,
             root: TTrieVec::editable(self.root),
-            tail: TTrieVec::editable(self.tail)
+            tail: TTrieVec::editable(self.tail),
         }
     }
 
@@ -624,7 +623,6 @@ impl<T: Debug + Clone> PTrieVec<T> {
             println!("------------- end --------------");
         }
     }
-
 }
 
 
@@ -725,22 +723,18 @@ impl<T: Debug + Clone> TTrieVec<T> {
     unsafe fn ensure_editable(&self, node: *mut Node<T>) -> *mut Node<T> {
         if self.id() == (*node).id() {
             node
-        }
-        else {
+        } else {
             Self::editable(node)
         }
     }
 
-    fn editable( node: *mut Node<T>) -> *mut Node<T> {
+    fn editable(node: *mut Node<T>) -> *mut Node<T> {
         unsafe {
             if node.is_null() {
                 return node;
             }
 
-            (*node).duplicate_with(
-                Some(Uuid::new_v4()),
-                NODE_SIZE
-            )
+            (*node).duplicate_with(Some(Uuid::new_v4()), NODE_SIZE)
         }
     }
 
@@ -909,7 +903,11 @@ impl<T: Debug + Clone> TTrieVec<T> {
     }
 
 
-    fn new_path(id: Option<Uuid>, shift: i32, node: *mut Node<T>) -> *mut Node<T> {
+    fn new_path(
+        id: Option<Uuid>,
+        shift: i32,
+        node: *mut Node<T>,
+    ) -> *mut Node<T> {
         if shift == 0 as i32 {
             return node;
         }
@@ -937,8 +935,8 @@ impl<T: Debug + Clone> TTrieVec<T> {
             let mut cur = self.root;
 
             while shift > 0 {
-                cur = (*self.ensure_editable(cur))
-                    .as_br()[(idx >> shift) & MASK];
+                cur = (*self.ensure_editable(cur)).as_br()
+                    [(idx >> shift) & MASK];
 
                 shift -= BIT_WIDTH as i32;
             }
@@ -1073,7 +1071,6 @@ impl<T: Debug + Clone> TTrieVec<T> {
 
     fn persistent_(&self) -> PTrieVec<T> {
         unsafe {
-
             let root = if self.root.is_null() {
                 self.root
             } else {
@@ -1090,19 +1087,20 @@ impl<T: Debug + Clone> TTrieVec<T> {
                 self.tail
             } else {
                 let tail = Node::new_leaf(root_id, self.cnt - self.tailoff());
-                Array::copy(
-                    (*self.tail).as_leaf(),
-                    (*tail).as_leaf(),
-                    (*tail).len()
+
+                (*tail).as_leaf_mut()[..].clone_from_slice(
+                    &(*self.tail).as_leaf()[..(*tail).len()]
                 );
 
                 tail
             };
 
-            PTrieVec { cnt: self.cnt, root, tail }
-
+            PTrieVec {
+                cnt: self.cnt,
+                root,
+                tail,
+            }
         }
-
     }
 
 
@@ -1177,9 +1175,6 @@ impl<T: Debug + Clone> TTrieVec<T> {
             println!("------------- end --------------");
         }
     }
-
-
-
 }
 
 
@@ -1279,7 +1274,7 @@ mod tests {
     use super::{PTrieVec, TTrieVec};
     use crate::{
         collections::{as_ptr, persistent::vector::Vector, Collection},
-        test::{ persistent::VectorProvider, * },
+        test::{persistent::VectorProvider, *},
     };
 
     #[test]
@@ -1319,11 +1314,12 @@ mod tests {
         // }
 
         let bench = || {
-            let provider = &InodeProvider{};
+            let provider = &InodeProvider {};
             let batch = provider.prepare_batch(500);
 
             for _ in 0..10 {
-                let mut vec = (box PTrieVec::empty()) as Box<dyn Vector<Inode>>;
+                let mut vec =
+                    (box PTrieVec::empty()) as Box<dyn Vector<Inode>>;
                 let batch = batch.clone();
 
                 let mut _i = 0;
@@ -1407,7 +1403,6 @@ mod tests {
     #[test]
     fn test_pttrietran_manually() {
         unsafe {
-
             // let mut vec = (box PVec::empty()) as Box<dyn Vector<usize>>;
             let mut pvec = PTrieVec::empty();
             let pbatchnum = 300;
@@ -1430,13 +1425,10 @@ mod tests {
                     // println!("j: {}", j);
                     assert_eq!(*tvec.nth(j), j * 10);
                 }
-
             }
 
             // println!("Transistrent");
             // tvec.bfs_display();
-
         }
     }
-
 }

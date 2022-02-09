@@ -1,6 +1,8 @@
 //! Relaxed Radix Balanced Tree AKA RRB, That's Extended Digit Trie Vector
 //!
 //! Reference [It](https://hypirion.com/musings/thesis)
+//!
+//! Origin Author: hypirion
 
 
 use std::{
@@ -8,7 +10,7 @@ use std::{
     collections::VecDeque,
     error::Error,
     fmt::{Debug, Display},
-    ops::{Index, IndexMut},
+    ops::{Index, IndexMut, Add},
     ptr::{copy_nonoverlapping, null, null_mut},
 };
 
@@ -24,7 +26,7 @@ use crate::{
     roadmap, should,
 };
 
-const BIT_WIDTH: usize = 5;
+const BIT_WIDTH: usize = 1;
 const NODE_SIZE: usize = 1 << BIT_WIDTH;
 const MASK: usize = NODE_SIZE - 1;
 const MAX_H: usize = 14;
@@ -162,12 +164,16 @@ impl<T> Collection for Node<T> {
     fn len(&self) -> usize {
         match self {
             Node::BR(arr) => unsafe {
-                debug_assert!(!arr.is_null());
+                if arr.is_null() {
+                    return 0;
+                }
 
                 (**arr).len()
             },
             Node::LF(arr) => unsafe {
-                debug_assert!(!arr.is_null());
+                if arr.is_null() {
+                    return 0;
+                }
 
                 (**arr).len()
             },
@@ -205,14 +211,6 @@ fn fuck_node<T: Debug>(node: Node<T>) {
     }
 }
 
-
-// impl<T> Index<usize> for Node<usize> {
-//     type Output;
-
-//     fn index(&self, index: usize) -> &Self::Output {
-//         todo!()
-//     }
-// }
 
 impl<T> Index<&RoadMap> for Node<T> {
     type Output = Node<T>;
@@ -578,7 +576,10 @@ impl Debug for SZT {
             write!(f, "[ ")?;
             for i in 0..self.len() {
                 if i < self.len() - 1 {
-                    write!(f, ", ")?;
+                    write!(f, "{}, ", self[i])?;
+                }
+                else {
+                    write!(f, "{}", self[i])?;
                 }
             }
             write!(f, " ]")?;
@@ -1145,7 +1146,472 @@ impl<T: Clone + Debug> RRBVec<T> {
             Some(nxt)
         })
     }
+
+    pub fn slice(&self, start: usize, end: usize) -> Self {
+        self.slice_right(start).slice_left(end)
+    }
+
+    /// ... x)
+    fn slice_right(&self, end: usize) -> Self {
+        let rrb = self.head_clone();
+
+        if end == 0 {
+            return Self::empty();
+        }
+
+        if end < rrb.cnt {
+            let tailoff = rrb.cnt - rrb.taillen;
+
+            if tailoff < end {
+
+                let mut new_rrb = rrb.head_clone();
+                let new_taillen = end - tailoff;
+                let new_tail = Leaf::new(new_taillen);
+
+                unsafe {
+                    copy_nonoverlapping(
+                        rrb.tail.as_leaf().items.as_ptr(),
+                        new_tail.as_leaf().items.as_ptr(),
+                        new_taillen
+                    );
+                }
+
+                new_rrb.cnt = end;
+                new_rrb.tail = new_tail;
+                new_rrb.taillen = new_taillen;
+
+                return new_rrb;
+            }
+
+            let mut new_rrb = RRBVec::empty();
+            let root = Self::slice_right_rec(
+                &mut new_rrb.shift,
+                unsafe{ *rrb.root },
+                end - 1,
+                rrb.shift,
+                false
+            );
+
+            new_rrb.cnt = end;
+            new_rrb.root = as_ptr(root);
+
+            // Not sure if this is necessary in this part of the program, due to issues wrt.
+            // slice_left and roots without size tables.
+
+            new_rrb.pop_from_trie();
+            new_rrb.taillen = new_rrb.tail.len();
+
+            new_rrb
+        }
+
+        else {
+            rrb
+        }
+
+    }
+
+    fn slice_right_rec(
+        total_shift: &mut usize,
+        root: Node<T>,
+        end: usize,
+        shift: usize,
+        has_left: bool
+    ) -> Node<T>
+    {
+
+        let mut subidx = end >> shift;
+
+        if shift > 0 {
+            let subshift = shift.decshf();
+
+            let root_br = root.as_br_mut();
+
+            if root_br.szt.is_null() {
+                let rh_node = Self::slice_right_rec(
+                    total_shift,
+                    root_br[subidx],
+                    end - (subidx << shift),
+                    subshift,
+                    subidx != 0 || has_left
+                );
+
+                if subidx == 0 {
+
+                    if has_left {
+                        let rh_paren = Br::new(1);
+                        rh_paren.as_br_mut()[0] = rh_node;
+                        *total_shift = shift;
+
+                        return rh_paren;
+                    }
+                    else {
+                        return rh_node;
+                    }
+                }
+                else {
+                    let sliced_root = Br::new(subidx + 1);
+
+                    unsafe {
+                        copy_nonoverlapping(
+                            root_br.children.as_ptr(),
+                            sliced_root.as_br().children.as_ptr(),
+                            subidx
+                        );
+                    }
+
+                    sliced_root.as_br_mut()[subidx] = rh_node;
+                    *total_shift = shift;
+
+                    return sliced_root;
+                }
+            }
+            else {
+
+                let mut idx = end;
+
+                while root_br.szt()[subidx] <= idx {
+                    subidx += 1;
+                }
+
+                if subidx != 0 {
+                    idx -= root_br.szt()[subidx - 1];
+                }
+
+                let rh_node = Self::slice_right_rec(
+                        total_shift,
+                        root_br[subidx],
+                        idx,
+                        subshift,
+                        subidx != 0 || has_left
+                    );
+
+                if subidx == 0 {
+                    if has_left {
+
+                        let rh_paren = Br::new(1);
+                        let mut rh_szt = SZT::new(1);
+
+                        rh_szt[0] = end + 1;
+                        rh_paren.as_br_mut().szt = as_ptr(rh_szt);
+                        rh_paren.as_br_mut()[0] = rh_node;
+
+                        *total_shift = shift;
+
+                        return rh_paren;
+                    }
+                    else {
+                        return rh_node;
+                    }
+                }
+                else {
+
+                    let sliced_root = Br::new(subidx + 1);
+                    let mut sliced_szt = SZT::new(subidx + 1);
+
+                    unsafe {
+                        copy_nonoverlapping(
+                            root_br.szt().tbl.as_ptr(),
+                            sliced_szt.tbl.as_ptr(),
+                            subidx
+                        );
+
+                        sliced_szt[subidx] = end + 1;
+
+                        copy_nonoverlapping(
+                            root_br.children.as_ptr(),
+                            sliced_root.as_br().children.as_ptr(),
+                            subidx
+                        );
+                    }
+
+                    sliced_root.as_br_mut().szt = as_ptr(sliced_szt);
+                    sliced_root.as_br_mut()[subidx] = rh_node;
+
+                    *total_shift = shift;
+                    return sliced_root;
+                }
+            }
+        }
+        else {
+
+            // Just pure copying into a new node
+            let left_vals = Leaf::new(subidx + 1);
+
+            unsafe {
+                copy_nonoverlapping(
+                    root.as_leaf().items.as_ptr(),
+                    left_vals.as_leaf().items.as_ptr(),
+                    subidx + 1
+                );
+            }
+
+            *total_shift = shift;
+            left_vals
+        }
+
+    }
+
+
+    /// [x, ...
+    fn slice_left(&self, start: usize) -> Self {
+        let mut rrb = self.head_clone();
+
+        if start >= rrb.cnt {
+            return Self::empty();
+        }
+        else if start > 0 {
+            // slice cnt
+            let slice_cnt = rrb.cnt - start;
+
+            let mut new_rrb = Self::empty();
+            rrb.cnt = slice_cnt;
+
+            if slice_cnt <= rrb.taillen {
+                let new_tail = Leaf::new(slice_cnt);
+
+                unsafe {
+                    copy_nonoverlapping(
+                        rrb.tail
+                        .as_leaf()
+                        .items
+                        .as_ptr()
+                        .add(rrb.taillen - slice_cnt),
+
+                        new_tail.as_leaf().items.as_ptr(),
+                        slice_cnt
+                    );
+                }
+
+                rrb.taillen = slice_cnt;
+                rrb.tail = new_tail;
+
+                return rrb;
+            }
+
+            let root = Self::slice_left_rec(
+                &mut new_rrb.shift,
+                *rrb.root(),
+                start,
+                rrb.shift,
+                false
+            );
+
+            new_rrb.cnt = slice_cnt;
+            new_rrb.root = as_ptr(root);
+
+            // Ensure last element in size table is correct size,
+            // if the root is an internal node.
+
+            if new_rrb.shift != 0 && !new_rrb.root().as_br().szt.is_null() {
+                new_rrb.root().as_br().szt_mut()[new_rrb.root().len() - 1]
+                    = new_rrb.cnt - rrb.taillen;
+            }
+
+            new_rrb.tail = rrb.tail;
+            new_rrb.taillen = rrb.taillen;
+            rrb = new_rrb;
+        }
+
+
+        if rrb.shift == 0 && !rrb.root.is_null() {
+
+            if rrb.cnt <= NODE_SIZE {
+                let new_tail = Leaf::new(rrb.cnt);
+
+                unsafe {
+                    // let root_leaf = rrb.root().as_leaf();
+                    // let leaf_len = root_leaf.len();
+                    // let new_tail_leaf = new_tail.len();
+
+                    copy_nonoverlapping(
+                        rrb.root().as_leaf().items.as_ptr(),
+                        new_tail.as_leaf().items.as_ptr(),
+                        rrb.root().len()
+                    );
+
+                    copy_nonoverlapping(
+                        rrb.tail.as_leaf().items.as_ptr(),
+                        new_tail.as_leaf().items.as_ptr().add(rrb.root().len()),
+                        rrb.root().len()
+                    );
+                }
+
+                rrb.taillen = rrb.cnt;
+                rrb.root = null_mut();
+                rrb.tail = new_tail;
+            }
+
+            else if rrb.cnt - rrb.taillen < NODE_SIZE {
+
+                let tailcut = NODE_SIZE - rrb.root().len();
+                let new_root = Leaf::new(NODE_SIZE);
+                let new_tail = Leaf::new(rrb.taillen - tailcut);
+
+                unsafe {
+
+                    copy_nonoverlapping(
+                        rrb.root().as_leaf().items.as_ptr(),
+                        new_root.as_leaf().items.as_ptr(),
+                        rrb.root().len()
+                    );
+
+                    copy_nonoverlapping(
+                        rrb.tail.as_leaf().items.as_ptr(),
+                        new_root.as_leaf().items.as_ptr().add(rrb.root().len()),
+                        tailcut
+                    );
+
+                    copy_nonoverlapping(
+                        rrb.tail.as_leaf().items.as_ptr().add(tailcut),
+                        new_tail.as_leaf().items.as_ptr(),
+                        rrb.taillen - tailcut
+                    );
+
+                }
+
+                rrb.taillen -= tailcut;
+                rrb.tail = new_tail;
+                rrb.root = as_ptr(new_root);
+            }
+        }
+
+        rrb
+    }
+
+    fn slice_left_rec(
+        total_shift: &mut usize,
+        root: Node<T>,
+        start: usize,
+        shift: usize,
+        has_right: bool
+    ) -> Node<T>
+    {
+
+        let mut subidx = start >> shift;
+
+        if shift > 0 {
+            let subshift = shift.decshf();
+
+            let root_br = root.as_br_mut();
+            let mut idx = start;
+            if root_br.szt.is_null() {
+                idx -= subidx << shift;
+            }
+            else {
+                while root_br.szt()[subidx] <= idx {
+                    subidx += 1;
+                }
+                if subidx != 0 {
+                    idx -= root_br.szt()[subidx - 1];
+                }
+            }
+
+            let last_slot = root_br.len() - 1;
+            let child = root_br[subidx];
+            let left_hand_node = Self::slice_left_rec(
+                    total_shift,
+                    child,
+                    idx,
+                    subshift,
+                    subidx != last_slot || has_right
+                );
+
+            if subidx == last_slot {
+                if has_right {
+                    let left_hand_paren = Br::new(1);
+                    let left_hand_br = left_hand_node.as_br();
+                    left_hand_paren.as_br_mut()[0] = left_hand_node;
+
+                    if subshift != 0 && !left_hand_br.szt.is_null() {
+                        let mut sliced_tbl = SZT::new(1);
+                        sliced_tbl[0] = left_hand_br.szt()[left_hand_br.len() - 1];
+                        left_hand_paren.as_br_mut().szt = as_ptr(sliced_tbl);
+                    }
+
+                    *total_shift = shift;
+                    return left_hand_paren;
+                }
+                else {
+                    return left_hand_node;
+                }
+            }
+            else {
+                let sliced_len = root_br.len() - subidx;
+                let sliced_root = Br::new(sliced_len);
+
+                // TODO: Can shrink size here if sliced_len == 2,
+                // using the ambidextrous vector technique w. offset.
+                // Takes constant time.
+
+                unsafe {
+                    copy_nonoverlapping(
+                        sliced_root.as_br().children.as_ptr().add(1),
+                         root_br.children.as_ptr().add(subidx + 1),
+                        sliced_len - 1
+                    );
+                }
+
+                // TODO: Can check if left is a power of the tree size. If so, all nodes
+                // will be completely populated, and we can ignore the size table. Most
+                // importantly, this will remove the need to alloc a size table, which
+                // increases perf.
+                let mut sliced_tbl = SZT::new(sliced_len);
+
+                if root_br.szt.is_null() {
+                    for i in 0..sliced_len {
+                        // left is total amount sliced off. By adding in subidx, we get faster
+                        // computation later on.
+                        sliced_tbl[i] = (subidx + 1 + i) << shift;
+                        // NOTE: This doesn't really work properly for top root, as last node
+                        // may have a higher count than it *actually* has. To remedy for this,
+                        // the top function performs a check afterwards, which may insert the
+                        // correct value if there's a size table in the root.
+                    }
+                }
+                else {
+                    unsafe {
+                        copy_nonoverlapping(
+                            root_br.szt().tbl.as_ptr().add(subidx),
+                            sliced_tbl.tbl.as_ptr(),
+                            sliced_len
+                        );
+                    }
+                }
+
+                for i in 0..sliced_len {
+                    sliced_tbl[i] -= shift;
+                }
+
+                sliced_root.as_br_mut().szt = as_ptr(sliced_tbl);
+                sliced_root.as_br_mut()[0] = left_hand_node;
+                *total_shift = shift;
+
+                sliced_root
+            }
+
+        }
+        else {
+            let right_vals_len = root.len() - subidx;
+            let right_vals = Leaf::new(right_vals_len);
+
+            unsafe {
+                copy_nonoverlapping(
+                    root.as_leaf().items.as_ptr().add(subidx),
+                    right_vals.as_leaf().items.as_ptr(),
+                    right_vals_len
+                );
+            }
+
+            *total_shift = shift;
+
+            right_vals
+        }
+    }
+
+
+
 }
+
 
 #[allow(unused)]
 impl RRBVec<usize> {
@@ -1316,6 +1782,8 @@ impl<T> Clone for RRBVec<T> {
 }
 
 
+
+
 #[cfg(test)]
 mod tests {
     use itertools::Itertools;
@@ -1347,7 +1815,7 @@ mod tests {
         brrb = brrb.push_(4);
         brrb = brrb.push_(5);
 
-        let stub = brrb;
+        // let stub = brrb;
 
         // brrb = brrb.assoc_(1, 100);
         // brrb = brrb.assoc_(2, 200);
@@ -1370,8 +1838,6 @@ mod tests {
         brrb = brrb.push_(14);
         brrb = brrb.push_(15);
 
-        // println!("stub: {:?}", stub);
-        // println!("brrb: {:?}", brrb);
         let total = 400;
 
         for i in 16..total {
@@ -1405,6 +1871,102 @@ mod tests {
 
 
         // brrb.bfs_display();
+    }
+
+
+    #[test]
+    fn test_extended_pvec_rrb_randomedata() {
+
+        let rrb = RRBVec::empty();
+        let batch_num = 1000;
+
+        // Init data
+        let mut rrb = rrb;
+        for i in 0..batch_num {
+            rrb = rrb.push_(i);
+        }
+
+        let slice_step = batch_num / 10;
+
+        for i in (0..batch_num + slice_step).step_by(slice_step) {
+        for j in (i..batch_num + slice_step).step_by(slice_step).rev() {
+            if j <= i { break; }
+
+            let subrrb = rrb.slice(i, j);
+
+            assert_eq!(subrrb.len(), j - i);
+
+            for k in i..j + 1 {
+                assert_eq!(&k, subrrb.nth(k));
+            }
+
+        }}
+
+    }
+
+    #[test]
+    fn test_extended_pvec_rrb_manually() {
+
+        let mut rrb = RRBVec::empty();
+
+        rrb = rrb.push_(0usize);
+        rrb = rrb.push_(1);
+
+        rrb = rrb.push_(2);
+        rrb = rrb.push_(3);
+
+        rrb = rrb.push_(4);
+        rrb = rrb.push_(5);
+
+        // let stub = brrb;
+        // println!("stub: {:?}", stub);
+        // println!("brrb: {:?}", brrb);
+
+        // rrb = rrb.push_(6);
+        // rrb = rrb.push_(7);
+
+        // rrb = rrb.push_(8);
+
+        // rrb = rrb.push_(9);
+        // rrb = rrb.push_(10);
+        // rrb = rrb.push_(11);
+
+        // rrb = rrb.push_(12);
+        // rrb = rrb.push_(13);
+
+        // rrb = rrb.push_(14);
+        // rrb = rrb.push_(15);
+
+        // let total = 400;
+
+        // for i in 16..total {
+        //     rrb = rrb.push_(i);
+        // }
+
+        // for i in 0..6 {
+        //     // let sr_rrb = rrb.slice_right(i);
+        //     // assert_eq!(sr_rrb.len(), i);
+
+        //     // for j in 0..i {
+        //     //     let s_rrb = sr_rrb.slice_left(j);
+
+        //     //     assert_eq!(s_rrb.len(), i - j);
+        //     // }
+
+        //         println!("{}", i);
+        //     let sr_rrb = rrb.slice_left(i);
+        //     assert_eq!(sr_rrb.len(), 6 - i);
+
+        // }
+
+        // let subrrb = rrb.slice_left(0);
+        let subrrb = rrb.slice_left(1);
+        let subrrb = rrb.slice_left(2);
+        // let subrrb = rrb.slice_left(3);
+
+        println!("subrrb");
+        subrrb.bfs_display();
+
     }
 
     // #[test]
