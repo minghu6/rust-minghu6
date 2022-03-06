@@ -39,7 +39,7 @@ path = "proc_macros"
 
 
 [workspace]
-members = ["proc_macros"]
+members = ["proc_macros", "tools/*"]
 
 
 [profile.bench]

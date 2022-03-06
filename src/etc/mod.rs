@@ -31,6 +31,10 @@ pub trait StrJoin {
     fn strjoin(&mut self, sep: &str) -> String;
 }
 
+pub trait TrimInPlace {
+    fn trim_in_place (&mut self);
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Implements
@@ -93,6 +97,24 @@ impl<'a, T: ToString> StrJoin for dyn Iterator<Item=&T> + 'a {
         }
 
         seq.join(sep)
+    }
+}
+
+
+impl TrimInPlace for String {
+    fn trim_in_place (&mut self) {
+        let trimed_slice = self.trim();
+        let start = trimed_slice.as_ptr();
+        let newlen = trimed_slice.len();
+
+        unsafe {
+            std::ptr::copy(
+                start,
+                self.as_mut_ptr(), // no str::as_mut_ptr() in std ...
+                newlen,
+            );
+        }
+        self.truncate(newlen); // no String::set_len() in std ...
     }
 }
 
