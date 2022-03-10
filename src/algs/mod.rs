@@ -3,6 +3,7 @@
 pub mod spm;
 pub mod sort;
 pub mod math;
+pub mod hash;
 
 use std::cmp::Ordering;
 

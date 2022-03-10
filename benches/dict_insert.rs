@@ -10,6 +10,7 @@ use minghu6::collections::DictKey;
 use minghu6::collections::Dictionary;
 use minghu6::collections::bt::bst::*;
 use minghu6::collections::bt::*;
+use minghu6::test::Inode;
 use minghu6::test::dict::*;
 use minghu6::test::{ Provider, InodeProvider };
 

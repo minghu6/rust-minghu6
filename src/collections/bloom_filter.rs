@@ -1,13 +1,16 @@
 #![allow(dead_code)]
 ///! Bloom filter
-use twox_hash:: { RandomXxHashBuilder64 };
+use twox_hash::{
+    // RandomXxHashBuilder64,
+    XxHash64
+};
 use bit_vec::BitVec;
 
 use std::f32::consts::LN_2;
 use std::marker::PhantomData;
 use std::hash::{ Hash, BuildHasher };
 use core::hash::Hasher;
-
+use std::hash::BuildHasherDefault;
 
 pub trait BloomFilter<T> {
     fn insert(&mut self, item: &T);
@@ -160,23 +163,20 @@ impl BloomFilter<u8> for BytesBloomFilter64 {
 
 pub struct FastBloomFilter<T: Hash> {
     bits: BitVec,
-    hashbuilders: Vec<RandomXxHashBuilder64>,
+    hashbuilder: BuildHasherDefault<XxHash64>,
     _marker: PhantomData<T>
 }
 
 impl<T: Hash> FastBloomFilter<T> {
     pub fn with_size(m:usize, k:usize) -> Self {
-        assert!(k > 0);
+        debug_assert!(k > 0);
 
         let bits = BitVec::from_elem(m, false);
-        let mut hashbuilders = Vec::with_capacity(k);
-
-        for _ in 0..k {
-            hashbuilders.push(RandomXxHashBuilder64::default());
-        }
+        // let hashbuilder = RandomXxHashBuilder64::default();
+        let hashbuilder = BuildHasherDefault::<XxHash64>::default();
 
         FastBloomFilter {
-            bits, hashbuilders, _marker: PhantomData::<T>
+            bits, hashbuilder, _marker: PhantomData::<T>
         }
     }
 
@@ -193,29 +193,21 @@ impl<T: Hash> BloomFilter<T> for FastBloomFilter<T> {
         let bits_len = self.bits.len();
         let bits = &mut self.bits;
 
-        self.hashbuilders.iter_mut().for_each(|builder| {
-            let mut hasher = builder.build_hasher();
-            item.hash(&mut hasher);
-            bits.set(hasher.finish() as usize % bits_len, true);
-        })
+        let mut hasher = self.hashbuilder.build_hasher();
+        item.hash(&mut hasher);
+        bits.set(hasher.finish() as usize % bits_len, true);
     }
 
     fn contains(&self, item: &T) -> bool {
         let bits_len = self.bits.len();
         let bits = &self.bits;
+        let mut hasher = self.hashbuilder.build_hasher();
 
-        self.hashbuilders.iter().all(|builder| {
-            let mut hasher = builder.build_hasher();
-
-            item.hash(&mut hasher);
-            if let Some(value) = bits.get(hasher.finish() as usize % bits_len) {
-                return value
-            } else {
-                panic!("");
-            }
-        })
+        item.hash(&mut hasher);
+        bits.get(hasher.finish() as usize % bits_len).unwrap()
     }
 }
+
 
 
 #[cfg(test)]

@@ -4,6 +4,7 @@ pub mod dict;
 pub mod heap;
 pub mod persistent;
 pub mod utils;
+pub mod hash;
 
 
 use rand::random;

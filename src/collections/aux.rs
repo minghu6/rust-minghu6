@@ -1,7 +1,5 @@
 use std::{fmt::{Debug, Display}, ops::Index};
 
-use derive_where::*;
-
 use crate::etc::StrJoin;
 
 use super::Collection;

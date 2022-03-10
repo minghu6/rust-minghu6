@@ -12,7 +12,7 @@ extern crate test;
 use test::Bencher;
 
 fn gen_test_text() -> String {
-    gen_random_text(1000)
+    gen_random_text(10000)
 }
 
 #[bench]

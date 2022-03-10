@@ -74,7 +74,7 @@ fn bench_vec_tran_pop<'a, T: PartialEq + Debug + Clone>
 
     b.iter( || {
 
-        let mut vec = vec.duplicate();
+        let vec = vec.duplicate();
         let total = vec.len();
 
         // for _ in 0..total / 2 {

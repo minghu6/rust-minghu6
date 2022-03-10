@@ -72,7 +72,7 @@ pub fn sum_scan<T: AddAssign + Default + Clone>(input: &[T]) -> Vec<T> {
 
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
 
