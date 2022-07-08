@@ -1,3 +1,5 @@
+pub mod utfx;
+
 // use num_format::{ Locale, ToFormattedString };
 // use std::fmt::{ Debug, self };
 use std::mem::size_of;
@@ -58,7 +60,7 @@ impl BitLen for usize {
 
 impl BitLen for u32 {
     fn bit_len(&self) -> usize {
-        size_of::<u32>() - self.leading_zeros() as usize
+        size_of::<u32>() * 8 - self.leading_zeros() as usize
     }
 }
 

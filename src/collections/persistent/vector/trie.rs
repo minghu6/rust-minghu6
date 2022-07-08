@@ -15,7 +15,7 @@ use std::{
 };
 
 use itertools::Itertools;
-use m6arr::{array, Array};
+use m6coll::{array, Array};
 use uuid::Uuid;
 
 use super::Vector;

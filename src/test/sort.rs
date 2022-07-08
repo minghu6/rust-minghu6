@@ -1,5 +1,7 @@
 use rand::prelude::*;
 
+use m6coll::Entry;
+
 
 pub fn gen_test_case() -> Vec<Vec<usize>> {
     let mut cases = vec![];
@@ -11,6 +13,22 @@ pub fn gen_test_case() -> Vec<Vec<usize>> {
             origin.shuffle(&mut rng);
             cases.push(origin);
         }
+    }
+
+    cases
+}
+
+
+pub fn gen_bench_case(unitlen: usize, rounds: usize) -> Vec<Vec<Entry<usize, usize>>> {
+    let mut cases = Vec::with_capacity(rounds);
+    let mut rng = thread_rng();
+
+    for _ in 0..rounds {
+        let mut one_case: Vec<Entry<usize, usize>> = (0..unitlen).map(|i| Entry(i, i)).collect();
+
+        one_case.shuffle(&mut rng);
+
+        cases.push(one_case);
     }
 
     cases

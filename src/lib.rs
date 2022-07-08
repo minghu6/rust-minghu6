@@ -1,3 +1,5 @@
+#![allow(incomplete_features)]
+
 #![feature(test)]
 #![feature(generators, generator_trait)]
 #![feature(ptr_internals)]
