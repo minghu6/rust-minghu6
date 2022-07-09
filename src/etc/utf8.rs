@@ -1,3 +1,8 @@
+//! Universal Coded Character Set (UCS Unicode)
+//!
+//! UCS-4 alias as UTF-32
+
+
 use super::BitLen;
 
 #[derive(Debug, Clone, Copy)]
@@ -93,7 +98,7 @@ impl UTF8Str {
 
 /// Write order (Big endian)
 /// -> (step, char)
-fn next_unicode(bytes: &[u8]) -> Result<(u8, char), UTF8DecodeError> {
+pub fn next_utf8_unicode(bytes: &[u8]) -> Result<(u8, char), UTF8DecodeError> {
     let ch_1st = bytes[0];
     #[allow(unused)]
     let mut acc = 0u32;
@@ -139,13 +144,12 @@ fn next_unicode(bytes: &[u8]) -> Result<(u8, char), UTF8DecodeError> {
     Ok((n, ch))
 }
 
-
 pub fn decode_utf8_bytes(bytes: &[u8]) -> Result<Vec<char>, UTF8DecodeError> {
     let mut step = 0;
     let mut chars = vec![];
 
     loop {
-        let (nbytes, c) = next_unicode(&bytes[step..])?;
+        let (nbytes, c) = next_utf8_unicode(&bytes[step..])?;
 
         step += nbytes as usize;
         chars.push(c);
@@ -166,6 +170,20 @@ pub fn encode_utf8_char(bytes: &mut Vec<u8>, ch: u32) -> Result<(), UTF8EncodeEr
     if bitlen <= 7 {
         return Ok(bytes.push(ch as u8));
     }
+
+    // let mut bitph: u32 = if bitlen <= 11 { 11 }
+    // else if bitlen <= 16 { 16 }
+    // else if bitlen <= 21 { 21 }
+    // else { unreachable!() };
+
+    // while bitph > 5 {
+    //     let shf = bitph - bitph % 6;
+
+    //     let byte = ((ch >> shf) & 0x3F) as u8 | 0x80;
+
+    //     bytes.push(byte);
+    // }
+
 
     // 5 + 6 = 11
     if bitlen <= 11 {
@@ -222,9 +240,11 @@ pub fn encode_utf8_char(bytes: &mut Vec<u8>, ch: u32) -> Result<(), UTF8EncodeEr
 }
 
 
+
+
 #[cfg(test)]
 mod tests {
-    use crate::etc::utfx::encode_utf8_char;
+    use crate::etc::utf8::encode_utf8_char;
 
     use super::{UTF8CharSt, decode_utf8_bytes};
 

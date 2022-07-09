@@ -1,4 +1,6 @@
-pub mod utfx;
+pub mod utf8;
+pub mod utf16;
+
 
 // use num_format::{ Locale, ToFormattedString };
 // use std::fmt::{ Debug, self };
