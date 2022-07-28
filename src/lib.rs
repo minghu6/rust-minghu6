@@ -10,7 +10,6 @@
 #![feature(box_syntax)]
 #![feature(trait_upcasting)]
 #![feature(int_roundings)]
-#![feature(int_abs_diff)]
 
 
 use proc_macros::{

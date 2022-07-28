@@ -5,14 +5,12 @@ pub mod sort;
 pub mod math;
 pub mod hash;
 
-use std::cmp::Ordering;
+use std::{cmp::Ordering, cell::RefCell};
 
-#[cfg(
-    all(
-        any(target_arch = "x86", target_arch = "x86_64"),
-    )
-)]
-pub fn hardware_randvalue() -> usize {
+use rand::Rng;
+
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+pub fn hardware_random() -> usize {
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     {
         #[cfg(target_arch="x86")]
@@ -35,6 +33,31 @@ pub fn hardware_randvalue() -> usize {
     0
 }
 
+pub fn software_random() -> usize {
+    #[allow(unused_imports)]
+    use rand;
+
+    thread_local! {
+        static RNG: RefCell<rand::rngs::ThreadRng> = RefCell::new(rand::thread_rng());
+    }
+
+    RNG.with(|rngcell| rngcell.borrow_mut().gen::<usize>())
+}
+
+pub fn random() -> usize {
+    if cfg!(any(
+        target_arch = "x86",
+        target_arch = "x86_64"
+    ))
+    {
+        hardware_random()
+    }
+    else {
+        software_random()
+    }
+}
+
+
 // 使用字典序进行cmp比较
 fn lexi_cmp<E: Ord>(l1: &[E], l2: &[E]) -> Ordering {
     for (x, y) in l1.iter().zip(l2.iter()) {
@@ -50,6 +73,8 @@ fn lexi_cmp<E: Ord>(l1: &[E], l2: &[E]) -> Ordering {
 #[cfg(test)]
 mod test {
     use super::*;
+    extern crate test;
+    use test::Bencher;
 
     #[test]
     fn hardware_randvalue_works() {
@@ -57,10 +82,30 @@ mod test {
         let mut result = Vec::with_capacity(times);
 
         for _ in 0..times {
-            result.push(hardware_randvalue());
+            result.push(random());
         }
 
         assert_ne!(result, vec![0;times]);
+    }
+
+    static times: usize = 10000;
+
+    #[bench]
+    fn bench_soft_random(b: &mut Bencher) {
+        b.iter(||{
+            for _ in 0..times {
+                software_random();
+            }
+        })
+    }
+
+    #[bench]
+    fn bench_hard_random(b: &mut Bencher) {
+        b.iter(||{
+            for _ in 0..times {
+                hardware_random();
+            }
+        })
     }
 
     #[test]
