@@ -33,6 +33,7 @@ pub fn hardware_random() -> usize {
     0
 }
 
+/// More fast than hardware_random
 pub fn software_random() -> usize {
     #[allow(unused_imports)]
     use rand;
@@ -78,22 +79,21 @@ mod test {
 
     #[test]
     fn hardware_randvalue_works() {
-        let times = 100;
-        let mut result = Vec::with_capacity(times);
+        let mut result = Vec::with_capacity(TIMES);
 
-        for _ in 0..times {
+        for _ in 0..TIMES {
             result.push(random());
         }
 
-        assert_ne!(result, vec![0;times]);
+        assert_ne!(result, vec![0;TIMES]);
     }
 
-    static times: usize = 10000;
+    static TIMES: usize = 10000;
 
     #[bench]
     fn bench_soft_random(b: &mut Bencher) {
         b.iter(||{
-            for _ in 0..times {
+            for _ in 0..TIMES {
                 software_random();
             }
         })
@@ -102,7 +102,7 @@ mod test {
     #[bench]
     fn bench_hard_random(b: &mut Bencher) {
         b.iter(||{
-            for _ in 0..times {
+            for _ in 0..TIMES {
                 hardware_random();
             }
         })

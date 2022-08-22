@@ -10,6 +10,9 @@
 #![feature(box_syntax)]
 #![feature(trait_upcasting)]
 #![feature(int_roundings)]
+#![feature(absolute_path)]
+#![feature(const_char_convert)]
+#![feature(const_option_ext)]
 
 
 use proc_macros::{
@@ -25,6 +28,7 @@ pub mod test;
 pub mod etc;
 pub mod error_code;
 pub mod io;
+pub mod tools;
 
 make_vec_macro_rules!(vecdeq , std::collections::VecDeque, push_back);
 

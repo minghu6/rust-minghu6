@@ -1,6 +1,6 @@
 pub mod utf8;
 pub mod utf16;
-
+pub mod path;
 
 // use num_format::{ Locale, ToFormattedString };
 // use std::fmt::{ Debug, self };

@@ -6,6 +6,7 @@ use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
 
+
 pub fn bytes2utf8(raw_contents: Vec<u8>) -> Box<String> {
 
     let detected_encoding_result = detect(&raw_contents);

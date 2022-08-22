@@ -24,7 +24,10 @@ derive-where = "1.0.0-rc.1"
 lazy_static = "1.4.0"
 m6coll = { path = "../m6coll" }
 sorted-vec = "0.7.0"
-
+futures = "0.3"
+walkdir = "2.3"
+clap = { version = "3", features = ["derive"] }
+clap_complete = "3"
 
 [dependencies.uuid]
 version = "0.8.2"
@@ -44,3 +47,15 @@ members = ["proc_macros", "tools/*"]
 
 [profile.bench]
 debug = true
+
+[[bin]]
+name = "srcstats"
+path = "tools/lc.rs"
+
+[[bin]]
+name = "lca"
+path = "tools/lca.rs"
+
+[[bin]]
+name = "lco"
+path = "tools/lco.rs"
