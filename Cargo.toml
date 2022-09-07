@@ -15,7 +15,7 @@ num-format = "^0.4.0"
 twox-hash = "^1.5.0"
 bit-vec = "^0.6.2"
 num_cpus = "1.0"
-itertools = "0.10.*"
+itertools = "=0.10.1"
 either = "1.6.1"
 serde = { version = "1.*", features = ["derive"] }
 serde_json = "1.0"
@@ -28,6 +28,8 @@ futures = "0.3"
 walkdir = "2.3"
 clap = { version = "3", features = ["derive"] }
 clap_complete = "3"
+configparser = { version = "3.0", features = ["indexmap"] }
+
 
 [dependencies.uuid]
 version = "0.8.2"
@@ -59,3 +61,11 @@ path = "tools/lca.rs"
 [[bin]]
 name = "lco"
 path = "tools/lco.rs"
+
+[[bin]]
+name = "read"
+path = "tools/read.rs"
+
+[[bin]]
+name = "pkcheat"
+path = "tools/pkcheat.rs"

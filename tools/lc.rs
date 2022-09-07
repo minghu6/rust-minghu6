@@ -3,7 +3,7 @@
 #![allow(unused_imports)]
 
 use std::{
-    fs::{File, read},
+    fs::{File, read, read_dir},
     io::{BufRead, BufReader, Read},
     path::{Path, PathBuf},
 };
@@ -55,6 +55,34 @@ pub fn count_lines_dir<P: AsRef<Path>>(path: P, opt: FindOptions) -> Result<Cnt>
     })
 
 }
+
+
+/// count lines for depth 1, used for counting root dir
+pub fn count_lines_dir_d1<P: AsRef<Path>>(path: P, opt: FindOptions) -> Result<Cnt> {
+    let mut cnt = 0;
+    let mut files = 0;
+
+    for entry_res in read_dir_wrapper!(path.as_ref())? {
+        let p = entry_res?.path();
+        if !p.is_dir() && opt.verify(&p) {
+            let bytes = read(p).map_err(|err| ErrorCode::Open(err))?;
+            let lines = bytes
+            .into_iter()
+            .filter(|c| *c == NEWLINE_CODE)
+            .count();
+
+            cnt += lines;
+            files += 1;
+        }
+    }
+
+    Ok(Cnt {
+        cnt,
+        path: path.as_ref().to_owned(),
+        files,
+    })
+}
+
 
 fn stats(cnts: Vec<Cnt>) {
     let total: usize = cnts
@@ -127,7 +155,7 @@ fn main() -> Result<()> {
     let target_dir = args.target_dir;
 
     let mut topdirs = vec![];
-    for entry_res in read_dir_wrapper!(target_dir)? {
+    for entry_res in read_dir_wrapper!(&target_dir)? {
         let path = entry_res?.path();
         if path.is_dir() && opt.verify(&path) {
             topdirs.push(path);
@@ -143,6 +171,10 @@ fn main() -> Result<()> {
     for p in topdirs.into_iter() {
         cnts.push(count_lines_dir(p, opt.clone())?);
     }
+    let mut topcnt = count_lines_dir_d1(&target_dir, opt)?;
+    topcnt.path = PathBuf::from("<.>");
+    cnts.push(topcnt);
+
 
     stats(cnts);
 

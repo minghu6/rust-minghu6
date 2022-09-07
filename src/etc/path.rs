@@ -18,7 +18,7 @@ use crate::error_code::*;
 ////////////////////////////////////////////////////////////////////////////////
 //// Macro
 
-/// Map error
+/// Map inner error into ErrorCode
 #[macro_export]
 macro_rules! read_dir_wrapper {
     ($path: expr) => {{
@@ -338,7 +338,7 @@ pub fn is_dot_file<P: AsRef<Path>>(p: P) -> bool {
 /// Almost 3 time faster than py ver. impl. with release opt.
 /// on a rough bench test.
 ///
-/// If using `print`, python would be slowed down by its low performance print to screen action to 10 times slower than rust.
+/// If using `print`, python would be slowed down to 10 times slower than it.
 pub fn syn_walk<'a, P: AsRef<Path>>(startdir: P) -> Result<SynWalk<'a>> {
     Ok(SynWalk {
         stack: Vec::from_iter(read_dir_wrapper!(startdir)?),

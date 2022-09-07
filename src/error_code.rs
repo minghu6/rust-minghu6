@@ -11,9 +11,20 @@ pub enum ErrorCode {
     IterDirEntry(std::io::Error),
     AbsolutePath(std::io::Error),
     Open(std::io::Error),
+    Write(std::io::Error),
 
     InvalidUnicodeOSStr(OsString),
-    IrregularFile(PathBuf)
+    IrregularFile(PathBuf),
+
+    /* JSON */
+    MalformedJson,
+    UnmatchedJsonField {  // unmatch type or name
+        expect: String,
+        found: String
+    },
+
+    /* Init Config */
 }
+
 
 pub type Result<T> = std::result::Result<T, ErrorCode>;
