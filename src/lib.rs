@@ -13,6 +13,8 @@
 #![feature(absolute_path)]
 #![feature(const_char_convert)]
 #![feature(const_option_ext)]
+#![feature(int_log)]
+#![feature(macro_metavar_expr)]
 
 
 use proc_macros::{

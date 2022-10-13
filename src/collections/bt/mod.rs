@@ -28,7 +28,7 @@ pub mod b4;
 pub mod bstar4;
 
 
-/// B-Tree
+/// B-Tree (not restrictly, storing info in the internal node)
 pub trait BT<'a, K: DictKey + 'a, V: 'a>: Dictionary<K, V> {
     fn order(&self) -> usize;  // >= 2
     fn root(&self) -> *mut (dyn BTNode<'a, K, V> + 'a);

@@ -162,11 +162,6 @@ fn main() -> Result<()> {
         }
     }
 
-    if topdirs.is_empty() {
-        eprintln!("EMPTY.");
-        return Ok(());
-    }
-
     let mut cnts = Vec::with_capacity(topdirs.len());
     for p in topdirs.into_iter() {
         cnts.push(count_lines_dir(p, opt.clone())?);
@@ -174,7 +169,6 @@ fn main() -> Result<()> {
     let mut topcnt = count_lines_dir_d1(&target_dir, opt)?;
     topcnt.path = PathBuf::from("<.>");
     cnts.push(topcnt);
-
 
     stats(cnts);
 

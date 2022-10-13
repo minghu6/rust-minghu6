@@ -42,9 +42,11 @@ features = [
 package = "m6-proc-macros"
 path = "proc_macros"
 
+[dependencies.macros_gen]
+path = "macros_gen"
 
 [workspace]
-members = ["proc_macros", "tools/*"]
+members = ["proc_macros", "tools/*", "macros_gen"]
 
 
 [profile.bench]

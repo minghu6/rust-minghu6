@@ -7,4 +7,3 @@ install-lc:
 
 install-pkcheat:
 	cargo install --path . --bin pkcheat
-

@@ -5,6 +5,51 @@ use crate::etc::StrJoin;
 use super::Collection;
 
 
+////////////////////////////////////////////////////////////////////////////////
+//// Macro
+#[allow(unused)]
+macro_rules! node {
+    ($v:expr, $lf:expr, $rh:expr) => {
+        Some(Rc::new(RefCell::new(TreeNode {
+            val: $v,
+            left: $lf,
+            right: $rh,
+        })))
+    };
+}
+
+#[macro_export]
+macro_rules! attr {
+    ($node:expr, $attr:ident) => {
+        {
+            let _unr = $node.clone().unwrap();
+            let _bor = _unr.as_ref().borrow();
+            let _attr = _bor.$attr.clone();
+            drop(_bor);
+            _attr
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! mattr {
+    ($node:expr, $attr:ident) => {
+        $node.clone().unwrap().as_ref().borrow_mut().$attr
+    };
+}
+
+/// Access to HashMap of HashMap
+#[macro_export]
+macro_rules! a_m2 {
+    ($m1:expr, $attr1:expr, $attr2:expr) => {
+
+    };
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+//// Implmentation
+
 #[derive(Clone)]
 pub(crate) struct RoadMap {
     data: Vec<i32>,

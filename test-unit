@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+
+# echo "$@"
+cargo test --package minghu6 --lib --all-features -- $@ --nocapture

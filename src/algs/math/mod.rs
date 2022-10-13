@@ -1,9 +1,15 @@
+
+// pub mod num;
+
 use std::ops::AddAssign;
 
 use itertools::Itertools;
 
 use crate::ht;
 
+
+////////////////////////////////////////////////////////////////////////////////
+//// Function - multitask split
 
 /// devide, devide, ... devide + rem
 pub fn task_split_simple(total: usize, n: usize) -> Vec<usize> {
@@ -39,7 +45,7 @@ pub fn task_split_improved(total: usize, n: usize) -> Vec<usize> {
     .collect_vec()
 }
 
-pub fn _split<T: Clone>(plan: impl Fn(usize, usize) -> Vec<usize>, s: &[T], n: usize) -> Vec<Vec<T>> {
+fn _split<T: Clone>(plan: impl Fn(usize, usize) -> Vec<usize>, s: &[T], n: usize) -> Vec<Vec<T>> {
     let split_plan = plan(s.len(), n);
 
     let mut coll = vec![];
@@ -59,7 +65,7 @@ pub fn split_improved<T: Clone>(s: &[T], n: usize) -> Vec<Vec<T>> {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Helper Function
+//// Function - itertools
 
 pub fn sum_scan<T: AddAssign + Default + Clone>(input: &[T]) -> Vec<T> {
     input.iter().scan(T::default(), |acc, x| {
@@ -69,6 +75,19 @@ pub fn sum_scan<T: AddAssign + Default + Clone>(input: &[T]) -> Vec<T> {
     })
     .collect()
 }
+
+pub fn uintlog2(mut a: usize) -> u32 {
+    // #![feature(int_log)]
+    // a.ilog2()
+    let mut i = 0;
+    while a > 0 {
+        a >>= 1;
+        i += 1;
+    }
+
+    i
+}
+
 
 
 #[cfg(test)]
