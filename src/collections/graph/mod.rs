@@ -1,15 +1,17 @@
 pub mod tree;
 
 
+use self::tree::diameter::diameter_dp;
+
 use super::easycoll::{M1, MV};
-use crate::{get, set};
+use crate::{set, apush};
 
 
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Structure
 
-/// Adjacent link formed simple (directed) graph
+/// Adjacent link formed simple (directed) connected graph
 #[derive(Default, Debug)]
 pub struct Graph {
     pub e: MV<usize, usize>,
@@ -28,10 +30,7 @@ impl FromIterator<(usize, usize, isize)> for Graph {
         let mut w = M1::new();
 
         for (u, v, _w) in iter {
-            let mut heads = get!(e => u => vec![]);
-            heads.push(v);
-            set!(e => u => heads);
-
+            apush!(e => u => v);
             set!(w => (u, v) => _w);
         }
 
@@ -49,18 +48,13 @@ impl Graph {
         *self.e.0.keys().next().unwrap()
     }
 
-    // pub fn get(&self, idx: &usize) -> Option<&Vec<usize>> {
-    //     self.e.get(idx)
-    // }
-
-    // pub fn getw(&self, idx: (usize, usize)) -> Option<&isize> {
-    //     self.w.get(&idx)
-    // }
-
-
     /// The length of the shortest path between the most distanced nodes.
-    pub fn diameter(&self) -> usize {
-        todo!()
+    pub fn diameter(&self) -> isize {
+        diameter_dp(self)
+    }
+
+    pub fn vertexs(&self) -> impl Iterator<Item=&usize> {
+        self.e.0.keys()
     }
 }
 

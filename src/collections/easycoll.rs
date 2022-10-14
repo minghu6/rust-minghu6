@@ -46,14 +46,27 @@ macro_rules! getopt {
     };
 }
 
-
 #[macro_export]
 macro_rules! set {
     ($var:expr => $($k:expr),+ => $($v:expr),+ ) => {
-        $crate::collections::easycoll::EasyCollInsert
-                ::insert(&mut $var, ($($k),+), ($($v),+) )
+        {
+            use $crate::collections::easycoll::EasyCollInsert;
+            $var.insert(($($k),+), ($($v),+))
+        }
     };
 }
+
+/// Assoc push
+#[macro_export]
+macro_rules! apush {
+    ($var:expr => $($k:expr),+ => $($v:expr),+ ) => {
+        {
+            use $crate::collections::easycoll::EasyCollAPush;
+            $var.apush(($($k),+), ($($v),+))
+        }
+    };
+}
+
 
 
 #[macro_export]
@@ -84,6 +97,20 @@ macro_rules! m2 {
     };
 }
 
+#[macro_export]
+macro_rules! mv {
+    ($($k1:expr => $k2:expr => $v:expr),* $(,)?) => {
+        {
+            #[allow(unused_mut)]
+            let mut _ins = $crate::collections::easycoll::MV::new();
+            $(
+                $crate::set!(_ins => $k1, $k2 => $v);
+            )*
+            _ins
+        }
+    };
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Trait
@@ -100,11 +127,15 @@ pub trait EasyCollInsert<K, V> {
     fn insert(&mut self, k: K, v: V) -> Option<Self::Target>;
 }
 
+pub trait EasyCollAPush<K, V> {
+    fn apush(&mut self, k: K, v: V);
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Structure
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 #[repr(transparent)]
 pub struct M1<K, V>(pub HashMap<K, V>);
 
@@ -269,6 +300,16 @@ where
 
     fn insert(&mut self, k: K, v: Vec<V>) -> Option<Self::Target> {
         self.0.insert(k, v)
+    }
+}
+
+impl<K, V> EasyCollAPush<K, V> for MV<K, V>
+where
+    K: Hash + Eq,
+    V: Clone,
+{
+    fn apush(&mut self, k: K, v: V) {
+        self.0.entry(k).or_default().push(v)
     }
 }
 

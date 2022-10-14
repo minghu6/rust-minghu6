@@ -7,6 +7,7 @@ pub mod compact;
 pub mod persistent;
 pub mod graph;
 pub mod easycoll;
+pub mod union_find;
 pub mod aux;
 
 
