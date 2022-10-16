@@ -261,7 +261,7 @@ fn bfs_trie_tree(tree: &TrieTree) {
 mod tests {
     extern crate test;
 
-    use maplit::btreemap;
+    use crate::btreemap;
 
     use super::*;
     use super::super::super::super::test::spm;

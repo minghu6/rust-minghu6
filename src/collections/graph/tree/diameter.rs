@@ -3,10 +3,8 @@
 
 use std::{cmp::max, collections::HashMap};
 
-use maplit::hashmap;
-
 use super::{distance, furthest_vertex_no_w};
-use crate::{collections::graph::Graph, get};
+use crate::{collections::graph::Graph, get, hashmap};
 
 
 /// Two pass bfs (depth)

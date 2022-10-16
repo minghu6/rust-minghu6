@@ -9,7 +9,6 @@ edition = "2021"
 [dependencies]
 chardet = "^0.2"
 encoding = "^0.2"
-maplit = "^1.0.2"
 rand = "^0.7"
 num-format = "^0.4.0"
 twox-hash = "^1.5.0"

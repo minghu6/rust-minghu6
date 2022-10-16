@@ -1,10 +1,11 @@
 pub mod tree;
 
 
-use self::tree::diameter::diameter_dp;
+use std::{collections::HashSet, fmt::Debug};
 
+use self::tree::diameter::diameter_dp;
 use super::easycoll::{M1, MV};
-use crate::{set, apush};
+use crate::{apush, contains, get, set, stack};
 
 
 
@@ -12,7 +13,7 @@ use crate::{set, apush};
 //// Structure
 
 /// Adjacent link formed simple (directed) connected graph
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub struct Graph {
     pub e: MV<usize, usize>,
     pub w: M1<(usize, usize), isize>,
@@ -39,6 +40,21 @@ impl FromIterator<(usize, usize, isize)> for Graph {
 }
 
 
+impl Debug for Graph {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if f.alternate() {
+            writeln!(f, "edge: {:#?}", self.e)?;
+            writeln!(f, "weight: {:#?}", self.w)?;
+        } else {
+            writeln!(f, "edge: {:?}", self.e)?;
+            writeln!(f, "weight: {:?}", self.w)?;
+        }
+
+        Ok(())
+    }
+}
+
+
 impl Graph {
     pub fn new() -> Self {
         Default::default()
@@ -53,8 +69,39 @@ impl Graph {
         diameter_dp(self)
     }
 
-    pub fn vertexs(&self) -> impl Iterator<Item=&usize> {
+    pub fn vertexs(&self) -> impl Iterator<Item = &usize> {
         self.e.0.keys()
+    }
+
+    pub fn dfs<'a>(
+        &'a self,
+        start: Option<usize>,
+    ) -> impl Iterator<Item = usize> + 'a {
+        let start = start.unwrap_or(self.anypoint());
+
+        let mut stack = stack![(start, start)];
+        let mut visited = HashSet::new();
+
+        std::iter::from_fn(move || {
+            while let Some((u, p)) = stack.peek().cloned() {
+                let mut pushed = false;
+                for v in get!(self.e => u) {
+                    if v != p && !contains!(visited => v) {
+                        stack.push((v, u));
+                        pushed = true;
+                        break;
+                    }
+                }
+
+                if !pushed {
+                    set!(visited => u);
+                    stack.pop();
+                    return Some(u);
+                }
+            }
+
+            None
+        })
     }
 }
 
@@ -74,4 +121,65 @@ pub fn to_undirected_vec<T: IntoIterator<Item = (usize, usize, isize)>>(
     }
 
     res
+}
+
+
+
+#[cfg(test)]
+mod tests {
+
+
+    use itertools::Itertools;
+
+    use crate::collections::graph::{to_undirected_vec, Graph};
+
+
+    fn setup_g_data() -> Vec<Graph> {
+        // u->v, w
+        let data = vec![
+            // no0
+            //      1
+            //    /   \
+            //   2    6
+            //  / \   |
+            // 5  4   3
+            //    |
+            //    7
+            vec![
+                (6, 3, 1),
+                (1, 2, 1),
+                (1, 6, 1),
+                (2, 5, 1),
+                (2, 4, 1),
+                (4, 7, 1),
+            ],
+            /*
+            no1
+
+            1
+            |
+            2
+            |
+            4
+            |
+            3
+            */
+            vec![(1, 2, 1), (2, 4, 1), (4, 3, 1)],
+        ];
+
+        data.into_iter()
+            .map(|x| Graph::from_iter(to_undirected_vec(x)))
+            .collect::<Vec<Graph>>()
+    }
+
+    #[test]
+    fn test_g_dfs() {
+        let g = setup_g_data();
+
+        let data = vec![(0, 1, vec![5, 7, 4, 2, 3, 6, 1])];
+
+        for (gi, start, seq) in data {
+            assert_eq!(g[gi].dfs(Some(start)).collect_vec(), seq);
+        }
+    }
 }

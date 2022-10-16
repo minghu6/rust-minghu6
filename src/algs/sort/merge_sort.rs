@@ -11,10 +11,10 @@ pub fn merge_sort<T: Ord + Clone + Copy>(pat: &mut [T]) {
 pub fn _merge_sort<T: Ord + Clone + Copy>(pat: &mut [T], temp: &mut [T], start: usize, end: usize) {
     if start + 1 == end { return }
     let mid = start + (end - start) / 2;
-    _merge_sort(pat, temp: &mut [T], start, mid);
-    _merge_sort(pat, temp: &mut [T], mid, end);
+    _merge_sort(pat, temp, start, mid);
+    _merge_sort(pat, temp, mid, end);
     let mut lp = start;  // Left pointer
-    let mut rp = mid;  // Right pointer
+    let mut rp = mid;    // Right pointer
 
     for i in start..end {
         if lp >= mid || rp < end && pat[rp] < pat[lp] {

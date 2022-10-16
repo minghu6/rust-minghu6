@@ -11,6 +11,7 @@ use std::{borrow::Borrow, collections::HashMap, fmt::Debug, hash::Hash};
 macro_rules! get {
     ($var:expr => $($e:expr),+) => {
         {
+            #[allow(unused_imports)]
             use $crate::collections::easycoll::EasyCollGet;
 
             let var = &$var;
@@ -25,6 +26,7 @@ macro_rules! get {
     };
     ($var:expr => $($e:expr),+ => $default:expr) => {
         {
+            #[allow(unused_imports)]
             use $crate::collections::easycoll::EasyCollGet;
 
             let var = &$var;
@@ -37,6 +39,7 @@ macro_rules! get {
 macro_rules! getopt {
     ($var:expr => $($e:expr),+) => {
         {
+            #[allow(unused_imports)]
             use $crate::collections::easycoll::EasyCollGet;
 
             let var = &$var;
@@ -50,8 +53,17 @@ macro_rules! getopt {
 macro_rules! set {
     ($var:expr => $($k:expr),+ => $($v:expr),+ ) => {
         {
+            #[allow(unused_imports)]
             use $crate::collections::easycoll::EasyCollInsert;
             $var.insert(($($k),+), ($($v),+))
+        }
+    };
+
+    ($var:expr => $($k:expr),+) => {
+        {
+            #[allow(unused_imports)]
+            use $crate::collections::easycoll::EasyCollInsert;
+            $var.insert(($($k),+))
         }
     };
 }
@@ -64,6 +76,14 @@ macro_rules! apush {
             use $crate::collections::easycoll::EasyCollAPush;
             $var.apush(($($k),+), ($($v),+))
         }
+    };
+}
+
+
+#[macro_export]
+macro_rules! contains {
+    ($var:expr => $($k:expr),+ ) => {
+        $crate::getopt!($var => $($k),+).is_some()
     };
 }
 
@@ -112,6 +132,66 @@ macro_rules! mv {
 }
 
 
+#[macro_export]
+macro_rules! stack {
+    ( $($value:expr),* ) => {
+        {
+            let mut _stack = $crate::collections::easycoll::Stack::new();
+
+            $(
+                _stack.push($value);
+            )*
+
+            _stack
+        }
+    };
+}
+
+
+#[macro_export]
+macro_rules! hashset {
+    ( $($value:expr),* ) => {
+        {
+            let mut _set = std::collections::HashSet::new();
+
+            $(
+                _set.insert($value);
+            )*
+
+            _set
+        }
+    };
+}
+
+
+#[macro_export]
+macro_rules! hashmap {
+    ($($k:expr => $v:expr),* $(,)?) => {
+        {
+            let mut _ins = std::collections::HashMap::new();
+            $(
+                $crate::set!(_ins => $k => $v);
+            )*
+            _ins
+        }
+    };
+}
+
+
+#[macro_export]
+macro_rules! btreemap {
+    ($($k:expr => $v:expr),* $(,)?) => {
+        {
+            let mut _ins = std::collections::BTreeMap::new();
+            $(
+                $crate::set!(_ins => $k => $v);
+            )*
+            _ins
+        }
+    };
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //// Trait
 
@@ -148,6 +228,11 @@ pub struct M2<K1, K2, V>(pub HashMap<K1, HashMap<K2, V>>);
 #[derive(Default, Debug)]
 #[repr(transparent)]
 pub struct MV<K, V>(pub HashMap<K, Vec<V>>);
+
+
+#[derive(Default, Debug)]
+#[repr(transparent)]
+pub struct Stack<T> (pub Vec<T>);
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -313,6 +398,53 @@ where
     }
 }
 
+
+impl<T> Stack<T> {
+    // staic method
+    pub fn new() -> Self {
+        Self(vec![])
+    }
+
+    pub fn push(&mut self, item: T) {
+        self.0.push(item)
+    }
+
+    pub fn pop(&mut self) -> Option<T> {
+        self.0.pop()
+    }
+
+    pub fn peek(&self) -> Option<&T> {
+        self.0.last()
+    }
+
+    pub fn peek_mut(&mut self) -> Option<&mut T> {
+        self.0.last_mut()
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.len() == 0
+    }
+
+    /// FILO
+    pub fn stack_iter<'a>(&'a self) -> impl Iterator<Item=&T> + 'a {
+        let mut iter = self.0.iter();
+
+        std::iter::from_fn(move || {
+            iter.next()
+        })
+    }
+
+    /// This method will move the content of stack
+    pub fn extend_stack(&mut self, income_stack: Stack<T>) {
+        for item in income_stack.0.into_iter().rev() {
+            self.push(item);
+        }
+    }
+}
 
 
 #[cfg(test)]

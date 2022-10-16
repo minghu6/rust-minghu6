@@ -1,13 +1,141 @@
 //! Tree like graph
 //!
 
-use maplit::hashset;
+use itertools::Itertools;
 
 use super::Graph;
-use crate::{collections::easycoll::M1, get, m1, set};
+use crate::{collections::easycoll::M1, contains, get, hashset, m1, set};
 
 pub mod diameter;
 pub mod lca;
+
+
+////////////////////////////////////////////////////////////////////////////////
+//// Structure (Enumration)
+
+/// 从起点到终点再到起点的简单路径，每条路径访问两次（一来一回）
+///
+/// Kind 1 in-out
+pub struct EulerSeq1 {
+    /// vertex-timestamp
+    ein: M1<usize, usize>,
+    eout: M1<usize, usize>,
+}
+
+
+/// Kind 2 record every node
+pub struct EulerSeq2 {
+    seq: Vec<usize>,
+}
+
+
+#[derive(Debug, Clone, Copy)]
+pub enum Center {
+    One(usize),
+    AdjTwo(usize, usize),
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//// Implementation
+
+impl PartialEq<Self> for Center {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::One(l0), Self::One(r0)) => l0 == r0,
+            (Self::AdjTwo(l0, l1), Self::AdjTwo(r0, r1)) => {
+                (hashset! {l0, l1}) == hashset! {r0, r1}
+            }
+            _ => false,
+        }
+    }
+}
+
+
+impl EulerSeq1 {
+    pub fn new(g: &Graph, start: usize) -> Self {
+        let mut stack = vec![(start, false)];
+        let mut ein = M1::new();
+        let mut eout = M1::new();
+        let mut timestamp = 0;
+
+        while let Some((u, is_out)) = stack.pop() {
+            if is_out {
+                set!(eout => u => timestamp);
+                timestamp += 1;
+                continue;
+            }
+
+            set!(ein => u => timestamp);
+            timestamp += 1;
+
+            stack.push((u, true));
+            stack.extend(
+                get!(g.e => u => vec![])
+                    .into_iter()
+                    .filter(|v| !contains!(ein => v))
+                    .map(|v| (v, false))
+                    .rev(), // keep dfs order
+            );
+            // for v in get!(g.e => u => vec![]) {
+            //     if !contains!(ein => v) {
+            //         stack.push((v, false));
+            //     }
+            // }
+        }
+
+        Self { ein, eout }
+    }
+
+
+    pub fn as_seq<'a>(&'a self) -> impl Iterator<Item = usize> + 'a {
+        self.ein
+            .0
+            .iter()
+            .chain(self.eout.0.iter())
+            .sorted_by_key(|(_, t)| *t)
+            .map(|(x, _t)| *x)
+    }
+
+    /// Check if x is parent of y
+    pub fn is_paren(&self, x: usize, y: usize) -> bool {
+        get!(self.ein => x) <= get!(self.ein => y)
+            && get!(self.eout => y) >= get!(self.eout => y)
+    }
+}
+
+
+
+impl EulerSeq2 {
+    pub fn new(g: &Graph, start: usize) -> Self {
+        fn dfs(
+            g: &Graph,
+            u: usize,
+            p: usize,
+            mut seq: Vec<usize>,
+        ) -> Vec<usize> {
+            for v in get!(g.e => u => vec![]) {
+                if v != p {
+                    seq.push(u);
+                    seq = dfs(g, v, u, seq);
+                }
+            }
+
+            seq.push(u);
+
+            seq
+        }
+
+        Self {
+            seq: dfs(g, start, start, vec![]),
+        }
+    }
+
+    pub fn as_seq<'a>(&'a self) -> impl Iterator<Item = usize> + 'a {
+        self.seq.iter().cloned()
+    }
+}
+
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -69,19 +197,73 @@ pub fn distance(g: &Graph, u: usize) -> M1<usize, isize> {
 }
 
 
+/// 某个点（或某两个邻接的点）使得最大子树的节点数相等
+pub fn center(g: &Graph) -> Center {
+    fn subsize(g: &Graph, u: usize, p: usize) -> usize {
+        let mut cnt = 1;
+
+        for v in get!(g.e => u) {
+            if v != p {
+                cnt += subsize(g, v, u);
+            }
+        }
+
+        cnt
+    }
+
+    fn max_subsize(g: &Graph, u: usize) -> usize {
+        get!(g.e => u => vec![])
+            .into_iter()
+            .map(|v| {
+                let n = subsize(g, v, u);
+                // println!("{u} -> {v} : {n}");
+                n
+            })
+            .max()
+            .unwrap_or(0)
+    }
+
+    let mut min = g.vertexs().count();
+    let mut min_v = vec![];
+
+    for u in g.dfs(None) {
+        // println!("{u}");
+        let w = max_subsize(g, u);
+
+        if w < min {
+            min = w;
+            min_v = vec![u];
+        } else if w == min {
+            min_v.push(u);
+        }
+    }
+
+    if min_v.len() == 1 {
+        Center::One(min_v[0])
+    } else if min_v.len() == 2 {
+        Center::AdjTwo(min_v[0], min_v[1])
+    } else {
+        unreachable!("min: {min}, min_v: {min_v:?}");
+    }
+}
+
+
 
 
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
 
+    use itertools::Itertools;
+
     use crate::collections::graph::{
         to_undirected_vec,
-        tree::{diameter::*, furthest_vertex_no_w, lca::LCABL},
+        tree::{
+            center, diameter::*, furthest_vertex_no_w, lca::LCATarjan,
+            lca::LCABL, Center, EulerSeq1, EulerSeq2,
+        },
         Graph,
     };
-
-    use super::lca::LCATarjan;
 
 
     fn setup_tree_data() -> Vec<Graph> {
@@ -123,6 +305,45 @@ mod tests {
                 (4, 8, 1),
                 (8, 12, 1),
                 (4, 9, 1),
+            ],
+            // 5
+            vec![
+                (1, 2, 1),
+                (2, 3, 1),
+                (2, 4, 1),
+                (2, 5, 1),
+                (1, 6, 1),
+                (6, 7, 1),
+                (6, 8, 1),
+            ],
+            // 6
+            /*
+                      1
+                    /   \
+                   2    3
+                  / \  / \
+                 4  5 6  7
+            */
+            vec![
+                (1, 2, 1),
+                (1, 3, 1),
+                (2, 4, 1),
+                (2, 5, 1),
+                (3, 6, 1),
+                (3, 7, 1),
+            ],
+            //  7
+            /*
+                   2 -- 3
+                  / \  / \
+                 4  5 6  7
+            */
+            vec![
+                (2, 3, 1),
+                (2, 4, 1),
+                (2, 5, 1),
+                (3, 6, 1),
+                (3, 7, 1),
             ],
         ];
 
@@ -184,8 +405,6 @@ mod tests {
             4,
             1,
             vec![(13, 12, 1), (12, 4, 4), (13, 11, 6), (9, 12, 4)],
-            // vec![(13, 12, 1),],
-
         )];
 
         for (gin, start, qd) in data {
@@ -198,18 +417,47 @@ mod tests {
                 assert_eq!(lcabl.query(p, q), res);
             }
 
-            let q: Vec<(usize, usize)> = qd
-                .clone()
-                .into_iter()
-                .map(|(u, v, _res)| (u, v))
-                .collect();
+            let q: Vec<(usize, usize)> =
+                qd.clone().into_iter().map(|(u, v, _res)| (u, v)).collect();
 
-            let res: Vec<usize> = qd
-                .into_iter()
-                .map(|(_, _, res)| res)
-                .collect();
+            let res: Vec<usize> =
+                qd.into_iter().map(|(_, _, res)| res).collect();
 
             assert_eq!(lca_tarjan.queries(&q), res);
+        }
+    }
+
+    #[test]
+    fn test_euler_seq() {
+        let graphs = setup_tree_data();
+
+        let data =
+            vec![(5, 1, vec![1, 2, 3, 3, 4, 4, 5, 5, 2, 6, 7, 7, 8, 8, 6, 1])];
+
+        for (gi, start, seq) in data {
+            let eulerseq1 = EulerSeq1::new(&graphs[gi], start);
+
+            assert_eq!(eulerseq1.as_seq().collect_vec(), seq,);
+        }
+
+        let data =
+            vec![(5, 1, vec![1, 2, 3, 2, 4, 2, 5, 2, 1, 6, 7, 6, 8, 6, 1])];
+
+        for (gi, start, seq) in data {
+            let eulerseq2 = EulerSeq2::new(&graphs[gi], start);
+
+            assert_eq!(eulerseq2.as_seq().collect_vec(), seq,);
+        }
+    }
+
+    #[test]
+    fn test_center() {
+        let g = setup_tree_data();
+
+        let data = vec![(6, Center::One(1)), (7, Center::AdjTwo(2, 3))];
+
+        for (gi, res) in data {
+            assert_eq!(center(&g[gi]), res,);
         }
     }
 }
