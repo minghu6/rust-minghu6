@@ -8,6 +8,7 @@ use crate::{collections::easycoll::M1, contains, get, hashset, m1, set};
 
 pub mod diameter;
 pub mod lca;
+pub mod hpd;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -260,7 +261,7 @@ mod tests {
         to_undirected_vec,
         tree::{
             center, diameter::*, furthest_vertex_no_w, lca::LCATarjan,
-            lca::LCABL, Center, EulerSeq1, EulerSeq2,
+            lca::LCABL, Center, EulerSeq1, EulerSeq2, hpd::HPD,
         },
         Graph,
     };
@@ -421,9 +422,16 @@ mod tests {
                 qd.clone().into_iter().map(|(u, v, _res)| (u, v)).collect();
 
             let res: Vec<usize> =
-                qd.into_iter().map(|(_, _, res)| res).collect();
+                qd.iter().map(|(_, _, res)| *res).collect();
 
             assert_eq!(lca_tarjan.queries(&q), res);
+
+            let hpd = HPD::new(g, Some(start));
+
+            for (x, y, res) in qd {
+                assert_eq!(hpd.lca(x, y), res);
+            }
+
         }
     }
 

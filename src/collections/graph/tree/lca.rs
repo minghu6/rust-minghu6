@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use super::Graph;
+use super::{Graph, hpd::HPD};
 use crate::{
     algs::math::uintlog2,
     collections::{
@@ -162,6 +162,39 @@ impl<'a> LCATarjan<'a> {
 
         res
     }
+}
+
+
+impl HPD {
+
+    /// O(log(n))
+    ///
+    /// 同重链， O(1); 不同重链，O(log2(n))
+    pub fn lca(&self, mut x: usize, mut y: usize) -> usize {
+        /* x, topx is always deptheset */
+
+        if get!(self.d => x) < get!(self.d => y) {
+            (x, y) = (y, x)
+        }
+        let mut topx = get!(self.top => x);
+        let mut topy = get!(self.top => y);
+
+        while topx != topy {
+            if get!(self.d => topx) < get!(self.d => topy) {
+                (topx, topy) = (topy, topx)
+            }
+
+            x = get!(self.p => topx);
+            topx = get!(self.top => x);
+        }
+
+        if get!(self.d => x) < get!(self.d => y) {
+            (_, y) = (y, x)
+        }
+
+        y
+    }
+
 }
 
 
