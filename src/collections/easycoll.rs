@@ -1,7 +1,4 @@
-#![macro_use]
-
-
-use std::{borrow::Borrow, collections::HashMap, fmt::Debug, hash::Hash};
+use std::{borrow::Borrow, collections::{HashMap, VecDeque}, fmt::Debug, hash::Hash};
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -147,6 +144,37 @@ macro_rules! stack {
     };
 }
 
+#[macro_export]
+macro_rules! queue {
+    ( $($value:expr),* ) => {
+        {
+            let mut _q = $crate::collections::easycoll::Queue::new();
+
+            $(
+                _q.enq($value);
+            )*
+
+            _q
+        }
+    };
+}
+
+
+#[macro_export]
+macro_rules! vecdeq {
+    ( $($value:expr),* ) => {
+        {
+            let mut _deq = std::collections::VecDeque::new();
+
+            $(
+                _deq.push_back($value);
+            )*
+
+            _deq
+        }
+    };
+}
+
 
 #[macro_export]
 macro_rules! hashset {
@@ -233,6 +261,13 @@ pub struct MV<K, V>(pub HashMap<K, Vec<V>>);
 #[derive(Default, Debug)]
 #[repr(transparent)]
 pub struct Stack<T> (pub Vec<T>);
+
+
+/// FIFO simple queue
+#[derive(Default, Debug)]
+#[repr(transparent)]
+pub struct Queue<T> (pub VecDeque<T>);
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -431,7 +466,7 @@ impl<T> Stack<T> {
 
     /// FILO
     pub fn stack_iter<'a>(&'a self) -> impl Iterator<Item=&T> + 'a {
-        let mut iter = self.0.iter();
+        let mut iter = self.0.iter().rev();
 
         std::iter::from_fn(move || {
             iter.next()
@@ -439,12 +474,65 @@ impl<T> Stack<T> {
     }
 
     /// This method will move the content of stack
-    pub fn extend_stack(&mut self, income_stack: Stack<T>) {
-        for item in income_stack.0.into_iter().rev() {
-            self.push(item);
-        }
+    pub fn extend_stack(&mut self, income_stack: Self) {
+        self.0.extend(income_stack.0)
     }
 }
+
+
+impl<I> Extend<I> for Stack<I> {
+    fn extend<T: IntoIterator<Item = I>>(&mut self, iter: T) {
+        self.0.extend(iter)
+    }
+}
+
+
+impl<T> Queue<T> {
+    // staic method
+    pub fn new() -> Self {
+        Self(VecDeque::new())
+    }
+
+    pub fn enq(&mut self, item: T) {
+        self.0.push_front(item)
+    }
+
+    pub fn deq(&mut self) -> Option<T> {
+        self.0.pop_back()
+    }
+
+    pub fn peek(&self) -> Option<&T> {
+        self.0.back()
+    }
+
+    pub fn peek_mut(&mut self) -> Option<&mut T> {
+        self.0.back_mut()
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.len() == 0
+    }
+
+    /// FIFO
+    pub fn queue_iter<'a>(&'a self) -> impl Iterator<Item=&T> + 'a {
+        let mut iter = self.0.iter();
+
+        std::iter::from_fn(move || {
+            iter.next()
+        })
+    }
+
+    /// This method will move the content of queue
+    pub fn extend_queue(&mut self, other: Self) {
+        self.0.extend(other.0);
+    }
+}
+
+
 
 
 #[cfg(test)]

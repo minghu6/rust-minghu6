@@ -215,7 +215,7 @@ pub fn center(g: &Graph) -> Center {
     fn max_subsize(g: &Graph, u: usize) -> usize {
         get!(g.e => u => vec![])
             .into_iter()
-            .map(|v| {
+            .map(|v| {  // 最后一颗子树结点数可以利用 n - acc 来直接求出
                 let n = subsize(g, v, u);
                 // println!("{u} -> {v} : {n}");
                 n

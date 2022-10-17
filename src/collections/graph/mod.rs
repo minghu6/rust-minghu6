@@ -1,11 +1,12 @@
 pub mod tree;
+pub mod toposort;
 
 
-use std::{collections::HashSet, fmt::Debug};
+use std::fmt::Debug;
 
 use self::tree::diameter::diameter_dp;
 use super::easycoll::{M1, MV};
-use crate::{apush, contains, get, set, stack};
+use crate::{apush, get, set, stack, queue};
 
 
 
@@ -73,6 +74,7 @@ impl Graph {
         self.e.0.keys()
     }
 
+    /// Preorder
     pub fn dfs<'a>(
         &'a self,
         start: Option<usize>,
@@ -80,28 +82,48 @@ impl Graph {
         let start = start.unwrap_or(self.anypoint());
 
         let mut stack = stack![(start, start)];
-        let mut visited = HashSet::new();
 
         std::iter::from_fn(move || {
-            while let Some((u, p)) = stack.peek().cloned() {
-                let mut pushed = false;
-                for v in get!(self.e => u) {
-                    if v != p && !contains!(visited => v) {
-                        stack.push((v, u));
-                        pushed = true;
-                        break;
-                    }
-                }
+            while let Some((u, p)) = stack.pop() {
 
-                if !pushed {
-                    set!(visited => u);
-                    stack.pop();
-                    return Some(u);
-                }
+                stack.extend(
+                    get!(self.e => u)
+                    .into_iter()
+                    .filter(|v| *v != p)
+                    .map(|v| (v, u))
+                    .rev()
+                );
+
+                return Some(u);
             }
 
             None
         })
+    }
+
+    pub fn bfs<'a>(
+        &'a self,
+        start: Option<usize>,
+    ) -> impl Iterator<Item = usize> + 'a {
+        let start = start.unwrap_or(self.anypoint());
+
+        let mut q = queue![(start, start)];
+        // let mut visited = HashSet::new();
+
+        std::iter::from_fn(move || {
+            while let Some((u, p)) = q.deq() {
+                for v in get!(self.e => u) {
+                    if v == p { continue }
+
+                    q.enq((v, u));
+                }
+
+                return Some(u);
+            }
+
+            None
+        })
+
     }
 }
 
@@ -176,10 +198,21 @@ mod tests {
     fn test_g_dfs() {
         let g = setup_g_data();
 
-        let data = vec![(0, 1, vec![5, 7, 4, 2, 3, 6, 1])];
+        let data = vec![(0, 1, vec![1, 2, 5, 4, 7, 6, 3])];
 
         for (gi, start, seq) in data {
             assert_eq!(g[gi].dfs(Some(start)).collect_vec(), seq);
+        }
+    }
+
+    #[test]
+    fn test_g_bfs() {
+        let g = setup_g_data();
+
+        let data = vec![(0, 1, vec![1, 2, 6, 5, 4, 3, 7])];
+
+        for (gi, start, seq) in data {
+            assert_eq!(g[gi].bfs(Some(start)).collect_vec(), seq);
         }
     }
 }

@@ -18,7 +18,7 @@
 
 
 use proc_macros::{
-    make_vec_macro_rules,
+    // make_vec_macro_rules,
     make_simple_error_rules
 };
 
@@ -32,6 +32,6 @@ pub mod error_code;
 pub mod io;
 pub mod tools;
 
-make_vec_macro_rules!(vecdeq , std::collections::VecDeque, push_back);
+// make_vec_macro_rules!(vecdeq , std::collections::VecDeque, push_back);
 
 make_simple_error_rules!(XXXError);
