@@ -9,7 +9,7 @@ use either::Either;
 use itertools::Itertools;
 
 use super::{bst::rawst::RawSTNode, BTItem, BTNode, BT};
-use crate::collections::{DictKey, Dictionary};
+use crate::collections::{CollKey, Dictionary};
 use crate::*;
 
 
@@ -36,7 +36,7 @@ pub struct B3Node<K, V> {
 ///
 
 
-impl<'a, K: DictKey + 'a, V: 'a> B3Node<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> B3Node<K, V> {
     pub fn new_value(key: K, value: V) -> *mut Self {
         let key = Box::into_raw(box key);
         let value = Box::into_raw(box value);
@@ -116,7 +116,7 @@ impl<'a, K: DictKey + 'a, V: 'a> B3Node<K, V> {
 
 
 
-impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for B3Node<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> BTNode<'a, K, V> for B3Node<K, V> {
     fn itself(&self) -> *const (dyn BTNode<'a, K, V> + 'a) {
         self as *const Self
     }
@@ -203,7 +203,7 @@ impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for B3Node<K, V> {
 }
 
 
-impl<'a, K: DictKey + 'a, V: 'a> B3<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> B3<K, V> {
     pub fn new() -> Self {
         Self { root: null_mut() }
     }
@@ -409,7 +409,7 @@ impl<'a, K: DictKey + 'a, V: 'a> B3<K, V> {
 }
 
 
-impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for B3<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> Dictionary<K, V> for B3<K, V> {
     fn insert(&mut self, key: K, value: V) -> bool {
         if self.root().is_null() {
             self.assign_root(B3Node::new_value(key, value));
@@ -535,7 +535,7 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for B3<K, V> {
 
 
 
-impl<'a, K: DictKey + 'a, V: 'a> BT<'a, K, V> for B3<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> BT<'a, K, V> for B3<K, V> {
     fn order(&self) -> usize {
         3
     }

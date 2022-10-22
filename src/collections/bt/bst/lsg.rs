@@ -8,16 +8,16 @@ use itertools::Itertools;
 use super::{BSTNode, BST};
 use crate::collections::{
     bt::{BTNode, BT},
-    DictKey, Dictionary,
+    CollKey, Dictionary,
 };
 
-pub struct LSG<'a, K: DictKey + 'a, V: 'a> {
+pub struct LSG<'a, K: CollKey + 'a, V: 'a> {
     root: *mut LSGNode<'a, K, V>,
     deleted: usize,
     alpha: f32,
 }
 
-pub struct LSGNode<'a, K: DictKey + 'a, V: 'a> {
+pub struct LSGNode<'a, K: CollKey + 'a, V: 'a> {
     paren: *mut Self,
     left: *mut Self,
     right: *mut Self,
@@ -35,7 +35,7 @@ pub struct LSGNode<'a, K: DictKey + 'a, V: 'a> {
 //// Implement
 
 
-fn size<'a, K: DictKey + 'a, V: 'a> (x: *mut LSGNode<'a, K, V>) -> usize {
+fn size<'a, K: CollKey + 'a, V: 'a> (x: *mut LSGNode<'a, K, V>) -> usize {
     unsafe {
         if x.is_null() {
             return 0;
@@ -46,7 +46,7 @@ fn size<'a, K: DictKey + 'a, V: 'a> (x: *mut LSGNode<'a, K, V>) -> usize {
 }
 
 
-impl<'a, K: DictKey + 'a, V: 'a> LSGNode<'a, K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> LSGNode<'a, K, V> {
     pub fn new(key: K, value: V) -> *mut Self {
         Box::into_raw(box Self {
             left: null_mut(),
@@ -114,7 +114,7 @@ impl<'a, K: DictKey + 'a, V: 'a> LSGNode<'a, K, V> {
 // }
 
 
-impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for LSGNode<'a, K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> BTNode<'a, K, V> for LSGNode<'a, K, V> {
     fn itself(&self) -> *const (dyn BTNode<'a, K, V> + 'a) {
         self as *const Self
     }
@@ -208,10 +208,10 @@ impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for LSGNode<'a, K, V> {
     }
 }
 
-impl<'a, K: DictKey + 'a, V: 'a> BSTNode<'a, K, V> for LSGNode<'a, K, V> {}
+impl<'a, K: CollKey + 'a, V: 'a> BSTNode<'a, K, V> for LSGNode<'a, K, V> {}
 
 
-impl<'a, K: DictKey + 'a, V: 'a> LSG<'a, K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> LSG<'a, K, V> {
     pub fn new() -> Self {
         Self {
             root: null_mut(),
@@ -393,7 +393,7 @@ impl<'a, K: DictKey + 'a, V: 'a> LSG<'a, K, V> {
 // }
 
 
-impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for LSG<'a, K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> Dictionary<K, V> for LSG<'a, K, V> {
     fn insert(&mut self, key: K, value: V) -> bool {
         unsafe {
             let approxi_node =
@@ -516,7 +516,7 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for LSG<'a, K, V> {
 
 
 
-impl<'a, K: DictKey + 'a, V: 'a> BT<'a, K, V> for LSG<'a, K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> BT<'a, K, V> for LSG<'a, K, V> {
     fn order(&self) -> usize {
         2
     }
@@ -531,7 +531,7 @@ impl<'a, K: DictKey + 'a, V: 'a> BT<'a, K, V> for LSG<'a, K, V> {
 }
 
 
-impl<'a, K: DictKey + 'a, V: 'a> BST<'a, K, V> for LSG<'a, K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> BST<'a, K, V> for LSG<'a, K, V> {
     unsafe fn rotate_cleanup(
         &mut self,
         _x: *mut (dyn BSTNode<'a, K, V> + 'a),

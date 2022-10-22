@@ -6,7 +6,7 @@ use std::ptr::{null, null_mut};
 use super::{BSTNode, BST};
 use crate::collections::{
     bt::{BTNode, BT},
-    DictKey, Dictionary,
+    CollKey, Dictionary,
 };
 
 pub struct RawST<K, V> {
@@ -26,7 +26,7 @@ pub struct RawSTNode<K, V> {
 ////////////////////////////////////////////////////////////////////////////////
 //// Implement
 
-impl<'a, K: DictKey + 'a, V: 'a> RawSTNode<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> RawSTNode<K, V> {
     pub fn new(key: K, value: V) -> *mut Self {
         Box::into_raw(box Self {
             left: null_mut(),
@@ -43,7 +43,7 @@ impl<'a, K: DictKey + 'a, V: 'a> RawSTNode<K, V> {
 }
 
 
-impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for RawSTNode<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> BTNode<'a, K, V> for RawSTNode<K, V> {
     fn itself(&self) -> *const (dyn BTNode<'a, K, V> + 'a) {
         self as *const Self
     }
@@ -137,16 +137,16 @@ impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for RawSTNode<K, V> {
     }
 }
 
-impl<'a, K: DictKey + 'a, V: 'a> BSTNode<'a, K, V> for RawSTNode<K, V> {}
+impl<'a, K: CollKey + 'a, V: 'a> BSTNode<'a, K, V> for RawSTNode<K, V> {}
 
 
-impl<'a, K: DictKey + 'a, V: 'a> RawST<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> RawST<K, V> {
     pub fn new() -> Self {
         Self { root: null_mut() }
     }
 }
 
-impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for RawST<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> Dictionary<K, V> for RawST<K, V> {
     fn insert(&mut self, key: K, value: V) -> bool {
         let new_node = RawSTNode::new(key, value);
 
@@ -182,7 +182,7 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for RawST<K, V> {
 
 
 
-impl<'a, K: DictKey + 'a, V: 'a> BT<'a, K, V> for RawST<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> BT<'a, K, V> for RawST<K, V> {
     fn order(&self) -> usize {
         2
     }
@@ -197,7 +197,7 @@ impl<'a, K: DictKey + 'a, V: 'a> BT<'a, K, V> for RawST<K, V> {
 }
 
 
-impl<'a, K: DictKey + 'a, V: 'a> BST<'a, K, V> for RawST<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> BST<'a, K, V> for RawST<K, V> {
     unsafe fn rotate_cleanup(
         &mut self,
         _x: *mut (dyn BSTNode<'a, K, V> + 'a),

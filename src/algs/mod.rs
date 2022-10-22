@@ -115,4 +115,23 @@ mod test {
         assert_eq!(lexi_cmp(&vec![1, 2, 3][..], &vec![1, 2, 3][..]), Ordering::Equal);
         assert_eq!(lexi_cmp(&vec![4, 2, 3][..], &vec![4, 3, 2][..]), Ordering::Less);
     }
+
+    #[ignore = "just see see"]
+    #[test]
+    fn stats_random() {
+        let mut odd = 0;
+        let mut even = 0;
+
+        for _ in 0..1000 {
+            if random() % 2 == 0{
+                even += 1;
+            }
+            else {
+                odd += 1;
+            }
+        }
+
+        println!("odd: {odd}, even: {even}");
+
+    }
 }

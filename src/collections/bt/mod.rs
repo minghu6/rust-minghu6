@@ -20,7 +20,7 @@ use either::Either;
 
 use self::bst::{BSTNode, BST};
 
-use super::{DictKey, Dictionary};
+use super::{CollKey, Dictionary};
 
 pub mod bst;
 pub mod b3;
@@ -29,7 +29,7 @@ pub mod bstar4;
 
 
 /// B-Tree (not restrictly, storing info in the internal node)
-pub trait BT<'a, K: DictKey + 'a, V: 'a>: Dictionary<K, V> {
+pub trait BT<'a, K: CollKey + 'a, V: 'a>: Dictionary<K, V> {
     fn order(&self) -> usize;  // >= 2
     fn root(&self) -> *mut (dyn BTNode<'a, K, V> + 'a);
     fn assign_root(&mut self, root: *mut (dyn BTNode<'a, K, V> + 'a));
@@ -261,7 +261,7 @@ pub trait BT<'a, K: DictKey + 'a, V: 'a>: Dictionary<K, V> {
 
 
 /// B-Tree Node
-pub trait BTNode<'a, K: DictKey + 'a, V: 'a> {
+pub trait BTNode<'a, K: CollKey + 'a, V: 'a> {
 
     ////////////////////////////////////////////////////////////////////////////
     //// Introspection
@@ -912,7 +912,7 @@ pub struct BTItem<'a, K, V> {
     idx: usize
 }
 
-impl<'a, K: DictKey, V> BTItem<'a, K, V> {
+impl<'a, K: CollKey, V> BTItem<'a, K, V> {
     pub fn new(node: *mut (dyn BTNode<'a, K, V> + 'a), idx: usize) -> Self {
         Self {
             node,

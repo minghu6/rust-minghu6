@@ -17,7 +17,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 use super::{BSTNode, BST, ROTATE_NUM};
 use crate::collections::bt::{BTNode, BT};
-use crate::collections::{DictKey, Dictionary};
+use crate::collections::{CollKey, Dictionary};
 use crate::etc::Reverse;
 use crate::*;
 
@@ -87,7 +87,7 @@ fn set_red<K, V>(node: *mut RBNode<K, V>) {
 
 
 
-impl<'a, K: DictKey + 'a, V: 'a> RBNode<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> RBNode<K, V> {
     pub fn new(key: K, value: V) -> *mut Self {
         Box::into_raw(box Self {
             left: null_mut(),
@@ -216,7 +216,7 @@ impl<'a, K: DictKey + 'a, V: 'a> RBNode<K, V> {
 }
 
 
-impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for RBNode<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> BTNode<'a, K, V> for RBNode<K, V> {
     fn itself(&self) -> *const (dyn BTNode<'a, K, V> + 'a) {
         self as *const Self
     }
@@ -302,10 +302,10 @@ impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for RBNode<K, V> {
     }
 }
 
-impl<'a, K: DictKey + 'a, V: 'a> BSTNode<'a, K, V> for RBNode<K, V> {}
+impl<'a, K: CollKey + 'a, V: 'a> BSTNode<'a, K, V> for RBNode<K, V> {}
 
 
-impl<'a, K: DictKey + 'a, V: 'a> RB<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> RB<K, V> {
     pub fn new() -> Self {
         #[cfg(test)] {
             unsafe { ROTATE_NUM = 0; }
@@ -516,7 +516,7 @@ impl<'a, K: DictKey + 'a, V: 'a> RB<K, V> {
 
 
 
-impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for RB<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> Dictionary<K, V> for RB<K, V> {
     fn insert(&mut self, key: K, value: V) -> bool {
         let new_node = RBNode::new(key, value);
 
@@ -588,7 +588,7 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for RB<K, V> {
     }
 }
 
-impl<'a, K: DictKey + 'a, V: 'a> BT<'a, K, V> for RB<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> BT<'a, K, V> for RB<K, V> {
     fn order(&self) -> usize {
         2
     }
@@ -603,7 +603,7 @@ impl<'a, K: DictKey + 'a, V: 'a> BT<'a, K, V> for RB<K, V> {
 }
 
 
-impl<'a, K: DictKey + 'a, V: 'a> BST<'a, K, V> for RB<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> BST<'a, K, V> for RB<K, V> {
     unsafe fn rotate_cleanup(
         &mut self,
         _x: *mut (dyn BSTNode<'a, K, V> + 'a),

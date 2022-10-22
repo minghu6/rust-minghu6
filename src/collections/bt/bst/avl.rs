@@ -18,7 +18,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 use super::{BSTNode, BST, ROTATE_NUM};
 use crate::collections::bt::{BTNode, BT};
-use crate::collections::{DictKey, Dictionary};
+use crate::collections::{CollKey, Dictionary};
 use crate::error_code::ValidateFailedError;
 use crate::etc::Reverse;
 
@@ -47,7 +47,7 @@ struct AVLNode<K, V> {
 //// Implement
 
 
-impl<'a, K: DictKey + 'a, V: 'a> AVLNode<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> AVLNode<K, V> {
     pub fn new(key: K, value: V) -> *mut Self {
         Box::into_raw(box Self {
             left: null_mut(),
@@ -117,7 +117,7 @@ impl<'a, K: DictKey + 'a, V: 'a> AVLNode<K, V> {
 }
 
 
-impl<'a, K: DictKey + Clone + 'a, V: Clone + 'a> Clone for AVLNode<K, V> {
+impl<'a, K: CollKey + Clone + 'a, V: Clone + 'a> Clone for AVLNode<K, V> {
     /// Expensive Implements.
     ///
     /// **WARNING: The Field `paren` isn't set!, it should be set manually!**
@@ -155,7 +155,7 @@ impl<'a, K: DictKey + Clone + 'a, V: Clone + 'a> Clone for AVLNode<K, V> {
 
 
 
-impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for AVLNode<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> BTNode<'a, K, V> for AVLNode<K, V> {
     fn itself(&self) -> *const (dyn BTNode<'a, K, V> + 'a) {
         self as *const Self
     }
@@ -244,11 +244,11 @@ impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for AVLNode<K, V> {
 
 
 
-impl<'a, K: DictKey + 'a, V: 'a> BSTNode<'a, K, V> for AVLNode<K, V> {}
+impl<'a, K: CollKey + 'a, V: 'a> BSTNode<'a, K, V> for AVLNode<K, V> {}
 
 
 
-impl<'a, K: DictKey + 'a, V: 'a> AVL<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> AVL<K, V> {
     pub fn new() -> Self {
         #[cfg(test)] {
             unsafe { ROTATE_NUM = 0; }
@@ -337,7 +337,7 @@ impl<'a, K: DictKey + 'a, V: 'a> AVL<K, V> {
 }
 
 
-impl<'a, K: DictKey + Clone + 'a, V: Clone + 'a> Clone for AVL<K, V> {
+impl<'a, K: CollKey + Clone + 'a, V: Clone + 'a> Clone for AVL<K, V> {
     fn clone(&self) -> Self {
         if self.root.is_null() {
             return Self { root: null_mut() };
@@ -364,7 +364,7 @@ impl<'a, K: DictKey + Clone + 'a, V: Clone + 'a> Clone for AVL<K, V> {
 }
 
 
-impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for AVL<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> Dictionary<K, V> for AVL<K, V> {
     fn insert(&mut self, key: K, value: V) -> bool {
         let new_node = AVLNode::new(key, value);
 
@@ -459,7 +459,7 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for AVL<K, V> {
     }
 }
 
-impl<'a, K: DictKey + 'a, V: 'a> BT<'a, K, V> for AVL<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> BT<'a, K, V> for AVL<K, V> {
     fn order(&self) -> usize {
         2
     }
@@ -474,7 +474,7 @@ impl<'a, K: DictKey + 'a, V: 'a> BT<'a, K, V> for AVL<K, V> {
 }
 
 
-impl<'a, K: DictKey + 'a, V: 'a> BST<'a, K, V> for AVL<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> BST<'a, K, V> for AVL<K, V> {
     unsafe fn rotate_cleanup(
         &mut self,
         x: *mut (dyn BSTNode<'a, K, V> + 'a),

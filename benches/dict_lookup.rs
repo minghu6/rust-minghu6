@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use itertools::Itertools;
 use minghu6::collections::bt::bst::*;
 use minghu6::collections::bt::*;
-use minghu6::collections::DictKey;
+use minghu6::collections::CollKey;
 use minghu6::collections::Dictionary;
 use minghu6::test::dict::*;
 use minghu6::test::*;
@@ -34,7 +34,7 @@ fn bench_dict_lookup_prepare(b: &mut Bencher) {
 
 
 fn bench_lookup<
-    K: DictKey + Clone,
+    K: CollKey + Clone,
     V: GetKey<K> + Eq + Clone + std::fmt::Debug,
 >(
     b: &mut Bencher,

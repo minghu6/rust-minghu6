@@ -1,3 +1,6 @@
+//! Can used for detect ring
+//!
+
 use super::Graph;
 use crate::{
     collections::easycoll::M1,

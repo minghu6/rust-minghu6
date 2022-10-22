@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 
 use itertools::Itertools;
-use minghu6::collections::DictKey;
+use minghu6::collections::CollKey;
 use minghu6::collections::bt::bst::*;
 use minghu6::collections::bt::*;
 use minghu6::collections::Dictionary;
@@ -34,7 +34,7 @@ fn bench_dict_remove_prepare(b: &mut Bencher) {
 
 
 fn bench_remove<
-    K: DictKey + Clone,
+    K: CollKey + Clone,
     V: GetKey<K> + Eq + Clone + std::fmt::Debug,
 >(
     b: &mut Bencher,

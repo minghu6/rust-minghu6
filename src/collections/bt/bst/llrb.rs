@@ -59,7 +59,7 @@ use itertools::Itertools;
 use super::rb::Color;
 use super::{BSTNode, BST, ROTATE_NUM};
 use crate::collections::bt::{BTNode, BT};
-use crate::collections::{DictKey, Dictionary};
+use crate::collections::{CollKey, Dictionary};
 use crate::etc::Reverse;
 use crate::*;
 
@@ -142,7 +142,7 @@ impl<K, V> Clone for PhB4Node<K, V> {
 
 
 #[allow(unused)]
-impl<'a, K: DictKey + 'a, V: 'a> PhB4Node<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> PhB4Node<K, V> {
     fn new(centre: *mut LLRBNode<K, V>) -> Self {
         Self { centre }
     }
@@ -417,7 +417,7 @@ impl<'a, K: DictKey + 'a, V: 'a> PhB4Node<K, V> {
 }
 
 
-impl<'a, K: DictKey + 'a, V: 'a> PhB3Node<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> PhB3Node<K, V> {
     fn new(centre: *mut LLRBNode<K, V>) -> Self {
         Self { centre }
     }
@@ -624,7 +624,7 @@ impl<'a, K: DictKey + 'a, V: 'a> PhB3Node<K, V> {
 
 
 
-impl<'a, K: DictKey + 'a, V: 'a> LLRBNode<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> LLRBNode<K, V> {
     pub fn new(key: K, value: V) -> *mut Self {
         Box::into_raw(box Self {
             left: null_mut(),
@@ -819,7 +819,7 @@ impl<'a, K: DictKey + 'a, V: 'a> LLRBNode<K, V> {
 }
 
 
-impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for LLRBNode<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> BTNode<'a, K, V> for LLRBNode<K, V> {
     fn itself(&self) -> *const (dyn BTNode<'a, K, V> + 'a) {
         self as *const Self
     }
@@ -905,10 +905,10 @@ impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for LLRBNode<K, V> {
     }
 }
 
-impl<'a, K: DictKey + 'a, V: 'a> BSTNode<'a, K, V> for LLRBNode<K, V> {}
+impl<'a, K: CollKey + 'a, V: 'a> BSTNode<'a, K, V> for LLRBNode<K, V> {}
 
 
-impl<'a, K: DictKey + 'a, V: 'a> LLRB<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> LLRB<K, V> {
     pub fn new() -> Self {
         #[cfg(test)] {
             unsafe { ROTATE_NUM = 0; }
@@ -1513,7 +1513,7 @@ impl<'a, K: DictKey + 'a, V: 'a> LLRB<K, V> {
 
 
 
-impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for LLRB<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> Dictionary<K, V> for LLRB<K, V> {
     fn insert(&mut self, key: K, value: V) -> bool {
         unsafe{
             let res;
@@ -1770,7 +1770,7 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for LLRB<K, V> {
     }
 }
 
-impl<'a, K: DictKey + 'a, V: 'a> BT<'a, K, V> for LLRB<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> BT<'a, K, V> for LLRB<K, V> {
     fn order(&self) -> usize {
         2
     }
@@ -1785,7 +1785,7 @@ impl<'a, K: DictKey + 'a, V: 'a> BT<'a, K, V> for LLRB<K, V> {
 }
 
 
-impl<'a, K: DictKey + 'a, V: 'a> BST<'a, K, V> for LLRB<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> BST<'a, K, V> for LLRB<K, V> {
     unsafe fn rotate_cleanup(
         &mut self,
         x: *mut (dyn BSTNode<'a, K, V> + 'a),

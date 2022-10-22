@@ -11,7 +11,7 @@ use rand::random;
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Traits
+//// Trait
 
 pub trait Provider<T> {
     fn get_one(&self) -> T;
@@ -24,10 +24,10 @@ pub trait Provider<T> {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Structures
+//// Structure
 
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, PartialOrd, Ord)]
 #[repr(C)]
 pub struct Inode {
     pub mode: u16,
@@ -48,8 +48,11 @@ pub struct InodeProvider {}
 pub struct UZProvider {}
 
 
+pub struct UI1000Provider {}
+
+
 ////////////////////////////////////////////////////////////////////////////////
-//// Implements
+//// Implementation
 
 
 impl Provider<Inode> for InodeProvider {
@@ -76,7 +79,41 @@ impl Provider<usize> for UZProvider {
 }
 
 
+
+////////////////////////////////////////////////////////////////////////////////
+//// Function
+
 #[inline]
 fn now_secs() -> u64 {
     random::<u32>() as u64
+}
+
+
+pub fn normalize<T: Ord>(raw_data: &[T]) -> Vec<usize> {
+    if raw_data.is_empty() {
+        return vec![];
+    }
+
+    let mut res = vec![0; raw_data.len()];
+    let mut taged: Vec<(usize, &T)> = raw_data
+        .into_iter()
+        .enumerate()
+        .collect();
+
+    taged.sort_by_key(|x| x.1);
+    
+    let mut rank = 1;
+    let mut iter = taged.into_iter();
+    let (i, mut prev) = iter.next().unwrap();
+    res[i] = rank;
+
+    for (i, v) in iter {
+        if v != prev {
+            rank += 1;
+        }
+        prev = v;
+        res[i] = rank;
+    }
+
+    res
 }

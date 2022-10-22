@@ -6,7 +6,7 @@
 
 use std::collections::HashMap;
 
-use minghu6::collections::DictKey;
+use minghu6::collections::CollKey;
 use minghu6::collections::Dictionary;
 use minghu6::collections::bt::bst::*;
 use minghu6::collections::bt::*;
@@ -37,7 +37,7 @@ fn bench_dict_insert_prepare(b: &mut Bencher) {
 
 
 fn bench_insert<
-    K: DictKey + Clone,
+    K: CollKey + Clone,
     V: GetKey<K> + Eq + Clone + std::fmt::Debug,
 >(
     b: &mut Bencher,

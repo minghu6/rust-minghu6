@@ -19,14 +19,14 @@ use std::{
 use either::Either;
 
 use super::{
-    super::{DictKey, Dictionary},
+    super::{CollKey, Dictionary},
     BTNode, BT,
 };
 use crate::etc::Reverse;
 
 
 /// LF(key) < MID(key) < RH(key)
-pub trait BST<'a, K: DictKey + 'a, V: 'a>: BT<'a, K, V> {
+pub trait BST<'a, K: CollKey + 'a, V: 'a>: BT<'a, K, V> {
     fn basic_insert(
         &mut self,
         new_node: *mut (dyn BSTNode<'a, K, V> + 'a),
@@ -278,7 +278,7 @@ pub trait BST<'a, K: DictKey + 'a, V: 'a>: BT<'a, K, V> {
 }
 
 
-pub trait BSTNode<'a, K: DictKey + 'a, V: 'a>: BTNode<'a, K, V> {
+pub trait BSTNode<'a, K: CollKey + 'a, V: 'a>: BTNode<'a, K, V> {
     fn left(&self) -> *mut (dyn BSTNode<'a, K, V> + 'a) {
         unsafe { (*BTNode::child(self, 0)).try_as_bst_mut().unwrap() }
     }

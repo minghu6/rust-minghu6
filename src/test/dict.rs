@@ -5,7 +5,7 @@ use itertools::Itertools;
 use rand::{prelude::SliceRandom, thread_rng};
 
 use super::*;
-use crate::collections::{DictKey, Dictionary};
+use crate::collections::{CollKey, Dictionary};
 
 
 
@@ -24,7 +24,7 @@ pub trait SetKey<T> {
 pub trait DictProvider<K, V>: Provider<V>
 where
     V: GetKey<K> + Eq + Clone + Debug,
-    K: DictKey + Clone,
+    K: CollKey + Clone,
 {
     fn test_dict<'a>(&self, dict_new: fn() -> Box<(dyn Dictionary<K, V>)> ) {
         for _ in 0..20 {
@@ -173,7 +173,7 @@ impl GetKey<u32> for Inode {
 impl DictProvider<u32, Inode> for InodeProvider {}
 
 
-impl<K: DictKey + Clone, V: GetKey<K>> Dictionary<K, V> for Vec<V> {
+impl<K: CollKey + Clone, V: GetKey<K>> Dictionary<K, V> for Vec<V> {
     fn insert(&mut self, _key: K, value: V) -> bool {
         self.push(value);
         true
@@ -225,7 +225,7 @@ impl<K: DictKey + Clone, V: GetKey<K>> Dictionary<K, V> for Vec<V> {
 }
 
 
-impl<K: DictKey + Clone + Hash, V: GetKey<K>> Dictionary<K, V>
+impl<K: CollKey + Clone + Hash, V: GetKey<K>> Dictionary<K, V>
     for HashMap<K, V>
 {
     fn insert(&mut self, key: K, value: V) -> bool {

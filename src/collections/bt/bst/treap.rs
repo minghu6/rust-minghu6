@@ -16,7 +16,7 @@ use rand::random;
 
 use super::{BSTNode, BST};
 use crate::collections::bt::{BTNode, BT};
-use crate::collections::{DictKey, Dictionary, Heap, Weight};
+use crate::collections::{CollKey, Dictionary, Heap};
 use crate::etc::Reverse;
 use crate::*;
 
@@ -26,12 +26,12 @@ use crate::*;
 
 
 
-pub struct Treap<K, V, W=usize> {
+pub struct Treap<K, V, W = usize> {
     root: *mut TreapNode<K, V, W>,
 }
 
 
-struct TreapNode<K, V, W=usize> {
+struct TreapNode<K, V, W = usize> {
     left: *mut Self,
     right: *mut Self,
     paren: *mut Self,
@@ -46,7 +46,7 @@ struct TreapNode<K, V, W=usize> {
 //// Implement
 
 
-impl<'a, K: DictKey + 'a, V: 'a, W: Weight> TreapNode<K, V, W> {
+impl<'a, K: CollKey + 'a, V: 'a, W: CollKey> TreapNode<K, V, W> {
     pub fn new(key: K, value: V, weight: W) -> *mut Self {
         Box::into_raw(box Self {
             left: null_mut(),
@@ -59,9 +59,7 @@ impl<'a, K: DictKey + 'a, V: 'a, W: Weight> TreapNode<K, V, W> {
     }
 
     fn into_value(self) -> V {
-        unsafe {
-            *Box::from_raw(self.value)
-        }
+        unsafe { *Box::from_raw(self.value) }
     }
 
     /// validate red/black
@@ -80,7 +78,6 @@ impl<'a, K: DictKey + 'a, V: 'a, W: Weight> TreapNode<K, V, W> {
                 if !x_self.right.is_null() {
                     assert!(x_self.weight >= (*x_self.right).weight);
                 }
-
             });
 
             // Validate recursively
@@ -114,11 +111,12 @@ impl<'a, K: DictKey + 'a, V: 'a, W: Weight> TreapNode<K, V, W> {
 
         println!("{}", cache);
     }
-
 }
 
 
-impl<'a, K: DictKey + 'a, V: 'a, W: 'a> BTNode<'a, K, V> for TreapNode<K, V, W> {
+impl<'a, K: CollKey + 'a, V: 'a, W: 'a> BTNode<'a, K, V>
+    for TreapNode<K, V, W>
+{
     fn itself(&self) -> *const (dyn BTNode<'a, K, V> + 'a) {
         self as *const Self
     }
@@ -204,10 +202,13 @@ impl<'a, K: DictKey + 'a, V: 'a, W: 'a> BTNode<'a, K, V> for TreapNode<K, V, W> 
     }
 }
 
-impl<'a, K: DictKey + 'a, V: 'a, W: 'a> BSTNode<'a, K, V> for TreapNode<K, V, W> {}
+impl<'a, K: CollKey + 'a, V: 'a, W: 'a> BSTNode<'a, K, V>
+    for TreapNode<K, V, W>
+{
+}
 
 
-impl<'a, K: DictKey + 'a, V: 'a, W: Weight> Treap<K, V, W> {
+impl<'a, K: CollKey + 'a, V: 'a, W: CollKey> Treap<K, V, W> {
     pub fn new() -> Self {
         Self { root: null_mut() }
     }
@@ -227,7 +228,6 @@ impl<'a, K: DictKey + 'a, V: 'a, W: Weight> Treap<K, V, W> {
 
         for (key, value, weight) in seq {
             unsafe {
-
                 let mut x = treap.root;
                 let mut prev = x;
 
@@ -247,11 +247,9 @@ impl<'a, K: DictKey + 'a, V: 'a, W: Weight> Treap<K, V, W> {
                     } else {
                         (*x_paren).connect_right(new_node);
                     }
-
                 } else {
                     (*prev).connect_right(new_node);
                 }
-
             }
         }
 
@@ -285,19 +283,17 @@ impl<'a, K: DictKey + 'a, V: 'a, W: Weight> Treap<K, V, W> {
                 return false;
             }
 
-            let (mut lf, rh)
-            = Treap::split(self.root, &key);
+            let (mut lf, rh) = Treap::split(self.root, &key);
 
             lf = Treap::join(lf, TreapNode::new(key, value, weight));
 
             self.reset_root(Treap::join(lf, rh));
-
         }
 
         true
     }
 
-    fn remove_(&mut self, key: &K) -> Option<V> {
+    fn remove_(&mut self, key: &K) -> Option<Box<TreapNode<K, V, W>>> {
         if self.root.is_null() {
             return None;
         }
@@ -311,10 +307,10 @@ impl<'a, K: DictKey + 'a, V: 'a, W: Weight> Treap<K, V, W> {
 
             let pred = (*x).precessor_bst() as *mut TreapNode<K, V, W>;
 
-            if pred.is_null() {  // key is the minimum
+            if pred.is_null() {
+                // key is the minimum
                 let (_, rh) = Treap::split(self.root, key);
                 self.reset_root(rh);
-
             } else {
                 let pred_key = (*pred).key_bst();
 
@@ -322,32 +318,29 @@ impl<'a, K: DictKey + 'a, V: 'a, W: Weight> Treap<K, V, W> {
                 let (_, rh) = Treap::split(pred_rh, key);
 
                 self.reset_root(Treap::join(pred_lf, rh));
-
             }
 
-            Some((Box::from_raw(x)).into_value())
-
+            Some(Box::from_raw(x))
         }
-
     }
 
-    unsafe fn find(x: *mut TreapNode<K, V, W>, key: &K) -> *mut TreapNode<K, V, W> {
+    unsafe fn find(
+        x: *mut TreapNode<K, V, W>,
+        key: &K,
+    ) -> *mut TreapNode<K, V, W> {
         if x.is_null() {
-            return null_mut()
+            return null_mut();
         }
 
         if key == (*x).key_bst() {
-            return x
+            return x;
         }
 
         if key < (*x).key_bst() {
             Treap::find((*x).left, key)
-
         } else {
             Treap::find((*x).right, key)
-
         }
-
     }
 
 
@@ -357,11 +350,12 @@ impl<'a, K: DictKey + 'a, V: 'a, W: Weight> Treap<K, V, W> {
     ///
     /// The right > key
     ///
-    unsafe fn split(t: *mut TreapNode<K, V, W>, key: &K)
-    -> (*mut TreapNode<K, V, W>, *mut TreapNode<K, V, W>)
-    {
+    unsafe fn split(
+        t: *mut TreapNode<K, V, W>,
+        key: &K,
+    ) -> (*mut TreapNode<K, V, W>, *mut TreapNode<K, V, W>) {
         if t.is_null() {
-            return (null_mut(), null_mut())
+            return (null_mut(), null_mut());
         }
 
         if key < (*t).key_bst() {
@@ -375,7 +369,6 @@ impl<'a, K: DictKey + 'a, V: 'a, W: Weight> Treap<K, V, W> {
 
             (t, rh_treap)
         }
-
     }
 
     /// Join:
@@ -384,10 +377,10 @@ impl<'a, K: DictKey + 'a, V: 'a, W: Weight> Treap<K, V, W> {
     ///
     /// **MUST:** all keys of u <= keys of v
     ///
-    unsafe fn join(u: *mut TreapNode<K, V, W>, v: *mut TreapNode<K, V, W>)
-    -> *mut TreapNode<K, V, W>
-    {
-
+    unsafe fn join(
+        u: *mut TreapNode<K, V, W>,
+        v: *mut TreapNode<K, V, W>,
+    ) -> *mut TreapNode<K, V, W> {
         if u.is_null() {
             return v;
         }
@@ -397,26 +390,19 @@ impl<'a, K: DictKey + 'a, V: 'a, W: Weight> Treap<K, V, W> {
         }
 
         if (*u).weight > (*v).weight {
-            (*u).connect_right(
-                Treap::join((*u).right, v)
-            );
+            (*u).connect_right(Treap::join((*u).right, v));
 
             u
         } else {
-            (*v).connect_left(
-                Treap::join(u, (*v).left)
-            );
+            (*v).connect_left(Treap::join(u, (*v).left));
 
             v
         }
-
     }
-
-
 }
 
 
-impl<'a, K: DictKey + 'a, V: 'a> BT<'a, K, V> for Treap<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> BT<'a, K, V> for Treap<K, V> {
     fn order(&self) -> usize {
         2
     }
@@ -431,7 +417,7 @@ impl<'a, K: DictKey + 'a, V: 'a> BT<'a, K, V> for Treap<K, V> {
 }
 
 
-impl<'a, K: DictKey + 'a, V: 'a> BST<'a, K, V> for Treap<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> BST<'a, K, V> for Treap<K, V> {
     unsafe fn rotate_cleanup(
         &mut self,
         _x: *mut (dyn BSTNode<'a, K, V> + 'a),
@@ -443,16 +429,14 @@ impl<'a, K: DictKey + 'a, V: 'a> BST<'a, K, V> for Treap<K, V> {
 
 
 
-impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for Treap<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> Dictionary<K, V> for Treap<K, V> {
     fn insert(&mut self, key: K, value: V) -> bool {
         self.insert_(key, value, random::<usize>())
     }
 
-
     fn remove(&mut self, key: &K) -> Option<V> {
-        self.remove_(key)
+        self.remove_(key).map(|node| node.into_value())
     }
-
 
     fn modify(&mut self, key: &K, value: V) -> bool {
         self.basic_modify(key, value)
@@ -472,7 +456,6 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for Treap<K, V> {
         if !self.root.is_null() {
             unsafe {
                 (*self.root).self_validate()?;
-
             }
         }
 
@@ -481,20 +464,16 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for Treap<K, V> {
 }
 
 
-impl<V, W: Weight> Heap<W, V> for Treap<usize, V, W> {
-    fn top(&self) -> Option<&V> {
+impl<W: CollKey> Heap<W> for Treap<usize, (), W> {
+    fn top(&self) -> Option<&W> {
         if self.root.is_null() {
             None
         } else {
-            unsafe {
-                Some(&*(*self.root).value)
-
-            }
+            unsafe { Some(&(*self.root).weight) }
         }
-
     }
 
-    fn pop_top(&mut self) -> Option<V> {
+    fn pop(&mut self) -> Option<W> {
         if self.root.is_null() {
             return None;
         }
@@ -502,13 +481,13 @@ impl<V, W: Weight> Heap<W, V> for Treap<usize, V, W> {
         unsafe {
             let key = &*(*self.root).key;
 
-            self.remove_(key)
+            self.remove_(key).map(|node| node.weight)
         }
     }
 
-    fn insert(&mut self, w: W, item: V) {
+    fn push(&mut self, val: W) {
         if self.root.is_null() {
-            self.insert_(0, item, w);
+            self.insert_(0, (), val);
             return;
         }
 
@@ -516,9 +495,8 @@ impl<V, W: Weight> Heap<W, V> for Treap<usize, V, W> {
             let max = (*(*self.root).maximum()).try_as_bst().unwrap();
             let max_key = (*max).key_bst();
             let nxy_key = max_key + 1;
-            self.insert_(nxy_key, item, w);
+            self.insert_(nxy_key, (), val);
         }
-
     }
 }
 
@@ -527,7 +505,7 @@ impl<V, W: Weight> Heap<W, V> for Treap<usize, V, W> {
 #[cfg(test)]
 mod test {
     use itertools::Itertools;
-    use rand::{prelude::SliceRandom, thread_rng, random};
+    use rand::{prelude::SliceRandom, random, thread_rng};
 
     use super::Treap;
     use crate::{
@@ -540,8 +518,8 @@ mod test {
         },
         test::{
             dict::{DictProvider, GetKey},
-            Provider, heap::HeapProvider,
-            *
+            heap::HeapProvider,
+            Provider, *,
         },
     };
 
@@ -552,13 +530,12 @@ mod test {
 
         (&provider as &dyn DictProvider<u32, Inode>)
             .test_dict(|| box Treap::new());
-
     }
 
 
     #[test]
     fn test_treap_fixeddata_case_0() {
-        let mut treap = Treap::<i32, (), >::new();
+        let mut treap = Treap::<i32, ()>::new();
 
         let dict = &mut treap as &mut dyn Dictionary<i32, ()>;
 
@@ -599,7 +576,6 @@ mod test {
         dict.self_validate().unwrap();
 
         treap.echo_stdout();
-
     }
 
 
@@ -630,7 +606,6 @@ mod test {
         treap.self_validate().unwrap();
 
         treap.echo_stdout();
-
     }
 
 
@@ -638,7 +613,7 @@ mod test {
     fn test_treap_fixeddata_case_2() {
         let mut treap = Treap::<i32, ()>::new();
 
-        treap.insert_(6, (),14);
+        treap.insert_(6, (), 14);
         treap.insert_(52, (), 21);
         treap.insert_(40, (), 82);
         treap.insert_(18, (), 22);
@@ -651,7 +626,6 @@ mod test {
         treap.self_validate().unwrap();
 
         treap.echo_stdout();
-
     }
 
 
@@ -708,7 +682,6 @@ mod test {
                     Err(err) => {
                         panic!("{}", err)
                     }
-
                 }
             }
         }
@@ -717,17 +690,9 @@ mod test {
 
     #[test]
     fn test_treap_heap() {
-
-        // let mut treap = Treap::<usize, (), usize>::new();
-
-        // Heap::insert(&mut treap, 3, ());
-        // Heap::insert(&mut treap, 4, ());
-
         let provider = InodeProvider {};
 
-        (&provider as &dyn HeapProvider<Inode>)
-            .test_heap(|| box Treap::new());
-
+        (&provider as &dyn HeapProvider<Inode>).test_heap(false, || box Treap::new());
     }
 
 
@@ -737,7 +702,5 @@ mod test {
 
         let treap = Treap::bulk_load(&mut seq);
         treap.self_validate().unwrap();
-
     }
-
 }

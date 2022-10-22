@@ -1,33 +1,38 @@
-use std::{fmt::{Debug, Display}, ops::Index};
-
-use crate::etc::StrJoin;
+use std::{
+    fmt::{Debug, Display},
+    ops::Index,
+};
 
 use super::Collection;
+use crate::etc::StrJoin;
 
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Macro
-#[allow(unused)]
-macro_rules! node {
-    ($v:expr, $lf:expr, $rh:expr) => {
-        Some(Rc::new(RefCell::new(TreeNode {
-            val: $v,
-            left: $lf,
-            right: $rh,
-        })))
-    };
+
+#[macro_export]
+macro_rules! rc_eq {
+    ($x:expr,$y:expr) => {{
+        std::rc::Rc::ptr_eq(&$x.clone().unwrap(), &$y.clone().unwrap())
+    }};
+}
+
+/// Clone attr
+#[macro_export]
+macro_rules! attr {
+    ($node:expr, $attr:ident) => {{
+        let _unr = $node.clone().unwrap();
+        let _bor = _unr.as_ref().borrow();
+        let _attr = _bor.$attr.clone();
+        drop(_bor);
+        _attr
+    }}; // $node.clone().unwrap().as_ref().borrow().$attr};
 }
 
 #[macro_export]
-macro_rules! attr {
+macro_rules! refattr {
     ($node:expr, $attr:ident) => {
-        {
-            let _unr = $node.clone().unwrap();
-            let _bor = _unr.as_ref().borrow();
-            let _attr = _bor.$attr.clone();
-            drop(_bor);
-            _attr
-        }
+        &$node.clone().unwrap().as_ref().borrow().$attr
     };
 }
 
@@ -38,11 +43,12 @@ macro_rules! mattr {
     };
 }
 
-/// Access to HashMap of HashMap
 #[macro_export]
-macro_rules! a_m2 {
-    ($m1:expr, $attr1:expr, $attr2:expr) => {
-
+macro_rules! justinto {
+    ($node:expr) => {
+        std::rc::Rc::try_unwrap($node.unwrap())
+            .unwrap()
+            .into_inner()
     };
 }
 
@@ -86,7 +92,12 @@ impl Default for RoadMap {
 
 impl Debug for RoadMap {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", (&mut self.data.iter() as &mut dyn Iterator<Item=&i32>).strjoin("-"))
+        write!(
+            f,
+            "{}",
+            (&mut self.data.iter() as &mut dyn Iterator<Item = &i32>)
+                .strjoin("-")
+        )
     }
 }
 
@@ -135,10 +146,8 @@ mod tests {
 
     #[test]
     fn test_roadmap() {
-
-        let rm  = roadmap![0, 1, 2];
+        let rm = roadmap![0, 1, 2];
 
         println!("{}", rm);
     }
-
 }

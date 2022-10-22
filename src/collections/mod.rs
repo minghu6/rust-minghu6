@@ -8,25 +8,30 @@ pub mod persistent;
 pub mod graph;
 pub mod easycoll;
 pub mod union_find;
+pub mod heap;
 pub mod aux;
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Common Traits
+//// Common Trait
 
 
 /// 1. add a pair to the collection;
 /// 2. remove a pair from the collection;
 /// 3. modify an existing pair;
 /// 4. lookup a value associated with a particular key.
-pub trait Dictionary<K: DictKey, V> {
-    // need update or else?
+pub trait Dictionary<K: CollKey, V> {
+    /// need update or else?
+    ///
+    /// , return instead of replace to be friendly for BST
+    ///
+    /// loopup is often cheap moreover
     fn insert(&mut self, key: K, value: V) -> bool;
 
-    // exist or else
+    /// exist or else
     fn remove(&mut self, key: &K) -> Option<V>;
 
-    // exist or else
+    /// exist or else
     fn modify(&mut self, key: &K, value: V) -> bool;
 
     fn lookup(&self, key: &K) -> Option<&V>;
@@ -39,7 +44,7 @@ pub trait Dictionary<K: DictKey, V> {
 
 }
 
-pub trait DictKey = Eq + Ord + std::fmt::Debug;
+pub trait CollKey = Ord + Debug;
 
 
 // pub trait Adictionary<K, V> {
@@ -59,17 +64,20 @@ pub trait DictKey = Eq + Ord + std::fmt::Debug;
 // }
 
 
-pub trait Heap<W: Weight, T> {
+pub trait Heap<T: CollKey> {
     // max for max-heap and min for min-heap respectly.
     fn top(&self) -> Option<&T>;
 
-    fn pop_top(&mut self) -> Option<T>;
+    fn pop(&mut self) -> Option<T>;
 
-    fn insert(&mut self, w: W, item: T);
+    fn push(&mut self, val: T);
 
 }
 
-pub trait Weight = Ord + Debug;
+pub trait AdvHeap<T: CollKey>: Heap<T> {
+    // decrease key for top
+    fn dkey(&mut self, val: T);
+}
 
 
 pub trait Collection {

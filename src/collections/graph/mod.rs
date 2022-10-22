@@ -1,12 +1,12 @@
-pub mod tree;
 pub mod toposort;
+pub mod tree;
 
 
 use std::fmt::Debug;
 
 use self::tree::diameter::diameter_dp;
 use super::easycoll::{M1, MV};
-use crate::{apush, get, set, stack, queue};
+use crate::{apush, get, queue, set, stack};
 
 
 
@@ -85,13 +85,12 @@ impl Graph {
 
         std::iter::from_fn(move || {
             while let Some((u, p)) = stack.pop() {
-
                 stack.extend(
                     get!(self.e => u)
-                    .into_iter()
-                    .filter(|v| *v != p)
-                    .map(|v| (v, u))
-                    .rev()
+                        .into_iter()
+                        .filter(|v| *v != p)
+                        .map(|v| (v, u))
+                        .rev(),
                 );
 
                 return Some(u);
@@ -113,7 +112,9 @@ impl Graph {
         std::iter::from_fn(move || {
             while let Some((u, p)) = q.deq() {
                 for v in get!(self.e => u) {
-                    if v == p { continue }
+                    if v == p {
+                        continue;
+                    }
 
                     q.enq((v, u));
                 }
@@ -123,7 +124,6 @@ impl Graph {
 
             None
         })
-
     }
 }
 
@@ -187,6 +187,20 @@ mod tests {
             3
             */
             vec![(1, 2, 1), (2, 4, 1), (4, 3, 1)],
+            // no-2
+            vec![
+                (1, 2, 7),
+                (1, 4, 5),
+                (4, 2, 9),
+                (2, 3, 8),
+                (2, 5, 7),
+                (3, 5, 5),
+                (4, 5, 15),
+                (4, 6, 6),
+                (6, 5, 8),
+                (6, 7, 11),
+                (5, 7, 9),
+            ],
         ];
 
         data.into_iter()
@@ -214,5 +228,19 @@ mod tests {
         for (gi, start, seq) in data {
             assert_eq!(g[gi].bfs(Some(start)).collect_vec(), seq);
         }
+    }
+
+    #[allow(unused)]
+    #[test]
+    fn test_mst() {
+        let g = setup_g_data();
+
+        let data =
+            vec![(2, vec![(1, 4), (1, 2), (4, 6), (2, 5), (3, 5), (5, 7)])];
+
+        for (gi, edges) in data {
+
+        }
+
     }
 }

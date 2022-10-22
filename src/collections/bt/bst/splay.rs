@@ -7,7 +7,7 @@ use std::ptr::{null, null_mut};
 use super::{BSTNode, BST};
 use crate::{collections::{
     bt::{BTNode, BT},
-    DictKey, Dictionary,
+    CollKey, Dictionary,
 }, etc::Reverse};
 
 pub struct Splay<K, V> {
@@ -27,7 +27,7 @@ pub struct SplayNode<K, V> {
 ////////////////////////////////////////////////////////////////////////////////
 //// Implement
 
-impl<'a, K: DictKey + 'a, V: 'a> SplayNode<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> SplayNode<K, V> {
     pub fn new(key: K, value: V) -> *mut Self {
         Box::into_raw(box Self {
             left: null_mut(),
@@ -44,7 +44,7 @@ impl<'a, K: DictKey + 'a, V: 'a> SplayNode<K, V> {
 }
 
 
-impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for SplayNode<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> BTNode<'a, K, V> for SplayNode<K, V> {
     fn itself(&self) -> *const (dyn BTNode<'a, K, V> + 'a) {
         self as *const Self
     }
@@ -138,10 +138,10 @@ impl<'a, K: DictKey + 'a, V: 'a> BTNode<'a, K, V> for SplayNode<K, V> {
     }
 }
 
-impl<'a, K: DictKey + 'a, V: 'a> BSTNode<'a, K, V> for SplayNode<K, V> {}
+impl<'a, K: CollKey + 'a, V: 'a> BSTNode<'a, K, V> for SplayNode<K, V> {}
 
 
-impl<'a, K: DictKey + 'a, V: 'a> Splay<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> Splay<K, V> {
     pub fn new() -> Self {
         Self { root: null_mut() }
     }
@@ -158,7 +158,7 @@ impl<'a, K: DictKey + 'a, V: 'a> Splay<K, V> {
 
 }
 
-impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for Splay<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> Dictionary<K, V> for Splay<K, V> {
     fn insert(&mut self, key: K, value: V) -> bool {
         let new_node = SplayNode::new(key, value);
 
@@ -278,7 +278,7 @@ impl<'a, K: DictKey + 'a, V: 'a> Dictionary<K, V> for Splay<K, V> {
 
 
 
-impl<'a, K: DictKey + 'a, V: 'a> BT<'a, K, V> for Splay<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> BT<'a, K, V> for Splay<K, V> {
     fn order(&self) -> usize {
         2
     }
@@ -293,7 +293,7 @@ impl<'a, K: DictKey + 'a, V: 'a> BT<'a, K, V> for Splay<K, V> {
 }
 
 
-impl<'a, K: DictKey + 'a, V: 'a> BST<'a, K, V> for Splay<K, V> {
+impl<'a, K: CollKey + 'a, V: 'a> BST<'a, K, V> for Splay<K, V> {
     unsafe fn rotate_cleanup(
         &mut self,
         _x: *mut (dyn BSTNode<'a, K, V> + 'a),
