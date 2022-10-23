@@ -76,7 +76,7 @@ pub trait Heap<T: CollKey> {
 
 pub trait AdvHeap<T: CollKey>: Heap<T> {
     // decrease key for top
-    fn dkey(&mut self, val: T);
+    fn dkey(&mut self, val: T) -> Option<T>;
 }
 
 

@@ -1,11 +1,11 @@
-use std::{collections::BinaryHeap, cmp::Reverse};
+use std::{cmp::Reverse, collections::BinaryHeap};
 
 use either::Either::{self, Left, Right};
 
 use super::*;
 use crate::{
-    collections::{Heap, CollKey},
-    algs::random
+    algs::random,
+    collections::{AdvHeap, CollKey, Heap},
 };
 
 
@@ -13,7 +13,7 @@ use crate::{
 //// Structure
 
 pub struct UnionBinHeap<T> {
-    inner: Either<BinaryHeap<T>, BinaryHeap<Reverse<T>>>
+    inner: Either<BinaryHeap<T>, BinaryHeap<Reverse<T>>>,
 }
 
 
@@ -21,7 +21,11 @@ pub struct UnionBinHeap<T> {
 //// Trait
 
 pub trait HeapProvider<V: CollKey + Clone>: Provider<V> {
-    fn test_heap<'a>(&self, non_dec: bool, heap_new: fn() -> Box<(dyn Heap<V>)>) {
+    fn test_heap<'a>(
+        &self,
+        non_dec: bool,
+        heap_new: fn() -> Box<(dyn Heap<V>)>,
+    ) {
         for _ in 0..20 {
             /* Basic Test */
 
@@ -54,16 +58,15 @@ pub trait HeapProvider<V: CollKey + Clone>: Provider<V> {
 
             // pad 25% of batch
             for _ in 0..batch_num / 4 {
-                seq.push(true);  // push
-                rems += 1;                
+                seq.push(true); // push
+                rems += 1;
             }
 
-            for _ in 0..(3*batch_num)/ 4 {
+            for _ in 0..(3 * batch_num) / 4 {
                 if random() % 2 == 0 {
                     seq.push(true);
                     rems += 1;
-                }
-                else {
+                } else {
                     seq.push(false);
                     rems -= 1;
                 }
@@ -81,39 +84,78 @@ pub trait HeapProvider<V: CollKey + Clone>: Provider<V> {
                     let e = self.get_one();
                     refheap.push(e.clone());
                     testheap.push(e);
-                }
-                else {
-
+                } else {
                     let target = refheap.pop();
                     assert_eq!(testheap.pop(), target);
                 }
             }
-
         }
     }
 }
 
+
+pub trait AdvHeapProvider<V: CollKey + Clone>: Provider<V> {
+    fn test_advheap<'a>(
+        &self,
+        non_dec: bool,
+        heap_new: fn() -> Box<(dyn AdvHeap<V>)>,
+    ) {
+        let batch_num = 1000;
+
+        let mut refheap = UnionBinHeap::new(non_dec);
+        let mut testheap = heap_new();
+
+        // pad 25% of batch
+        for _ in 0..batch_num / 2 {
+            let e = self.get_one();
+            refheap.push(e.clone());
+            testheap.push(e); // push
+        }
+
+        for _ in 0..batch_num / 2 {
+            let newkey = self.get_one();
+
+            refheap.dkey(newkey.clone());
+            testheap.dkey(newkey.clone());
+        }
+
+        while let Some(target) = refheap.pop() {
+            assert_eq!(testheap.pop().unwrap(), target);
+        }
+    }
+}
 
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Implmentation
 
-impl<T, V> HeapProvider<V> for T where T: Provider<V>, V: CollKey + Clone {
+impl<T, V> HeapProvider<V> for T
+where
+    T: Provider<V>,
+    V: CollKey + Clone,
+{
+}
 
+impl<T, V> AdvHeapProvider<V> for T
+where
+    T: HeapProvider<V>,
+    V: CollKey + Clone,
+{
 }
 
 
 impl<T: Ord> UnionBinHeap<T> {
-
     pub fn new(non_dec: bool) -> Self {
         if non_dec {
-            Self { inner: Either::Right(BinaryHeap::new()) }
-        }
-        else {
-            Self { inner: Either::Right(BinaryHeap::new()) }
+            Self {
+                inner: Either::Right(BinaryHeap::new()),
+            }
+        } else {
+            Self {
+                inner: Either::Right(BinaryHeap::new()),
+            }
         }
     }
-
 }
 
 
@@ -140,3 +182,28 @@ impl<T: CollKey> Heap<T> for UnionBinHeap<T> {
     }
 }
 
+
+impl<T: CollKey + Clone> AdvHeap<T> for UnionBinHeap<T> {
+    fn dkey(&mut self, val: T) -> Option<T> {
+        match &mut self.inner {
+            Left(heap) => {
+                if let Some(mut pm) = heap.peek_mut() {
+                    let old = (*pm).clone();
+                    *pm = val;
+                    Some(old)
+                } else {
+                    None
+                }
+            }
+            Right(heap) => {
+                if let Some(mut pm) = heap.peek_mut() {
+                    let old = (*pm).clone();
+                    *pm = Reverse(val);
+                    Some(old.0)
+                } else {
+                    None
+                }
+            }
+        }
+    }
+}
