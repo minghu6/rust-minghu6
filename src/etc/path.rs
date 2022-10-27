@@ -72,6 +72,7 @@ pub struct FindOptions<'a> {
     pub pre_exclude_opt: Option<Rc<dyn Fn(&Path) -> bool + 'a>>,
     pub post_include_ext_opt: Option<Rc<HashSet<OsString>>>,
     pub exclude_dot: bool,
+    pub recursive: bool
 }
 
 
@@ -112,6 +113,11 @@ impl<'a> FindOptions<'a> {
         self
     }
 
+    pub fn recursive(mut self, enable: bool) -> Self {
+        self.recursive = enable;
+        self
+    }
+
     pub fn verify<P: AsRef<Path>>(&self, p: P) -> bool {
         let path = p.as_ref();
 
@@ -121,6 +127,10 @@ impl<'a> FindOptions<'a> {
         }
 
         if path.is_dir() {
+            if !self.recursive {
+                return false;
+            }
+
             if let Some(ref exclude) = self.pre_exclude_opt {
                 if exclude(path) {
                     return false;
@@ -163,6 +173,7 @@ impl<'a> Default for FindOptions<'a> {
             pre_exclude_opt: Default::default(),
             post_include_ext_opt: Default::default(),
             exclude_dot: true,
+            recursive: true
         }
     }
 }
@@ -180,6 +191,13 @@ impl<'a> SynWalk<'a> {
         Self {
             stack: self.stack,
             opt: self.opt.with_post_include_ext(includes),
+        }
+    }
+
+    pub fn recursive(self, enable: bool) -> Self {
+        Self {
+            stack: self.stack,
+            opt: self.opt.recursive(enable),
         }
     }
 

@@ -68,9 +68,10 @@ macro_rules! justinto {
 //// Structure
 
 
-/// Linked List Fibonacci Heap
+/// Linked List [Fibonacci Heap](https://en.wikipedia.org/wiki/Fibonacci_heap)
 ///
-/// T shouldb e cheap to clone
+/// size(x) >= F(d+2)
+/// 
 pub struct FibHeap<T: CollKey> {
     len: usize,
     rcnt: usize,  // roots count
