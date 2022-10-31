@@ -5,7 +5,7 @@ use std::ops::{Index, Add};
 use std::cmp::max;
 use std::ptr::*;
 
-use crate::collections::{Collection, as_ptr};
+use crate::collections::{Coll, as_ptr};
 use crate::etc::DeepCopy;
 use crate::{should, XXXError};
 
@@ -114,7 +114,7 @@ impl<T: Debug + Default> Debug for PRawVec<T> {
     }
 }
 
-impl<T> Collection for PRawVec<T> {
+impl<T> Coll for PRawVec<T> {
     fn len(&self) -> usize {
         self.raw.len()
     }
@@ -279,7 +279,7 @@ impl<'a, T: 'a + Debug + Default + Clone> Vector<'a, T> for TRawVec<T> {
 }
 
 
-impl<T> Collection for TRawVec<T> {
+impl<T> Coll for TRawVec<T> {
     fn len(&self) -> usize {
         self.len
     }
@@ -309,7 +309,7 @@ mod tests {
 
     use super::{ TRawVec, PRawVec };
     use crate::{
-        collections::{as_ptr, persistent::vector::Vector, Collection},
+        collections::{as_ptr, persistent::vector::Vector, Coll},
         test::{ persistent::VectorProvider, * },
     };
 

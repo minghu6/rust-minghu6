@@ -1,4 +1,4 @@
-use crate::collections::Collection;
+use crate::collections::Coll;
 
 use std::{fmt::Debug, error::Error};
 
@@ -8,7 +8,7 @@ pub mod raw;
 // pub mod rrb;
 
 
-pub trait Vector<'a, T: Debug + Clone>: Debug + Collection {
+pub trait Vector<'a, T: Debug + Clone>: Debug + Coll {
     fn nth(&self, idx: usize) -> &T;
 
     // get last index of Vector

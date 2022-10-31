@@ -20,7 +20,7 @@ use uuid::Uuid;
 
 use super::Vector;
 use crate::{
-    collections::{as_ptr, Collection},
+    collections::{as_ptr, Coll},
     etc::BitLen,
     should,
 };
@@ -690,7 +690,7 @@ impl<T: Debug + Clone> Debug for PTrieVec<T> {
 }
 
 
-impl<T> Collection for PTrieVec<T> {
+impl<T> Coll for PTrieVec<T> {
     fn len(&self) -> usize {
         self.cnt
     }
@@ -1248,7 +1248,7 @@ impl<T: Debug + Clone> Debug for TTrieVec<T> {
 }
 
 
-impl<T> Collection for TTrieVec<T> {
+impl<T> Coll for TTrieVec<T> {
     fn len(&self) -> usize {
         self.cnt
     }
@@ -1273,7 +1273,7 @@ mod tests {
 
     use super::{PTrieVec, TTrieVec};
     use crate::{
-        collections::{as_ptr, persistent::vector::Vector, Collection},
+        collections::{as_ptr, persistent::vector::Vector, Coll},
         test::{persistent::VectorProvider, *},
     };
 

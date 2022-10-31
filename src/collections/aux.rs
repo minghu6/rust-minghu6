@@ -3,7 +3,7 @@ use std::{
     ops::Index,
 };
 
-use super::Collection;
+use super::Coll;
 use crate::etc::StrJoin;
 
 
@@ -78,7 +78,7 @@ impl RoadMap {
     }
 }
 
-impl Collection for RoadMap {
+impl Coll for RoadMap {
     fn len(&self) -> usize {
         self.data.len()
     }

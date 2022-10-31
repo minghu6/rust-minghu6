@@ -16,7 +16,7 @@ use rand::random;
 
 use super::{BSTNode, BST};
 use crate::collections::bt::{BTNode, BT};
-use crate::collections::{CollKey, Dictionary, Heap};
+use crate::collections::{CollKey, Dictionary, Heap, Coll};
 use crate::etc::Reverse;
 use crate::*;
 
@@ -464,7 +464,14 @@ impl<'a, K: CollKey + 'a, V: 'a> Dictionary<K, V> for Treap<K, V> {
 }
 
 
-impl<W: CollKey> Heap<W> for Treap<usize, (), W> {
+impl<K:CollKey, W: CollKey> Coll for Treap<K, (), W> {
+    fn len(&self) -> usize {
+        todo!()
+    }
+}
+
+
+impl<K:CollKey, W: CollKey> Heap<K, W> for Treap<K, (), W> {
     fn top(&self) -> Option<&W> {
         if self.root.is_null() {
             None
@@ -485,18 +492,8 @@ impl<W: CollKey> Heap<W> for Treap<usize, (), W> {
         }
     }
 
-    fn push(&mut self, val: W) {
-        if self.root.is_null() {
-            self.insert_(0, (), val);
-            return;
-        }
-
-        unsafe {
-            let max = (*(*self.root).maximum()).try_as_bst().unwrap();
-            let max_key = (*max).key_bst();
-            let nxy_key = max_key + 1;
-            self.insert_(nxy_key, (), val);
-        }
+    fn push(&mut self, key: K, val: W) {
+        self.insert_(key, (), val);
     }
 }
 

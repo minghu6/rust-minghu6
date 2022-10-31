@@ -64,23 +64,24 @@ pub trait CollKey = Ord + Debug;
 // }
 
 
-pub trait Heap<T: CollKey> {
+pub trait Heap<K: CollKey, T: CollKey>: Coll {
     // max for max-heap and min for min-heap respectly.
     fn top(&self) -> Option<&T>;
 
     fn pop(&mut self) -> Option<T>;
 
-    fn push(&mut self, val: T);
+    fn push(&mut self, key: K, val: T);
 
 }
 
-pub trait AdvHeap<T: CollKey>: Heap<T> {
-    // decrease key for top
-    fn dkey(&mut self, val: T) -> Option<T>;
+
+pub trait AdvHeap<K: CollKey, T: CollKey>: Heap<K, T> {
+    // decrease key
+    fn update(&mut self, index: K, val: T) -> Option<T>;
 }
 
 
-pub trait Collection {
+pub trait Coll {
     fn len(&self) -> usize;
 
     fn is_empty(&self) -> bool {

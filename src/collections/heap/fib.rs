@@ -3,14 +3,17 @@
 
 use std::{
     cell::RefCell,
-    collections::HashMap,
+    cmp::Ordering::*,
+    collections::{hash_map::Entry::*, HashMap},
     fmt::{Debug, Display},
+    hash::Hash,
+    ptr::null_mut,
     rc::{Rc, Weak},
 };
 
 use crate::{
     attr,
-    collections::{CollKey, Heap, AdvHeap},
+    collections::{AdvHeap, Coll, CollKey, Heap},
     hashmap, justinto, mattr,
 };
 
@@ -18,16 +21,32 @@ use crate::{
 ////////////////////////////////////////////////////////////////////////////////
 //// Macro
 
+macro_rules! boxptr {
+    ($v:expr) => {
+        Box::into_raw(Box::new($v))
+    };
+}
+
+macro_rules! unboxptr {
+    ($ptr:expr) => {
+        unsafe { *Box::from_raw($ptr) }
+    };
+}
+
 macro_rules! node {
     ($k:expr) => {
+        node!($k, 0, false)
+    };
+
+    ($k:expr, $rank:expr, $marked:expr) => {
         Node(Some(Rc::new(RefCell::new(Node_ {
-            key: Box::into_raw(Box::new($k)),
-            rank: 0,
+            key: boxptr!($k),
+            rank: $rank,
             lf: WeakNode::none(),
             rh: Node::none(),
             paren: WeakNode::none(),
             child: Node::none(),
-            // marked: false,
+            marked: $marked,
         }))))
     };
 }
@@ -71,11 +90,14 @@ macro_rules! justinto {
 /// Linked List [Fibonacci Heap](https://en.wikipedia.org/wiki/Fibonacci_heap)
 ///
 /// size(x) >= F(d+2)
-/// 
-pub struct FibHeap<T: CollKey> {
+///
+/// K should be cheap to clone
+pub struct FibHeap<K: CollKey, T: CollKey> {
     len: usize,
-    rcnt: usize,  // roots count
-    min: Node<T>, // also used for head
+    rcnt: usize,                // roots count
+    min: Node<T>,               // also used for head
+    nodes: HashMap<K, Node<T>>, // Rc shared heap data
+    rev: HashMap<Node<T>, K>,
 }
 
 
@@ -83,7 +105,7 @@ struct Node<T>(Option<Rc<RefCell<Node_<T>>>>);
 
 
 /// Used for reverse reference to avoid circular-reference
-/// 
+///
 /// So we can easy auto drop
 struct WeakNode<T>(Option<Weak<RefCell<Node_<T>>>>);
 
@@ -99,23 +121,14 @@ struct Node_<T> {
     /// rev ref
     paren: WeakNode<T>,
     child: Node<T>,
-
-    // marked: bool,
+    /// Indicate that it has lost a child
+    marked: bool,
 }
 
 
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Implementation
-
-impl<T> Node_<T>
-where
-    T: CollKey,
-{
-    fn into_key(self) -> T {
-        unsafe { *Box::from_raw(self.key) }
-    }
-}
 
 
 impl<T: Debug> Debug for Node_<T> {
@@ -127,9 +140,14 @@ impl<T: Debug> Debug for Node_<T> {
 
 impl<T> Node<T> {
     fn downgrade(&self) -> WeakNode<T> {
-        WeakNode(
-            self.0.clone().map(|ref rc| Rc::downgrade(rc))
-        )
+        WeakNode(self.0.clone().map(|ref rc| Rc::downgrade(rc)))
+    }
+
+    fn as_ptr(&self) -> *mut Node_<T> {
+        match self.0 {
+            Some(ref rc) => rc.as_ptr(),
+            None => null_mut(),
+        }
     }
 
     fn none() -> Self {
@@ -174,8 +192,40 @@ impl<T> Node<T> {
 
         res
     }
-}
 
+    /// remove paren, lf and rh
+    fn purge_as_root(&self) {
+        mattr!(self, paren) = WeakNode::none();
+        mattr!(self, lf) = WeakNode::none();
+        mattr!(self, rh) = Node::none();
+    }
+
+    fn cut_child(&self, x: Node<T>) {
+        if attr!(x, lf).is_none() {
+            debug_assert!(attr!(self, child).rc_eq(&x));
+            mattr!(self, child) = attr!(x, rh);
+        } else {
+            let x_lf = attr!(x, lf).upgrade();
+            mattr!(x_lf, rh) = attr!(x, rh);
+
+            if !attr!(x, rh).is_none() {
+                let x_rh = attr!(x, rh);
+                mattr!(x_rh, lf) = x_lf.downgrade();
+            }
+        }
+
+        x.purge_as_root();
+    }
+
+    /// replace with new val, return old val
+    fn replace_key(&self, key: T) -> T {
+        let oldk = attr!(self, key);
+        let newk = boxptr!(key);
+        mattr!(self, key) = newk;
+
+        unboxptr!(oldk)
+    }
+}
 
 
 impl<T> Clone for Node<T> {
@@ -198,7 +248,12 @@ impl<T: Debug> Debug for Node<T> {
 
 impl<T: Debug> Display for Node<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "R({:?})", key!(self))?;
+        writeln!(
+            f,
+            "R({:?}) {}",
+            key!(self),
+            if attr!(self, marked) { "X" } else { "" }
+        )?;
 
         let mut curq = vec![(self.clone(), self.children())];
         loop {
@@ -232,12 +287,24 @@ impl<T: Debug> Display for Node<T> {
     }
 }
 
+impl<T> PartialEq for Node<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.rc_eq(other)
+    }
+}
+
+impl<T> Eq for Node<T> {}
+
+impl<T> Hash for Node<T> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        state.write_usize(self.as_ptr() as usize)
+    }
+}
+
 
 impl<T> WeakNode<T> {
     fn upgrade(&self) -> Node<T> {
-        Node(
-            self.0.clone().map(|weak| weak.upgrade().unwrap())
-        )
+        Node(self.0.clone().map(|weak| weak.upgrade().unwrap()))
     }
 
     fn none() -> Self {
@@ -257,23 +324,29 @@ impl<T> Clone for WeakNode<T> {
 }
 
 
-impl<T> FibHeap<T>
-where
-    T: CollKey + Debug,
-{
+impl<I: CollKey + Hash + Clone, T: CollKey> FibHeap<I, T> {
+    ////////////////////////////////////////////////////////////////////////////
+    //// Public method
+
     pub fn new() -> Self {
         Self {
             len: 0,
             rcnt: 0,
             min: Node::none(),
+            nodes: HashMap::new(),
+            rev: HashMap::new(),
         }
     }
 
 
-    pub fn push(&mut self, key: T) {
-        let node = node!(key);
+    pub fn push(&mut self, i: I, v: T) {
+        let node = node!(v);
 
         self.push_into_roots(node.clone());
+
+        self.nodes.insert(i.clone(), node.clone());
+        self.rev.insert(node.clone(), i);
+
 
         if key!(node) < key!(self.min) {
             self.min = node;
@@ -300,8 +373,9 @@ where
             self.min = Node::none();
 
             self.remove_from_roots(oldmin.clone());
+            self.remove_from_index(&oldmin);
 
-            return Some(justinto!(oldmin).into_key());
+            return Some(unboxptr!(justinto!(oldmin).key));
         }
 
         /* push children of oldmin into roots */
@@ -314,7 +388,7 @@ where
 
         let mut newmin = attr!(self.min, rh);
 
-        for sib in &self.sibs()[1..] {
+        for sib in &self.roots()[1..] {
             if key!(sib) < key!(newmin) {
                 newmin = sib.clone();
             }
@@ -330,7 +404,7 @@ where
 
         let mut rank: HashMap<usize, Node<T>> = hashmap!();
 
-        for mut sib in self.sibs() {
+        for mut sib in self.roots() {
             // println!("scan {:?}", key!(sib));
             // try merge backward
             while let Some(x) = rank.remove(&attr!(sib, rank)) {
@@ -342,14 +416,136 @@ where
             rank.insert(attr!(sib, rank), sib);
         }
 
-        Some(justinto!(oldmin).into_key())
+        self.remove_from_index(&oldmin);
+        Some(unboxptr!(justinto!(oldmin).key))
     }
 
 
-    /// push at sib of self.min
+    /// Return oldval
+    ///
+    /// Exec push if the key doesn't exist.
+    ///
+    pub fn update(&mut self, i: I, v: T) -> Option<T> {
+        let x;
+        match self.nodes.entry(i.clone()) {
+            Occupied(ent) => {
+                x = ent.get().clone();
+                let oldv = x.replace_key(v);
+
+                match key!(x).cmp(&oldv) {
+                    Less => self.decrease_key_(x),
+                    Equal => (),
+                    Greater => self.increase_key_(x),
+                }
+                Some(oldv)
+            }
+            Vacant(_ent) => {
+                self.push(i, v);
+                None
+            }
+        }
+    }
+
+
+    pub fn union(&mut self, _other: Self) {
+        unimplemented!("link roots, but not O(1) for link index reference")
+    }
+
+
+    pub fn delete<Q: AsRef<I>>(&mut self, _i: Q) -> Option<T> {
+        unimplemented!("1. decrease-key to -infi, 2. pop");
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //// Assistant method
+
+    fn decrease_key_(&mut self, x: Node<T>) {
+        let unmeld_ent;
+        let p = attr!(x, paren);
+
+        if !p.is_none() && key!(x) < key!(p.upgrade()) {
+            mattr!(x, marked) = true;
+            unmeld_ent = x.downgrade();
+        } else {
+            unmeld_ent = WeakNode::none();
+        }
+
+        self.unmeld_to_roots(unmeld_ent);
+
+        if key!(x) < key!(self.min) {
+            debug_assert!(attr!(x, paren).is_none());
+            self.min = x;
+        }
+    }
+
+    /// WARNING: O(rank)
+    fn increase_key_(&mut self, x: Node<T>) {
+        let unmeld_ent;
+        let mut children_lost = if attr!(x, marked) { 1 } else { 0 };
+
+        for child in x.children() {
+            if key!(child) < key!(x) {
+                x.cut_child(child.clone());
+                self.push_into_roots(child.clone());
+                mattr!(child, marked) = false;
+
+                children_lost += 1;
+            }
+        }
+
+        if children_lost < 1 {
+            // unviolated increase
+            unmeld_ent = WeakNode::none();
+        } else if children_lost == 1 {
+            let p = attr!(x, paren);
+
+            // just mark
+            mattr!(x, marked) = true;
+            unmeld_ent = p;
+        } else {
+            unmeld_ent = x.downgrade();
+        }
+
+        if !unmeld_ent.is_none() {
+            self.unmeld_to_roots(unmeld_ent);
+        }
+
+        // WARNING: O(rank), update self.min
+        let min_node =
+            self.roots().into_iter().min_by_key(|x| key!(x)).unwrap();
+
+        self.min = min_node;
+    }
+
+
+    fn unmeld_to_roots(&mut self, mut cur: WeakNode<T>) {
+        while !cur.is_none() {
+            let x = cur.upgrade();
+
+            let p = attr!(x, paren);
+
+            if !p.is_none() && attr!(x, marked) {
+                p.upgrade().cut_child(x.clone());
+                self.push_into_roots(x.clone());
+            }
+            mattr!(x, marked) = false;
+
+            cur = attr!(x, paren);
+        }
+    }
+
+
+    fn remove_from_index(&mut self, node: &Node<T>) {
+        let k = self.rev.remove(node).unwrap();
+        self.nodes.remove(&k);
+    }
+
+
+    /// insert at sib of self.min, with purge
     fn push_into_roots(&mut self, node: Node<T>) {
         self.rcnt += 1;
-        mattr!(node, paren) = WeakNode::none();
+        node.purge_as_root();
 
         if self.min.is_none() {
             self.min = node;
@@ -363,6 +559,19 @@ where
 
             mattr!(attr!(node, rh), lf) = node.downgrade();
         }
+    }
+
+    /// from self.min go through all roots
+    fn roots(&self) -> Vec<Node<T>> {
+        let mut sib = self.min.clone();
+        let mut sibs = vec![sib.clone()];
+
+        for _ in 1..self.rcnt {
+            sib = attr!(sib, rh);
+            sibs.push(sib.clone());
+        }
+
+        sibs
     }
 
 
@@ -425,87 +634,99 @@ where
     }
 
 
-    fn sibs(&self) -> Vec<Node<T>> {
-        let mut sibs = vec![];
-        let mut sib = self.min.clone();
+    // /// Return oldval
+    // fn dtop(&mut self, val: T) -> Option<T> {
+    //     if self.len == 0 {
+    //         return None;
+    //     }
 
-        for _ in 1..self.rcnt {
-            sib = attr!(sib,rh);
-            sibs.push(sib.clone());
-        }
+    //     let mut min = self.min.clone();
+    //     let mut k = &val;
 
-        sibs
-    }
+    //     /* check through self.min children */
+    //     for cand in self.min.children().into_iter().chain(self.sibs()) {
+    //         if key!(cand) < &k {
+    //             min = cand.clone();
+    //             k = key!(cand);
+    //         }
+    //     }
 
-    /// Return oldval
-    fn dkey(&mut self, val: T) -> Option<T> {
-        if self.len == 0 {
-            return None;
-        }
+    //     /* meld into roots */
+    //     let oldmin = self.min.clone();
 
-        let mut min = self.min.clone();
-        let mut k = &val;
+    //     if k < &val {
+    //         for child in self.min.children() {
+    //             self.push_into_roots(child);
+    //         }
+    //         self.min = min;
+    //     }
 
-        /* check through self.min children */
-        for cand in self.min
-            .children()
-            .into_iter()
-            .chain(self.sibs()) 
-        {
-            if key!(cand) < &k {
-                min = cand.clone();
-                k = key!(cand);
-            }
-        }
+    //     let oldkeyptr = attr!(oldmin, key);
+    //     mattr!(oldmin, key) = Box::into_raw(Box::new(val));
 
-        /* meld into roots */
-        let oldmin = self.min.clone();
-
-        if k < &val {
-            for child in self.min.children() {
-                self.push_into_roots(child);
-            }
-            self.min = min;
-        }
-
-        let oldkeyptr = attr!(oldmin,key);
-        mattr!(oldmin,key) = Box::into_raw(Box::new(val));
-
-        Some(unsafe { *Box::from_raw(oldkeyptr) })
-    }
-
+    //     Some(unsafe { *Box::from_raw(oldkeyptr) })
+    // }
 }
 
 
-impl<T: CollKey> Heap<T> for FibHeap<T> {
-    fn top(&self) -> Option<&T> {
-        if self.min.is_some() {
-            Some(unsafe { &*attr!(self.min, key) })
-        } else {
-            None
+impl<I: CollKey + Hash + Clone, T: CollKey + Clone> FibHeap<I, T> {
+    fn overall_clone(
+        &self,
+        nodes: &mut HashMap<I, Node<T>>,
+        rev: &mut HashMap<Node<T>, I>,
+        x: Node<T>,
+    ) -> Node<T> {
+        if x.is_none() {
+            return Node::none();
         }
-    }
 
-    fn pop(&mut self) -> Option<T> {
-        self.pop()
-    }
+        // overall clone node body
+        let newx = node!(key!(x).clone(), attr!(x, rank), attr!(x, marked));
+        // update index reference
+        let i = self.rev.get(&x).unwrap();
+        nodes.insert(i.clone(), newx.clone());
+        rev.insert(newx.clone(), i.clone());
 
-    fn push(&mut self, val: T) {
-        self.push(val)
+        // recursive call it
+        let mut childen_iter = x.children().into_iter();
+
+        if let Some(child) = childen_iter.next() {
+            let newchild = self.overall_clone(nodes, rev, child);
+
+            mattr!(newx, child) = newchild.clone();
+            mattr!(newchild, paren) = newx.downgrade();
+
+            let mut cur = newchild;
+
+            for child in childen_iter {
+                let newchild = self.overall_clone(nodes, rev, child);
+
+                mattr!(cur, rh) = newchild.clone();
+                mattr!(newchild, lf) = cur.downgrade();
+
+                cur = newchild;
+            }
+        }
+
+        newx
     }
 }
 
 
-impl<T: CollKey> Drop for FibHeap<T> {
+impl<T: CollKey, K: CollKey> Drop for FibHeap<T, K> {
     fn drop(&mut self) {
-        for _ in 0..self.len {
-            self.pop();
+        if self.len > 0 {
+            // break circle dependency to enable drop
+            let tail = attr!(self.min, lf).upgrade();
+            mattr!(tail, rh) = Node::none();
+
+            self.nodes.clear();
         }
     }
 }
 
 
-impl<T: CollKey + Debug> Display for FibHeap<T> {
+impl<T: CollKey, K: CollKey> Display for FibHeap<T, K> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut sib = self.min.clone();
 
@@ -525,11 +746,79 @@ impl<T: CollKey + Debug> Display for FibHeap<T> {
 }
 
 
-impl<T: CollKey> AdvHeap<T> for FibHeap<T> {
-    fn dkey(&mut self, val: T) -> Option<T> {
-        self.dkey(val)
+impl<I: CollKey + Hash + Clone, T: CollKey + Clone> Clone for FibHeap<I, T> {
+    fn clone(&self) -> Self {
+        let len = self.len;
+        let rcnt = self.rcnt;
+        let mut nodes = HashMap::new();
+        let mut rev = HashMap::new();
+        let min;
+        let mut roots_iter = self.roots().into_iter();
+
+        if let Some(_min) = roots_iter.next() {
+            min = self.overall_clone(&mut nodes, &mut rev, _min.clone());
+
+            let mut cur = min.clone();
+
+            for root in roots_iter {
+                let newroot = self.overall_clone(&mut nodes, &mut rev, root);
+
+                mattr!(cur, rh) = newroot.clone();
+                mattr!(newroot, lf) = cur.downgrade();
+
+                cur = newroot;
+            }
+
+            mattr!(cur, rh) = min.clone();
+            mattr!(min, lf) = cur.downgrade();
+        } else {
+            min = Node::none();
+        }
+
+        Self {
+            len,
+            rcnt,
+            min,
+            nodes,
+            rev,
+        }
     }
 }
+
+
+impl<I: CollKey + Hash + Clone, T: CollKey> Coll for FibHeap<I, T> {
+    fn len(&self) -> usize {
+        self.len
+    }
+}
+
+
+impl<I: CollKey + Hash + Clone, T: CollKey> Heap<I, T> for FibHeap<I, T> {
+    fn top(&self) -> Option<&T> {
+        if self.min.is_some() {
+            Some(unsafe { &*attr!(self.min, key) })
+        } else {
+            None
+        }
+    }
+
+    fn pop(&mut self) -> Option<T> {
+        self.pop()
+    }
+
+    fn push(&mut self, key: I, val: T) {
+        self.push(key, val)
+    }
+}
+
+
+impl<I: CollKey + Hash + Clone, T: CollKey> AdvHeap<I, T> for FibHeap<I, T> {
+    fn update(&mut self, i: I, val: T) -> Option<T> {
+        self.update(i, val)
+    }
+}
+
+
 
 
 #[cfg(test)]
@@ -538,65 +827,24 @@ mod tests {
     use crate::{
         algs::random,
         test::{
-            heap::{HeapProvider, UnionBinHeap, AdvHeapProvider},
+            heap::{AdvHeapProvider, HeapProvider},
             normalize, UZProvider,
         },
-        collections::Heap
     };
 
     #[ignore = "for debug"]
     #[test]
-    fn debug_fib_heap() {
-        let batch_num = 10;
-        let get_one = || random() % 1000;
-
-        let mut seq = vec![];
-        let mut rems = 0;
-
-        // pad 25% of batch
-        for _ in 0..batch_num / 4 {
-            seq.push(true); // push
-            rems += 1;
-        }
-        // random push or pop until rem been ran out of
-        for _ in 0..(3 * batch_num) / 4 {
-            if random() % 2 == 0 {
-                seq.push(true);
-                rems += 1;
-            } else {
-                seq.push(false);
-                rems -= 1;
-            }
-
-            if rems == 0 {
-                break;
-            }
-        }
-
-        let mut refheap = UnionBinHeap::new(true);
-        let mut testheap = FibHeap::new();
-
-        for flag in seq {
-            if flag {
-                let e = get_one();
-                refheap.push(e.clone());
-                testheap.push(e);
-            } else {
-                let target = refheap.pop();
-                assert_eq!(testheap.pop(), target);
-            }
-        }
-    }
+    fn debug_fib_heap() {}
 
     #[test]
     fn test_fibheap_fixeddata() {
-        let mut heap = FibHeap::new();
+        let mut heap = FibHeap::<usize, usize>::new();
 
-        heap.push(0);
-        heap.push(5);
-        heap.push(2);
-        heap.push(3);
-        heap.push(1);
+        heap.push(0, 0);
+        heap.push(0, 5);
+        heap.push(0, 2);
+        heap.push(0, 3);
+        heap.push(0, 1);
 
         assert_eq!(heap.pop(), Some(0));
         assert_eq!(heap.pop(), Some(1));
@@ -604,11 +852,11 @@ mod tests {
         assert_eq!(heap.pop(), Some(3));
         assert_eq!(heap.pop(), Some(5));
 
-        let mut heap = FibHeap::new();
-        heap.push(3);
-        heap.push(41);
-        heap.push(44);
-        heap.push(2);
+        let mut heap = FibHeap::<usize, usize>::new();
+        heap.push(0, 3);
+        heap.push(0, 41);
+        heap.push(0, 44);
+        heap.push(0, 2);
 
         assert_eq!(heap.pop(), Some(2));
         assert_eq!(heap.pop(), Some(3));
@@ -620,9 +868,9 @@ mod tests {
         let raw =
             vec![705, 265, 150, 265, 645, 497, 121, 173, 504, 671, 96, 761];
         let data = normalize(&raw);
-        let mut heap = FibHeap::new();
+        let mut heap = FibHeap::<usize, usize>::new();
         for e in data {
-            heap.push(e);
+            heap.push(0, e);
         }
 
         assert_eq!(heap.pop(), Some(1));
@@ -638,8 +886,31 @@ mod tests {
         assert_eq!(heap.pop(), Some(10));
         assert_eq!(heap.pop(), Some(11));
 
-        println!("{}", heap);
+        let mut heap = FibHeap::<usize, usize>::new();
+        let gen = || {
+            let mut _inner = 0;
+            move || {
+                let old = _inner;
+                _inner += 1;
+                old
+            }
+        };
+        let mut auto = gen();
+
+        let data = normalize(&vec![981, 498, 719, 684, 28, 187]);
+        for e in data[1..].iter().cloned() {
+            heap.push(auto(), e);
+        }
+
+        // let heap2 = heap.clone();
+        // println!("heap2: {}", heap2);
+
+        // println!("update: 1, {}", data[0]);
+        heap.update(1, data[0]);
+
+        // println!("heap: {}", heap);
     }
+
 
     #[test]
     fn test_fibheap_randomdata() {
@@ -652,4 +923,56 @@ mod tests {
             .test_advheap(true, || box FibHeap::new());
     }
 
+    #[test]
+    fn test_fibheap_randomdata_extra() {
+        // let batch_num = 10;
+        let get_one = || random() % 1000;
+        let validate = |heap: &FibHeap<i32, usize>, non_dec: bool| {
+            let mut heap = (*heap).clone();
+            let mut storage = vec![];
+
+            while let Some(e) = heap.pop() {
+                storage.push(e);
+            }
+
+            if !non_dec {
+                storage.reverse();
+            }
+
+            // println!("storage: {storage:?}");
+
+            let mut iter = storage.into_iter().enumerate();
+            let mut prev = iter.next().unwrap().1;
+
+            for (_i, e) in iter {
+                // println!("{i}: {:?}", e);
+                assert!(prev <= e, "prev: {prev:?}, e: {e:?}");
+                prev = e;
+            }
+        };
+
+        let non_dec = true;
+
+        for _ in 0..1 {
+            // let batch_num = 400;
+
+            let mut heap = FibHeap::<i32, usize>::new();
+
+            // pad 50% of batch
+            for i in 0..300 {
+                let e = get_one();
+                // println!("{i}: {e:?}");
+                heap.push(i, e); // push
+            }
+
+            for _ in 0..100 {
+                let newkey = get_one();
+                let i = random() % heap.len;
+                // println!("update {i} {newkey}");
+                heap.update(i as i32, newkey.clone());
+
+                validate(&heap, non_dec);
+            }
+        }
+    }
 }
