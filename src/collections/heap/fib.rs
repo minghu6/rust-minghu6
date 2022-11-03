@@ -92,12 +92,15 @@ macro_rules! justinto {
 /// size(x) >= F(d+2)
 ///
 /// K should be cheap to clone
-pub struct FibHeap<K: CollKey, T: CollKey> {
+pub struct FibHeap<I: CollKey, T: CollKey> {
     len: usize,
-    rcnt: usize,                // roots count
-    min: Node<T>,               // also used for head
-    nodes: HashMap<K, Node<T>>, // Rc shared heap data
-    rev: HashMap<Node<T>, K>,
+    /// roots count
+    rcnt: usize,
+    min: Node<T>,
+    /// index of nodes
+    nodes: HashMap<I, Node<T>>,
+    /// rev index of nodes
+    rev: HashMap<Node<T>, I>,
 }
 
 
@@ -113,7 +116,7 @@ struct WeakNode<T>(Option<Weak<RefCell<Node_<T>>>>);
 #[derive(Clone)]
 struct Node_<T> {
     key: *mut T,
-    rank: usize, // height (alias degree)
+    rank: usize, // children number
 
     /// rev ref
     lf: WeakNode<T>,
@@ -213,6 +216,8 @@ impl<T> Node<T> {
                 mattr!(x_rh, lf) = x_lf.downgrade();
             }
         }
+
+        mattr!(self, rank) = attr!(self, rank) - 1;
 
         x.purge_as_root();
     }
@@ -399,7 +404,14 @@ impl<I: CollKey + Hash + Clone, T: CollKey> FibHeap<I, T> {
 
         let oldmin = self.min.replace(newmin);
 
+        self.consolidate();
 
+        self.remove_from_index(&oldmin);
+        Some(unboxptr!(justinto!(oldmin).key))
+    }
+
+
+    pub fn consolidate(&mut self) {
         /* merge same rank trees recusively */
 
         let mut rank: HashMap<usize, Node<T>> = hashmap!();
@@ -415,9 +427,6 @@ impl<I: CollKey + Hash + Clone, T: CollKey> FibHeap<I, T> {
 
             rank.insert(attr!(sib, rank), sib);
         }
-
-        self.remove_from_index(&oldmin);
-        Some(unboxptr!(justinto!(oldmin).key))
     }
 
 
@@ -465,6 +474,7 @@ impl<I: CollKey + Hash + Clone, T: CollKey> FibHeap<I, T> {
         let p = attr!(x, paren);
 
         if !p.is_none() && key!(x) < key!(p.upgrade()) {
+            // 假装x节点本身也是一个符合条件的父节点
             mattr!(x, marked) = true;
             unmeld_ent = x.downgrade();
         } else {
@@ -478,6 +488,7 @@ impl<I: CollKey + Hash + Clone, T: CollKey> FibHeap<I, T> {
             self.min = x;
         }
     }
+
 
     /// WARNING: O(rank)
     fn increase_key_(&mut self, x: Node<T>) {
@@ -500,10 +511,10 @@ impl<I: CollKey + Hash + Clone, T: CollKey> FibHeap<I, T> {
         } else if children_lost == 1 {
             let p = attr!(x, paren);
 
-            // just mark
             mattr!(x, marked) = true;
             unmeld_ent = p;
         } else {
+            mattr!(x, marked) = true;
             unmeld_ent = x.downgrade();
         }
 
@@ -519,20 +530,25 @@ impl<I: CollKey + Hash + Clone, T: CollKey> FibHeap<I, T> {
     }
 
 
-    fn unmeld_to_roots(&mut self, mut cur: WeakNode<T>) {
-        while !cur.is_none() {
-            let x = cur.upgrade();
+    fn unmeld_to_roots(&mut self, ent: WeakNode<T>) {
+        if ent.is_none() {
+            return;
+        }
 
-            let p = attr!(x, paren);
+        let mut x = ent.upgrade();
+        let mut p = attr!(x, paren);
 
-            if !p.is_none() && attr!(x, marked) {
-                p.upgrade().cut_child(x.clone());
-                self.push_into_roots(x.clone());
-            }
+        while attr!(x, marked) && !p.is_none() {
+            p.upgrade().cut_child(x.clone());
+            self.push_into_roots(x.clone());
             mattr!(x, marked) = false;
 
-            cur = attr!(x, paren);
+            x = attr!(x, paren).upgrade();
+            p = attr!(x, paren);
         }
+
+        // 定义上不标记根，但这应该是无所谓的，标记对于可能的pop导致的树规整后的树情况更精确
+        mattr!(x, marked) = true;
     }
 
 
@@ -560,6 +576,7 @@ impl<I: CollKey + Hash + Clone, T: CollKey> FibHeap<I, T> {
             mattr!(attr!(node, rh), lf) = node.downgrade();
         }
     }
+
 
     /// from self.min go through all roots
     fn roots(&self) -> Vec<Node<T>> {
@@ -615,13 +632,12 @@ impl<I: CollKey + Hash + Clone, T: CollKey> FibHeap<I, T> {
         mattr!(y, rh) = attr!(x, child);
         if attr!(x, child).is_some() {
             mattr!(attr!(x, child), lf) = y.downgrade();
-            // mattr!(attr!(x, child), paren) = Node::none();
         }
 
         // link y to x
         mattr!(y, paren) = x.downgrade();
         mattr!(x, child) = y.clone();
-        mattr!(x, rank) = attr!(x, rank) + 1; // same rank
+        mattr!(x, rank) = attr!(x, rank) + 1;
 
         // println!(
         //     "merge-roots> |tail| x.child {:?} y.child {:?} y.rh {:?} ",
@@ -633,39 +649,6 @@ impl<I: CollKey + Hash + Clone, T: CollKey> FibHeap<I, T> {
         x
     }
 
-
-    // /// Return oldval
-    // fn dtop(&mut self, val: T) -> Option<T> {
-    //     if self.len == 0 {
-    //         return None;
-    //     }
-
-    //     let mut min = self.min.clone();
-    //     let mut k = &val;
-
-    //     /* check through self.min children */
-    //     for cand in self.min.children().into_iter().chain(self.sibs()) {
-    //         if key!(cand) < &k {
-    //             min = cand.clone();
-    //             k = key!(cand);
-    //         }
-    //     }
-
-    //     /* meld into roots */
-    //     let oldmin = self.min.clone();
-
-    //     if k < &val {
-    //         for child in self.min.children() {
-    //             self.push_into_roots(child);
-    //         }
-    //         self.min = min;
-    //     }
-
-    //     let oldkeyptr = attr!(oldmin, key);
-    //     mattr!(oldmin, key) = Box::into_raw(Box::new(val));
-
-    //     Some(unsafe { *Box::from_raw(oldkeyptr) })
-    // }
 }
 
 
