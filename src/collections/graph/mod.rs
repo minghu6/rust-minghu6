@@ -1,12 +1,16 @@
+pub mod mst;
 pub mod toposort;
 pub mod tree;
 
 
-use std::fmt::Debug;
+use std::{collections::HashMap, fmt::Debug};
 
 use self::tree::diameter::diameter_dp;
-use super::easycoll::{M1, MV};
-use crate::{apush, get, queue, set, stack};
+use super::{
+    aux::VerifyResult,
+    easycoll::{M1, MV},
+};
+use crate::{apush, collections::aux::VerifyError, get, queue, set, stack};
 
 
 
@@ -74,6 +78,30 @@ impl Graph {
         self.e.0.keys()
     }
 
+    pub fn edges<'a>(
+        &'a self,
+    ) -> impl Iterator<Item = (usize, usize, isize)> + 'a {
+        let mut edges = self.e.0.iter();
+        let mut subedges = vec![];
+
+        std::iter::from_fn(move || loop {
+            if let Some((u, v)) = subedges.pop() {
+                return Some((u, v, get!(self.w => (u, v))));
+            } else {
+                if let Some((from, tos)) = edges.next() {
+                    subedges = tos
+                        .into_iter()
+                        .cloned()
+                        .map(|v| (*from, v))
+                        .rev()
+                        .collect::<Vec<(usize, usize)>>();
+                } else {
+                    return None;
+                }
+            }
+        })
+    }
+
     /// Preorder
     pub fn dfs<'a>(
         &'a self,
@@ -125,6 +153,62 @@ impl Graph {
             None
         })
     }
+
+    pub fn contains_edge(&self, edge: (usize, usize)) -> bool {
+        let (u, v) = edge;
+
+        let tos = get!(self.e => u);
+
+        tos.iter().find(|&&x| x == v).is_some()
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    /// Verify
+
+    /// verify spanning tree
+    pub fn verify_st(&self, st: &[(usize, usize)]) -> VerifyResult {
+        let mut vertx = self
+            .vertexs()
+            .cloned()
+            .map(|v| (v, ()))
+            .collect::<HashMap<usize, ()>>();
+
+        for (u, v) in st {
+            if !self.contains_edge((*u, *v)) {
+                return Err(VerifyError::Inv(format!("No edge {u}->{v}")));
+            }
+
+            vertx.remove(u);
+            vertx.remove(v);
+        }
+
+        if vertx.is_empty() {
+            Ok(())
+        } else {
+            Err(VerifyError::Fail)
+        }
+    }
+
+
+    /// verify minimal spanning tree
+    pub fn verify_mst(
+        &self,
+        min: isize,
+        st: &[(usize, usize)],
+    ) -> VerifyResult {
+        self.verify_st(st)?;
+
+        let tot: isize = st.into_iter().map(|x| get!(self.w => x)).sum();
+
+        if tot == min {
+            Ok(())
+        } else if tot < min {
+            Err(VerifyError::Inv(format!("cur_tot: {tot} < min: {min}")))
+        } else {
+            Err(VerifyError::Fail)
+        }
+    }
 }
 
 
@@ -153,7 +237,9 @@ mod tests {
 
     use itertools::Itertools;
 
-    use crate::collections::graph::{to_undirected_vec, Graph};
+    use crate::{collections::graph::{to_undirected_vec, Graph}, get};
+
+    use super::mst::mst_kruskal;
 
 
     fn setup_g_data() -> Vec<Graph> {
@@ -239,8 +325,14 @@ mod tests {
             vec![(2, vec![(1, 4), (1, 2), (4, 6), (2, 5), (3, 5), (5, 7)])];
 
         for (gi, edges) in data {
+            let min = edges
+                .into_iter()
+                .map(|x| get!(g[gi].w => x))
+                .sum();
 
+            let st = mst_kruskal(&g[gi]);
+
+            assert_eq!(g[gi].verify_mst(min, &st), Ok(()));
         }
-
     }
 }

@@ -366,7 +366,7 @@ impl<I: CollKey + Hash + Clone, T: CollKey> FibHeap<I, T> {
     /// trees(H') <= rank(H) + 1 # since no two trees have same rank.
     ///
     /// delete-min
-    pub fn pop(&mut self) -> Option<T> {
+    pub fn pop_item(&mut self) -> Option<(I, T)> {
         if self.len == 0 {
             return None;
         }
@@ -378,9 +378,11 @@ impl<I: CollKey + Hash + Clone, T: CollKey> FibHeap<I, T> {
             self.min = Node::none();
 
             self.remove_from_roots(oldmin.clone());
-            self.remove_from_index(&oldmin);
 
-            return Some(unboxptr!(justinto!(oldmin).key));
+            return Some((
+                self.remove_from_index(&oldmin),
+                unboxptr!(justinto!(oldmin).key),
+            ));
         }
 
         /* push children of oldmin into roots */
@@ -406,8 +408,15 @@ impl<I: CollKey + Hash + Clone, T: CollKey> FibHeap<I, T> {
 
         self.consolidate();
 
-        self.remove_from_index(&oldmin);
-        Some(unboxptr!(justinto!(oldmin).key))
+        Some((
+            self.remove_from_index(&oldmin),
+            unboxptr!(justinto!(oldmin).key),
+        ))
+    }
+
+
+    pub fn pop(&mut self) -> Option<T> {
+        self.pop_item().map(|x| x.1)
     }
 
 
@@ -552,9 +561,11 @@ impl<I: CollKey + Hash + Clone, T: CollKey> FibHeap<I, T> {
     }
 
 
-    fn remove_from_index(&mut self, node: &Node<T>) {
+    fn remove_from_index(&mut self, node: &Node<T>) -> I {
         let k = self.rev.remove(node).unwrap();
         self.nodes.remove(&k);
+
+        k
     }
 
 

@@ -7,6 +7,7 @@ use super::Coll;
 use crate::etc::StrJoin;
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //// Macro
 
@@ -54,12 +55,25 @@ macro_rules! justinto {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Implmentation
+//// Structure
 
 #[derive(Clone)]
 pub(crate) struct RoadMap {
     data: Vec<i32>,
 }
+
+
+pub type VerifyResult = Result<(), VerifyError>;
+
+#[derive(PartialEq, Eq, Debug)]
+pub enum VerifyError {
+    Inv(String),
+    Fail
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+//// Implmentation
 
 #[allow(unused)]
 impl RoadMap {
@@ -77,6 +91,7 @@ impl RoadMap {
         roadmap
     }
 }
+
 
 impl Coll for RoadMap {
     fn len(&self) -> usize {

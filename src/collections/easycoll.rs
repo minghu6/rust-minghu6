@@ -537,13 +537,5 @@ impl<T> Queue<T> {
 
 #[cfg(test)]
 mod tests {
-    // use super::{EasyCollGet, M1};
 
-    // #[test]
-    // fn test_easycoll_macro() {
-    //     let mut m1: M1<usize, usize> = M1::new();
-
-    //     let a = get!(m1 => 2 => 3);
-    //     // get!(7);
-    // }
 }

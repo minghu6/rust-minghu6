@@ -8,13 +8,6 @@ use crate::{
 };
 
 
-// macro_rules! ein {
-//     ($coll:expr => $u:expr) => {
-//         { get!($coll => $u).len() - 1 }  // -1 remove duplicate for undir to dir
-//     };
-// }
-
-
 /// Kahn (pronounce can) algorithm (assume a DIRECTED graph) O(E + V)
 pub fn toposort_kahn(g: &Graph) -> Option<Vec<usize>> {
     /* build ein map */
