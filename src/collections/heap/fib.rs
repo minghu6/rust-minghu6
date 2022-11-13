@@ -8,7 +8,7 @@ use std::{
     fmt::{Debug, Display},
     hash::Hash,
     ptr::null_mut,
-    rc::{Rc, Weak},
+    rc::{Rc, Weak}, borrow::Borrow,
 };
 
 use crate::{
@@ -34,12 +34,13 @@ macro_rules! unboxptr {
 }
 
 macro_rules! node {
-    ($k:expr) => {
-        node!($k, 0, false)
+    ($i:expr, $k:expr) => {
+        node!($i, $k, 0, false)
     };
 
-    ($k:expr, $rank:expr, $marked:expr) => {
+    ($i:expr, $k:expr, $rank:expr, $marked:expr) => {
         Node(Some(Rc::new(RefCell::new(Node_ {
+            idx: $i,
             key: boxptr!($k),
             rank: $rank,
             lf: WeakNode::none(),
@@ -54,6 +55,13 @@ macro_rules! node {
 macro_rules! key {
     ($node:expr) => {
         unsafe { &*attr!($node, key) }
+    };
+}
+
+
+macro_rules! idx {
+    ($node:expr) => {
+        attr!($node, idx)
     };
 }
 
@@ -83,47 +91,48 @@ macro_rules! justinto {
     };
 }
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //// Structure
 
 
-/// Linked List [Fibonacci Heap](https://en.wikipedia.org/wiki/Fibonacci_heap)
+/// [Fibonacci Heap](https://en.wikipedia.org/wiki/Fibonacci_heap)
+/// : Indexed Min Heap based on linked list.
 ///
 /// size(x) >= F(d+2)
 ///
-/// K should be cheap to clone
+/// I should be cheap to clone
 pub struct FibHeap<I: CollKey, T: CollKey> {
     len: usize,
     /// roots count
     rcnt: usize,
-    min: Node<T>,
+    min: Node<I, T>,
     /// index of nodes
-    nodes: HashMap<I, Node<T>>,
-    /// rev index of nodes
-    rev: HashMap<Node<T>, I>,
+    nodes: HashMap<I, Node<I, T>>,
 }
 
 
-struct Node<T>(Option<Rc<RefCell<Node_<T>>>>);
+struct Node<I, T>(Option<Rc<RefCell<Node_<I, T>>>>);
 
 
 /// Used for reverse reference to avoid circular-reference
 ///
 /// So we can easy auto drop
-struct WeakNode<T>(Option<Weak<RefCell<Node_<T>>>>);
+struct WeakNode<I, T>(Option<Weak<RefCell<Node_<I, T>>>>);
 
 
 #[derive(Clone)]
-struct Node_<T> {
+struct Node_<I, T> {
+    idx: I,
     key: *mut T,
     rank: usize, // children number
 
     /// rev ref
-    lf: WeakNode<T>,
-    rh: Node<T>,
+    lf: WeakNode<I, T>,
+    rh: Node<I, T>,
     /// rev ref
-    paren: WeakNode<T>,
-    child: Node<T>,
+    paren: WeakNode<I, T>,
+    child: Node<I, T>,
     /// Indicate that it has lost a child
     marked: bool,
 }
@@ -133,20 +142,19 @@ struct Node_<T> {
 ////////////////////////////////////////////////////////////////////////////////
 //// Implementation
 
-
-impl<T: Debug> Debug for Node_<T> {
+impl<I: Debug, T: Debug> Debug for Node_<I, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", unsafe { &*self.key })
+        write!(f, "{:?}[{:?}]", self.idx, unsafe { &*self.key })
     }
 }
 
-
-impl<T> Node<T> {
-    fn downgrade(&self) -> WeakNode<T> {
+impl<I, T> Node<I, T> {
+    fn downgrade(&self) -> WeakNode<I, T> {
         WeakNode(self.0.clone().map(|ref rc| Rc::downgrade(rc)))
     }
 
-    fn as_ptr(&self) -> *mut Node_<T> {
+    #[allow(unused)]
+    fn as_ptr(&self) -> *mut Node_<I, T> {
         match self.0 {
             Some(ref rc) => rc.as_ptr(),
             None => null_mut(),
@@ -165,7 +173,7 @@ impl<T> Node<T> {
         self.0.is_none()
     }
 
-    fn replace(&mut self, node: Node<T>) -> Self {
+    fn replace(&mut self, node: Node<I, T>) -> Self {
         let old = Node(self.0.clone());
         self.0 = node.0;
         old
@@ -203,18 +211,19 @@ impl<T> Node<T> {
         mattr!(self, rh) = Node::none();
     }
 
-    fn cut_child(&self, x: Node<T>) {
-        if attr!(x, lf).is_none() {
-            debug_assert!(attr!(self, child).rc_eq(&x));
-            mattr!(self, child) = attr!(x, rh);
-        } else {
+    fn cut_child(&self, x: Node<I, T>) {
+
+        if !attr!(x, lf).is_none() {
             let x_lf = attr!(x, lf).upgrade();
             mattr!(x_lf, rh) = attr!(x, rh);
+        } else {
+            debug_assert!(attr!(self, child).rc_eq(&x));
+            mattr!(self, child) = attr!(x, rh);
+        }
 
-            if !attr!(x, rh).is_none() {
-                let x_rh = attr!(x, rh);
-                mattr!(x_rh, lf) = x_lf.downgrade();
-            }
+        if !attr!(x, rh).is_none() {
+            let x_rh = attr!(x, rh);
+            mattr!(x_rh, lf) = attr!(x, lf);
         }
 
         mattr!(self, rank) = attr!(self, rank) - 1;
@@ -230,33 +239,70 @@ impl<T> Node<T> {
 
         unboxptr!(oldk)
     }
+
+    fn validate_ref(&self) where I: Clone {
+        assert!(self.is_some());
+        let _self_idx = idx!(self);
+
+        /* validate rh sibling */
+        let rh = attr!(self, rh);
+
+        if rh.is_some() {
+            let _rh_idx = idx!(rh);
+
+            let rhwlf = attr!(rh, lf);
+
+            let rhlf = rhwlf.upgrade();
+            assert!(rhlf.rc_eq(self));
+            assert!(rhlf.is_some());
+
+            rh.validate_ref();
+        }
+
+        /* validate children */
+        let child = attr!(self, child);
+
+        if child.is_some() {
+            let _child_idx = idx!(child);
+
+            let cpw = attr!(child, paren);
+            assert!(!cpw.is_none());
+
+            let cp = cpw.upgrade();
+            assert!(cp.rc_eq(self));
+            assert!(cp.is_some());
+
+            child.validate_ref();
+        }
+
+    }
 }
 
 
-impl<T> Clone for Node<T> {
+impl<I, T> Clone for Node<I, T> {
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }
 }
 
 
-impl<T: Debug> Debug for Node<T> {
+impl<I: Debug, T: Debug> Debug for Node<I, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.is_none() {
             write!(f, "None")
         } else {
-            write!(f, "{:?}", key!(self))
+            write!(f, "{:?}", self.0.as_ref().unwrap().as_ref().borrow())
         }
     }
 }
 
 
-impl<T: Debug> Display for Node<T> {
+impl<I: Debug, T: Debug> Display for Node<I, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(
             f,
             "R({:?}) {}",
-            key!(self),
+            self,
             if attr!(self, marked) { "X" } else { "" }
         )?;
 
@@ -268,10 +314,10 @@ impl<T: Debug> Display for Node<T> {
                     break;
                 }
 
-                write!(f, "P({:?}) ", key!(p))?;
+                write!(f, "P({:?}) ", p)?;
                 let childlen = children.len();
                 for (i, child) in children.into_iter().enumerate() {
-                    write!(f, "{:?}", key!(child))?;
+                    write!(f, "{:?}", child)?;
                     if i < childlen - 1 {
                         write!(f, ", ")?;
                     }
@@ -285,30 +331,32 @@ impl<T: Debug> Display for Node<T> {
             } else {
                 break;
             }
-            // writeln!(f, "{}", "-".repeat(40))?;
         }
 
         Ok(())
     }
 }
 
-impl<T> PartialEq for Node<T> {
+
+impl<I, T> PartialEq for Node<I, T> {
     fn eq(&self, other: &Self) -> bool {
         self.rc_eq(other)
     }
 }
 
-impl<T> Eq for Node<T> {}
 
-impl<T> Hash for Node<T> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        state.write_usize(self.as_ptr() as usize)
-    }
-}
+impl<I, T> Eq for Node<I, T> {}
 
 
-impl<T> WeakNode<T> {
-    fn upgrade(&self) -> Node<T> {
+// impl<I, T> Hash for Node<I, T> {
+//     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+//         state.write_usize(self.as_ptr() as usize)
+//     }
+// }
+
+
+impl<I, T> WeakNode<I, T> {
+    fn upgrade(&self) -> Node<I, T> {
         Node(self.0.clone().map(|weak| weak.upgrade().unwrap()))
     }
 
@@ -322,7 +370,7 @@ impl<T> WeakNode<T> {
 }
 
 
-impl<T> Clone for WeakNode<T> {
+impl<I, T> Clone for WeakNode<I, T> {
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }
@@ -330,6 +378,7 @@ impl<T> Clone for WeakNode<T> {
 
 
 impl<I: CollKey + Hash + Clone, T: CollKey> FibHeap<I, T> {
+
     ////////////////////////////////////////////////////////////////////////////
     //// Public method
 
@@ -339,19 +388,16 @@ impl<I: CollKey + Hash + Clone, T: CollKey> FibHeap<I, T> {
             rcnt: 0,
             min: Node::none(),
             nodes: HashMap::new(),
-            rev: HashMap::new(),
         }
     }
 
 
     pub fn push(&mut self, i: I, v: T) {
-        let node = node!(v);
+        let node = node!(i.clone(), v);
 
         self.push_into_roots(node.clone());
 
-        self.nodes.insert(i.clone(), node.clone());
-        self.rev.insert(node.clone(), i);
-
+        self.nodes.insert(i, node.clone());
 
         if key!(node) < key!(self.min) {
             self.min = node;
@@ -415,15 +461,10 @@ impl<I: CollKey + Hash + Clone, T: CollKey> FibHeap<I, T> {
     }
 
 
-    pub fn pop(&mut self) -> Option<T> {
-        self.pop_item().map(|x| x.1)
-    }
-
-
     pub fn consolidate(&mut self) {
         /* merge same rank trees recusively */
 
-        let mut rank: HashMap<usize, Node<T>> = hashmap!();
+        let mut rank: HashMap<usize, Node<I, T>> = hashmap!();
 
         for mut sib in self.roots() {
             // println!("scan {:?}", key!(sib));
@@ -476,9 +517,69 @@ impl<I: CollKey + Hash + Clone, T: CollKey> FibHeap<I, T> {
 
 
     ////////////////////////////////////////////////////////////////////////////
+    //// Extra functional method
+
+    /// Return oldval
+    ///
+    /// Exec push if the key doesn't exist.
+    ///
+    pub fn decrease_key(&mut self, i: I, v: T) -> Option<T> {
+        let x;
+        match self.nodes.entry(i.clone()) {
+            Occupied(ent) => {
+                x = ent.get().clone();
+                let oldv = x.replace_key(v);
+
+                debug_assert!(
+                    key!(x) < &oldv,
+                    "decrease violated! {:?} !(<) {:?}",
+                    key!(x),
+                    &oldv
+                );
+
+                self.decrease_key_(x);
+                Some(oldv)
+            }
+            Vacant(_ent) => {
+                unreachable!("Empty index {i:?}")
+            }
+        }
+    }
+
+
+    pub fn top_item(&self) -> Option<(I, &T)> {
+        if self.min.is_some() {
+            Some(
+                (
+                    idx!(self.min),
+                    key!(self.min)
+                )
+            )
+        } else {
+            None
+        }
+    }
+
+
+    pub fn top(&self) -> Option<&T> {
+        self.top_item().map(|x| x.1)
+    }
+
+
+    pub fn pop(&mut self) -> Option<T> {
+        self.pop_item().map(|x| x.1)
+    }
+
+
+    pub fn get<Q>(&self, i: &Q) -> Option<&T> where I: Borrow<Q>, Q: Hash + Eq {
+        self.nodes.get(i).map(|node| key!(node))
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////
     //// Assistant method
 
-    fn decrease_key_(&mut self, x: Node<T>) {
+    fn decrease_key_(&mut self, x: Node<I, T>) {
         let unmeld_ent;
         let p = attr!(x, paren);
 
@@ -500,7 +601,7 @@ impl<I: CollKey + Hash + Clone, T: CollKey> FibHeap<I, T> {
 
 
     /// WARNING: O(rank)
-    fn increase_key_(&mut self, x: Node<T>) {
+    fn increase_key_(&mut self, x: Node<I, T>) {
         let unmeld_ent;
         let mut children_lost = if attr!(x, marked) { 1 } else { 0 };
 
@@ -539,7 +640,7 @@ impl<I: CollKey + Hash + Clone, T: CollKey> FibHeap<I, T> {
     }
 
 
-    fn unmeld_to_roots(&mut self, ent: WeakNode<T>) {
+    fn unmeld_to_roots(&mut self, ent: WeakNode<I, T>) {
         if ent.is_none() {
             return;
         }
@@ -548,11 +649,13 @@ impl<I: CollKey + Hash + Clone, T: CollKey> FibHeap<I, T> {
         let mut p = attr!(x, paren);
 
         while attr!(x, marked) && !p.is_none() {
-            p.upgrade().cut_child(x.clone());
+            let strongp = p.upgrade();
+
+            strongp.cut_child(x.clone());
             self.push_into_roots(x.clone());
             mattr!(x, marked) = false;
 
-            x = attr!(x, paren).upgrade();
+            x = strongp;
             p = attr!(x, paren);
         }
 
@@ -561,8 +664,8 @@ impl<I: CollKey + Hash + Clone, T: CollKey> FibHeap<I, T> {
     }
 
 
-    fn remove_from_index(&mut self, node: &Node<T>) -> I {
-        let k = self.rev.remove(node).unwrap();
+    fn remove_from_index(&mut self, x: &Node<I, T>) -> I {
+        let k = idx!(x);
         self.nodes.remove(&k);
 
         k
@@ -570,31 +673,36 @@ impl<I: CollKey + Hash + Clone, T: CollKey> FibHeap<I, T> {
 
 
     /// insert at sib of self.min, with purge
-    fn push_into_roots(&mut self, node: Node<T>) {
+    fn push_into_roots(&mut self, x: Node<I, T>) {
+        debug_assert!(!self.min.rc_eq(&x));
+
         self.rcnt += 1;
-        node.purge_as_root();
+        x.purge_as_root();
 
         if self.min.is_none() {
-            self.min = node;
+            self.min = x;
             mattr!(self.min, lf) = self.min.downgrade();
             mattr!(self.min, rh) = self.min.clone();
         } else {
-            mattr!(node, rh) = attr!(self.min, rh);
-            mattr!(node, lf) = self.min.downgrade();
+            debug_assert!(attr!(self.min, rh).is_some());
 
-            mattr!(self.min, rh) = node.clone();
+            mattr!(x, rh) = attr!(self.min, rh);
+            mattr!(x, lf) = self.min.downgrade();
 
-            mattr!(attr!(node, rh), lf) = node.downgrade();
+            mattr!(self.min, rh) = x.clone();
+
+            let x_rh = attr!(x, rh);
+            mattr!(x_rh, lf) = x.downgrade();
         }
     }
 
 
     /// from self.min go through all roots
-    fn roots(&self) -> Vec<Node<T>> {
+    fn roots(&self) -> Vec<Node<I, T>> {
         let mut sib = self.min.clone();
         let mut sibs = vec![sib.clone()];
 
-        for _ in 1..self.rcnt {
+        for _ in 1..=self.rcnt-1 {
             sib = attr!(sib, rh);
             sibs.push(sib.clone());
         }
@@ -603,32 +711,32 @@ impl<I: CollKey + Hash + Clone, T: CollKey> FibHeap<I, T> {
     }
 
 
-    fn remove_from_roots(&mut self, node: Node<T>) {
+    fn remove_from_roots(&mut self, x: Node<I, T>) {
         self.rcnt -= 1;
 
         if self.rcnt > 0 {
-            if attr!(node, lf).is_none() {
-                unreachable!("{:?} lf is none", key!(node));
+            if attr!(x, lf).is_none() {
+                unreachable!("{:?} lf is none", key!(x));
             }
-            if attr!(node, rh).is_none() {
-                unreachable!("{:?} rh is none", key!(node));
+            if attr!(x, rh).is_none() {
+                unreachable!("{:?} rh is none", key!(x));
             }
 
-            mattr!(attr!(node, lf).upgrade(), rh) = attr!(node, rh);
-            mattr!(attr!(node, rh), lf) = attr!(node, lf);
+            mattr!(attr!(x, lf).upgrade(), rh) = attr!(x, rh);
+            mattr!(attr!(x, rh), lf) = attr!(x, lf);
         }
 
-        mattr!(node, lf) = WeakNode::none();
-        mattr!(node, rh) = Node::none();
+        mattr!(x, lf) = WeakNode::none();
+        mattr!(x, rh) = Node::none();
     }
 
 
     /// update self.rcnt
     fn merge_same_rank_root(
         &mut self,
-        mut x: Node<T>,
-        mut y: Node<T>,
-    ) -> Node<T> {
+        mut x: Node<I, T>,
+        mut y: Node<I, T>,
+    ) -> Node<I, T> {
         debug_assert_eq!(attr!(x, rank), attr!(y, rank));
 
         // let x be parent
@@ -660,32 +768,59 @@ impl<I: CollKey + Hash + Clone, T: CollKey> FibHeap<I, T> {
         x
     }
 
+
+    ////////////////////////////////////////////////////////////////////////////
+    //// Validation method
+
+    /// Validate nodes are not None or Failed to upgrade to Rc
+    pub(crate) fn validate_ref(&self) {
+        if self.is_empty() { return }
+
+        /* validate roots */
+
+        for root in self.roots() {
+            assert!(root.is_some());
+
+            let rh = attr!(root, rh);
+            assert!(rh.is_some());
+
+            let wlf = attr!(root, lf);
+            assert!(!wlf.is_none());
+            let lf = wlf.upgrade();
+            assert!(lf.is_some());
+
+            let child = attr!(root, child);
+            if child.is_some() {
+                child.validate_ref();
+            }
+        }
+
+    }
+
+
 }
 
 
 impl<I: CollKey + Hash + Clone, T: CollKey + Clone> FibHeap<I, T> {
     fn overall_clone(
         &self,
-        nodes: &mut HashMap<I, Node<T>>,
-        rev: &mut HashMap<Node<T>, I>,
-        x: Node<T>,
-    ) -> Node<T> {
+        nodes: &mut HashMap<I, Node<I, T>>,
+        x: Node<I, T>,
+    ) -> Node<I, T> {
         if x.is_none() {
             return Node::none();
         }
 
         // overall clone node body
-        let newx = node!(key!(x).clone(), attr!(x, rank), attr!(x, marked));
+        let newx = node!(idx!(x), key!(x).clone(), attr!(x, rank), attr!(x, marked));
         // update index reference
-        let i = self.rev.get(&x).unwrap();
-        nodes.insert(i.clone(), newx.clone());
-        rev.insert(newx.clone(), i.clone());
+        nodes.insert(idx!(x), newx.clone());
 
         // recursive call it
         let mut childen_iter = x.children().into_iter();
 
         if let Some(child) = childen_iter.next() {
-            let newchild = self.overall_clone(nodes, rev, child);
+            let newchild = self.overall_clone(nodes, child);
 
             mattr!(newx, child) = newchild.clone();
             mattr!(newchild, paren) = newx.downgrade();
@@ -693,7 +828,7 @@ impl<I: CollKey + Hash + Clone, T: CollKey + Clone> FibHeap<I, T> {
             let mut cur = newchild;
 
             for child in childen_iter {
-                let newchild = self.overall_clone(nodes, rev, child);
+                let newchild = self.overall_clone(nodes, child);
 
                 mattr!(cur, rh) = newchild.clone();
                 mattr!(newchild, lf) = cur.downgrade();
@@ -707,7 +842,7 @@ impl<I: CollKey + Hash + Clone, T: CollKey + Clone> FibHeap<I, T> {
 }
 
 
-impl<T: CollKey, K: CollKey> Drop for FibHeap<T, K> {
+impl<I: CollKey, T: CollKey> Drop for FibHeap<I, T> {
     fn drop(&mut self) {
         if self.len > 0 {
             // break circle dependency to enable drop
@@ -731,6 +866,8 @@ impl<T: CollKey, K: CollKey> Display for FibHeap<T, K> {
                 write!(f, "M=>")?;
             }
             writeln!(f, "{}", sib)?;
+
+            debug_assert!(sib.is_some());
             sib = attr!(sib, rh);
         }
         writeln!(f, "{}>> end <<{}", "-".repeat(28), "-".repeat(28))?;
@@ -745,17 +882,16 @@ impl<I: CollKey + Hash + Clone, T: CollKey + Clone> Clone for FibHeap<I, T> {
         let len = self.len;
         let rcnt = self.rcnt;
         let mut nodes = HashMap::new();
-        let mut rev = HashMap::new();
         let min;
         let mut roots_iter = self.roots().into_iter();
 
         if let Some(_min) = roots_iter.next() {
-            min = self.overall_clone(&mut nodes, &mut rev, _min.clone());
+            min = self.overall_clone(&mut nodes, _min.clone());
 
             let mut cur = min.clone();
 
             for root in roots_iter {
-                let newroot = self.overall_clone(&mut nodes, &mut rev, root);
+                let newroot = self.overall_clone(&mut nodes, root);
 
                 mattr!(cur, rh) = newroot.clone();
                 mattr!(newroot, lf) = cur.downgrade();
@@ -774,7 +910,6 @@ impl<I: CollKey + Hash + Clone, T: CollKey + Clone> Clone for FibHeap<I, T> {
             rcnt,
             min,
             nodes,
-            rev,
         }
     }
 }
@@ -789,11 +924,7 @@ impl<I: CollKey + Hash + Clone, T: CollKey> Coll for FibHeap<I, T> {
 
 impl<I: CollKey + Hash + Clone, T: CollKey> Heap<I, T> for FibHeap<I, T> {
     fn top(&self) -> Option<&T> {
-        if self.min.is_some() {
-            Some(unsafe { &*attr!(self.min, key) })
-        } else {
-            None
-        }
+        self.top()
     }
 
     fn pop(&mut self) -> Option<T> {
@@ -896,13 +1027,8 @@ mod tests {
             heap.push(auto(), e);
         }
 
-        // let heap2 = heap.clone();
-        // println!("heap2: {}", heap2);
 
-        // println!("update: 1, {}", data[0]);
-        heap.update(1, data[0]);
 
-        // println!("heap: {}", heap);
     }
 
 
@@ -967,6 +1093,8 @@ mod tests {
 
                 validate(&heap, non_dec);
             }
+
+
         }
     }
 }

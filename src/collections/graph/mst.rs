@@ -5,17 +5,23 @@
 ////////////////////////////////////////////////////////////////////////////////
 //// Function
 
-use crate::collections::{union_find::{UnionFind, MergeBy}, heap::fib::FibHeap};
+use std::collections::{HashMap, HashSet};
 
 use super::Graph;
+use crate::{
+    collections::{
+        heap::fib::FibHeap,
+        union_find::{MergeBy, UnionFind},
+    },
+    get,
+};
 
 ///
 /// 逐边地贪心算法
 ///
-/// 并查集 + 堆
+/// 边排序 + 并查集（两点是否相连）
 ///
 pub fn mst_kruskal(g: &Graph) -> Vec<(usize, usize)> {
-
     /* init sorted edge set */
     let mut sorted_edges = FibHeap::new();
 
@@ -36,6 +42,91 @@ pub fn mst_kruskal(g: &Graph) -> Vec<(usize, usize)> {
         if ds.cfind(u) != ds.cfind(v) {
             ds.cunion(u, v);
             res.push((u, v));
+        }
+    }
+
+    res
+}
+
+
+/// 逐点的贪心算法
+///
+/// hashset(剩余点集) + 小顶堆（最好支持 decrease-key，存贮剩余集合的每个点到已有生成树的距离）
+pub fn mst_prim(g: &Graph) -> Vec<(usize, usize)> {
+    let mut res = vec![];
+
+    /* choose an arbitray node as root */
+
+    let mut viter = g.vertexs().cloned();
+    let root;
+
+    if let Some(_root) = viter.next() {
+        root = _root;
+    } else {
+        return res;
+    }
+
+    /* setup rest collection */
+
+    let mut rest: HashSet<usize> = HashSet::new();
+
+    /* init dis heap && dis edge map */
+
+    let mut dis = FibHeap::new();
+
+    let mut dis_edge = HashMap::new();
+
+    dis.push(root, 0);
+    dis_edge.insert(root, Some(root));
+
+    for v in viter {
+        println!("v: {v}");
+        rest.insert(v);
+        dis.push(v, isize::MAX);
+        dis_edge.insert(v, None);
+    }
+
+    println!("Init dis: \n{}\n\n", dis);
+    dis.validate_ref();
+
+    while !rest.is_empty() {
+        // u is current vertex
+        let (u, _uw) = dis.pop_item().unwrap().clone();
+        println!("After pop {u} dis: \n{}\n\n", dis);
+        dis.validate_ref();
+
+        // "decrease-key" (It's increase-key actually for min-heap)
+        // dis.update(u, isize::MAX);
+        rest.remove(&u);
+        // println!("pop ({u}) dis: \n{}", dis);
+
+        let u_pair = get!(dis_edge => u).unwrap();
+
+        if u_pair != u {
+            res.push((u, u_pair));
+        }
+
+        // calc adj
+
+        let adjs = get!(g.e => u);
+
+        /* update dis heap */
+        for v in adjs.into_iter().filter(|v| rest.contains(v)) {
+            let w_uv: isize = get!(g.w => (u, v));
+
+            if w_uv < *get!(dis => v) {
+                // println!("Before dk {v}[{w_uv}]");
+                println!("BEFORE DK {v}({w_uv}) dis: \n{}\n\n", dis);
+                dis.decrease_key(v, w_uv);
+
+                if v == 6 {
+                    println!("AFTER DK 6 dis: \n{}\n\n", dis);
+                }
+                // println!("After dk {v}({w_uv}) dis: \n{}\n\n", dis);
+                dis.validate_ref();
+
+                dis_edge.insert(v, Some(u));
+            }
         }
     }
 

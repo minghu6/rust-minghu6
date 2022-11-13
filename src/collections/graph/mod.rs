@@ -237,7 +237,7 @@ mod tests {
 
     use itertools::Itertools;
 
-    use crate::{collections::graph::{to_undirected_vec, Graph}, get};
+    use crate::{collections::graph::{to_undirected_vec, Graph, mst::mst_prim}, get};
 
     use super::mst::mst_kruskal;
 
@@ -316,7 +316,7 @@ mod tests {
         }
     }
 
-    #[allow(unused)]
+
     #[test]
     fn test_mst() {
         let g = setup_g_data();
@@ -330,8 +330,12 @@ mod tests {
                 .map(|x| get!(g[gi].w => x))
                 .sum();
 
+            /* verify krusal (edge) algorithm */
             let st = mst_kruskal(&g[gi]);
+            assert_eq!(g[gi].verify_mst(min, &st), Ok(()));
 
+            /* verify prim (vertex) algorithm */
+            let st = mst_prim(&g[gi]);
             assert_eq!(g[gi].verify_mst(min, &st), Ok(()));
         }
     }
