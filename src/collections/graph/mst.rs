@@ -80,25 +80,18 @@ pub fn mst_prim(g: &Graph) -> Vec<(usize, usize)> {
     dis_edge.insert(root, Some(root));
 
     for v in viter {
-        println!("v: {v}");
         rest.insert(v);
         dis.push(v, isize::MAX);
         dis_edge.insert(v, None);
     }
 
-    println!("Init dis: \n{}\n\n", dis);
-    dis.validate_ref();
-
     while !rest.is_empty() {
         // u is current vertex
         let (u, _uw) = dis.pop_item().unwrap().clone();
-        println!("After pop {u} dis: \n{}\n\n", dis);
-        dis.validate_ref();
 
         // "decrease-key" (It's increase-key actually for min-heap)
         // dis.update(u, isize::MAX);
         rest.remove(&u);
-        // println!("pop ({u}) dis: \n{}", dis);
 
         let u_pair = get!(dis_edge => u).unwrap();
 
@@ -115,16 +108,7 @@ pub fn mst_prim(g: &Graph) -> Vec<(usize, usize)> {
             let w_uv: isize = get!(g.w => (u, v));
 
             if w_uv < *get!(dis => v) {
-                // println!("Before dk {v}[{w_uv}]");
-                println!("BEFORE DK {v}({w_uv}) dis: \n{}\n\n", dis);
                 dis.decrease_key(v, w_uv);
-
-                if v == 6 {
-                    println!("AFTER DK 6 dis: \n{}\n\n", dis);
-                }
-                // println!("After dk {v}({w_uv}) dis: \n{}\n\n", dis);
-                dis.validate_ref();
-
                 dis_edge.insert(v, Some(u));
             }
         }

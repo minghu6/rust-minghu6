@@ -15,6 +15,7 @@
 #![feature(const_option_ext)]
 #![feature(int_log)]
 #![feature(macro_metavar_expr)]
+#![feature(concat_idents)]
 
 
 use proc_macros::{
