@@ -237,9 +237,13 @@ mod tests {
 
     use itertools::Itertools;
 
-    use crate::{collections::graph::{to_undirected_vec, Graph, mst::mst_prim}, get};
-
-    use super::mst::mst_kruskal;
+    use crate::{
+        collections::graph::{
+            mst::{mst_boruvka, mst_kruskal, mst_prim},
+            to_undirected_vec, Graph,
+        },
+        get,
+    };
 
 
     fn setup_g_data() -> Vec<Graph> {
@@ -325,10 +329,7 @@ mod tests {
             vec![(2, vec![(1, 4), (1, 2), (4, 6), (2, 5), (3, 5), (5, 7)])];
 
         for (gi, edges) in data {
-            let min = edges
-                .into_iter()
-                .map(|x| get!(g[gi].w => x))
-                .sum();
+            let min = edges.into_iter().map(|x| get!(g[gi].w => x)).sum();
 
             /* verify krusal (edge) algorithm */
             let st = mst_kruskal(&g[gi]);
@@ -336,6 +337,10 @@ mod tests {
 
             /* verify prim (vertex) algorithm */
             let st = mst_prim(&g[gi]);
+            assert_eq!(g[gi].verify_mst(min, &st), Ok(()));
+
+            /* verify boruvka algorithm */
+            let st = mst_boruvka(&g[gi]);
             assert_eq!(g[gi].verify_mst(min, &st), Ok(()));
         }
     }

@@ -18,11 +18,13 @@ pub struct UnionFind<T> {
     merge_by: Option<MergeBy>
 }
 
+
 #[derive(Debug, Clone)]
 enum DSUData<T> {
     SZ(M1<T, usize>),
     Empty
 }
+
 
 #[derive(Debug, Clone)]
 pub enum MergeBy {

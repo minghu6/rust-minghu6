@@ -1,6 +1,6 @@
 use rand::prelude::*;
 
-use m6coll::Entry;
+use m6coll::KVEntry as Entry;
 
 
 pub fn gen_test_case() -> Vec<Vec<usize>> {

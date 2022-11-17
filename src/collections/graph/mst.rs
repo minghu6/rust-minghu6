@@ -21,6 +21,8 @@ use crate::{
 ///
 /// 边排序 + 并查集（两点是否相连）
 ///
+/// O(eloge) + O(elogv) = O(eloge)
+///
 pub fn mst_kruskal(g: &Graph) -> Vec<(usize, usize)> {
     /* init sorted edge set */
     let mut sorted_edges = FibHeap::new();
@@ -52,6 +54,18 @@ pub fn mst_kruskal(g: &Graph) -> Vec<(usize, usize)> {
 /// 逐点的贪心算法
 ///
 /// hashset(剩余点集) + 小顶堆（最好支持 decrease-key，存贮剩余集合的每个点到已有生成树的距离）
+///
+/// v: |V|, e: |E|
+///
+/// 1. 稀疏图 e = v
+///
+/// 1. 稠密图 e = v^2
+///
+/// | Fib Heap | Binary Heap |
+/// | --- | --- |
+/// | O(vlogv + e) | O(vlogv + elogv) |
+///
+///
 pub fn mst_prim(g: &Graph) -> Vec<(usize, usize)> {
     let mut res = vec![];
 
@@ -115,4 +129,86 @@ pub fn mst_prim(g: &Graph) -> Vec<(usize, usize)> {
     }
 
     res
+}
+
+
+/// Boruvka: bo ru s ga (for unique edge weight)
+///
+/// 最小生成森林（非连通图）/ 最小生成树（连通图）
+///
+pub fn mst_boruvka(g: &Graph) -> Vec<(usize, usize)> {
+    let mut res = HashSet::new();
+
+    // using lexicograph order
+    let mut dsu = UnionFind::new(Some(MergeBy::SZ));
+
+    for v in g.vertexs().cloned() {
+        dsu.insert(v);
+    }
+
+    // components cheapest edges: (weight, usize)
+    let mut cand_edges: HashSet<(usize, usize, isize)> = g.edges().collect();
+
+    loop {
+        let mut comp_min_edges: HashMap<usize, Option<(isize, usize, usize)>> =
+            HashMap::new();
+
+        for (u, v, w) in cand_edges.iter().cloned() {
+            let pu = dsu.cfind(u);
+            let pv = dsu.cfind(v);
+
+            if pu == pv {
+                continue;
+            }
+
+            let pu_min_edge = comp_min_edges
+                .get(&pu)
+                .cloned()
+                .unwrap_or(None);
+
+            if pu_min_edge.is_none() || Some((w, u, v)) < pu_min_edge {
+                comp_min_edges.insert(pu, Some((w, u, v)));
+            }
+
+            let pv_min_edge = comp_min_edges
+                .get(&pv)
+                .cloned()
+                .unwrap_or(None);
+
+            if pv_min_edge.is_none() || Some((w, u, v)) < pv_min_edge {
+                comp_min_edges.insert(pv, Some((w, u, v)));
+            }
+        }
+
+        let mut continue_flag = false;
+
+        for (_, opt) in comp_min_edges.into_iter() {
+            if let Some((w, u, v)) = opt {
+                res.insert((u, v));
+                dsu.cunion(u, v);
+                cand_edges.remove(&(u, v, w));
+
+                continue_flag = true;
+            }
+        }
+
+        if !continue_flag {
+            break;
+        }
+    }
+
+    res.into_iter().collect()
+}
+
+
+
+#[cfg(test)]
+mod tests {
+
+    #[test]
+    fn verify_option_partial_ord() {
+        assert!(Some(0) < Some(1));
+        assert!(Some(0) > None);
+        assert!(None::<usize> == None);
+    }
 }
