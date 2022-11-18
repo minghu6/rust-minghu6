@@ -35,7 +35,7 @@ pub fn mst_kruskal(g: &Graph) -> Vec<(usize, usize)> {
     let mut ds = UnionFind::new(Some(MergeBy::SZ));
 
     for v in g.vertexs() {
-        ds.insert(*v);
+        ds.insert(v);
     }
 
     let mut res = vec![];
@@ -67,11 +67,13 @@ pub fn mst_kruskal(g: &Graph) -> Vec<(usize, usize)> {
 ///
 ///
 pub fn mst_prim(g: &Graph) -> Vec<(usize, usize)> {
+    debug_assert!(g.is_connected());
+
     let mut res = vec![];
 
     /* choose an arbitray node as root */
 
-    let mut viter = g.vertexs().cloned();
+    let mut viter = g.vertexs();
     let root;
 
     if let Some(_root) = viter.next() {
@@ -102,6 +104,10 @@ pub fn mst_prim(g: &Graph) -> Vec<(usize, usize)> {
     while !rest.is_empty() {
         // u is current vertex
         let (u, _uw) = dis.pop_item().unwrap().clone();
+
+        if get!(dis_edge => u).is_none() {
+            println!("u: {u}, w: {_uw}");
+        }
 
         // "decrease-key" (It's increase-key actually for min-heap)
         // dis.update(u, isize::MAX);
@@ -142,7 +148,7 @@ pub fn mst_boruvka(g: &Graph) -> Vec<(usize, usize)> {
     // using lexicograph order
     let mut dsu = UnionFind::new(Some(MergeBy::SZ));
 
-    for v in g.vertexs().cloned() {
+    for v in g.vertexs() {
         dsu.insert(v);
     }
 
@@ -204,11 +210,39 @@ pub fn mst_boruvka(g: &Graph) -> Vec<(usize, usize)> {
 
 #[cfg(test)]
 mod tests {
+    use crate::test::graph::{batch_graph, ucgopt};
+    use super::*;
 
     #[test]
     fn verify_option_partial_ord() {
         assert!(Some(0) < Some(1));
         assert!(Some(0) > None);
         assert!(None::<usize> == None);
+    }
+
+    #[test]
+    fn test_mst_random() {
+
+        for g in batch_graph(100, 100, -10..20, &ucgopt()) {
+
+            /* verify krusal (edge) algorithm */
+            let st = mst_kruskal(&g);
+            // use krusal as standard mst algorithm
+            let min = st
+                .iter()
+                .cloned()
+                .map(|e| get!(g.w => e))
+                .sum::<isize>();
+
+            assert_eq!(g.verify_mst(min, &st), Ok(()));
+
+            /* verify prim (vertex) algorithm */
+            let st = mst_prim(&g);
+            assert_eq!(g.verify_mst(min, &st), Ok(()));
+
+            /* verify boruvka algorithm */
+            let st = mst_boruvka(&g);
+            assert_eq!(g.verify_mst(min, &st), Ok(()));
+        }
     }
 }

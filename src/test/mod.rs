@@ -5,6 +5,7 @@ pub mod heap;
 pub mod persistent;
 pub mod utils;
 pub mod hash;
+pub mod graph;
 
 
 use rand::random;
@@ -101,7 +102,7 @@ pub fn normalize<T: Ord>(raw_data: &[T]) -> Vec<usize> {
         .collect();
 
     taged.sort_by_key(|x| x.1);
-    
+
     let mut rank = 1;
     let mut iter = taged.into_iter();
     let (i, mut prev) = iter.next().unwrap();

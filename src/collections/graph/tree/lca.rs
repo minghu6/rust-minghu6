@@ -103,7 +103,7 @@ impl<'a> LCATarjan<'a> {
         let mut dsu = UnionFind::new(None);
 
         for n in g.vertexs() {
-            dsu.insert(*n);
+            dsu.insert(n);
         }
 
         Self { dsu, g, start }

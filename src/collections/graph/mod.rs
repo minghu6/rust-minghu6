@@ -3,14 +3,17 @@ pub mod toposort;
 pub mod tree;
 
 
-use std::{collections::HashMap, fmt::Debug};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Debug,
+};
 
 use self::tree::diameter::diameter_dp;
 use super::{
     aux::VerifyResult,
-    easycoll::{M1, MV},
+    easycoll::{M1, MV}, union_find::{UnionFind, SZ},
 };
-use crate::{apush, collections::aux::VerifyError, get, queue, set, stack};
+use crate::{apush, collections::aux::VerifyError, get, queue, set, stack, getopt};
 
 
 
@@ -45,6 +48,26 @@ impl FromIterator<(usize, usize, isize)> for Graph {
 }
 
 
+impl IntoIterator for Graph {
+    type Item = (usize, usize, isize);
+    type IntoIter = impl Iterator<Item = Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        let w = self.w;
+
+        self.e.0
+            .into_iter()
+            .map(
+                |(u, vs)|
+                vs.into_iter().map(move |v| (u, v))
+            )
+            .flatten()
+            .map(move |(u, v)| (u, v, get!(w => (u, v))))
+    }
+
+}
+
+
 impl Debug for Graph {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if f.alternate() {
@@ -65,6 +88,27 @@ impl Graph {
         Default::default()
     }
 
+    pub fn insert_edge(
+        &mut self,
+        edge: (usize, usize),
+        w: isize,
+    ) -> Option<(usize, usize, isize)> {
+        let (u, v) = edge;
+
+        let old;
+        let oldw = set!(self.w => (u, v) => w);
+
+        if self.contains_edge(edge) {
+            old = Some((u, v, oldw.unwrap()));
+        } else {
+            old = None;
+        }
+
+        apush!(self.e => u => v);
+
+        old
+    }
+
     pub fn anypoint(&self) -> usize {
         *self.e.0.keys().next().unwrap()
     }
@@ -74,8 +118,16 @@ impl Graph {
         diameter_dp(self)
     }
 
-    pub fn vertexs(&self) -> impl Iterator<Item = &usize> {
-        self.e.0.keys()
+    /// O(|E|)
+    pub fn vertexs(&self) -> impl Iterator<Item = usize> {
+        let mut vertexs = HashSet::new();
+
+        for (u, v, _w) in self.edges() {
+            vertexs.insert(u);
+            vertexs.insert(v);
+        }
+
+        vertexs.into_iter()
     }
 
     pub fn edges<'a>(
@@ -157,9 +209,41 @@ impl Graph {
     pub fn contains_edge(&self, edge: (usize, usize)) -> bool {
         let (u, v) = edge;
 
-        let tos = get!(self.e => u);
+        let tos = getopt!(self.e => u);
 
-        tos.iter().find(|&&x| x == v).is_some()
+        if let Some(tos) = tos {
+            tos.into_iter().find(|&x| x == v).is_some()
+        }
+        else {
+            false
+        }
+    }
+
+    /// O(|E|)
+    pub fn components(&self) -> Vec<Vec<usize>> {
+        let mut dsu = UnionFind::new(Some(SZ));
+        let vertexs: Vec<usize> = self.vertexs().collect();
+
+        for v in vertexs.iter().cloned() {
+            dsu.insert(v);
+        }
+
+        for (u, v, _) in self.edges() {
+            dsu.cunion(u, v);
+        }
+
+        let mut comps = MV::new();
+
+        for v in vertexs.iter().cloned() {
+            let p = dsu.cfind(v);
+            apush!(comps => p => v);
+        }
+
+        comps.0
+            .into_iter()
+            .map(|(_k, vs)| vs)
+            .collect()
+
     }
 
 
@@ -170,7 +254,6 @@ impl Graph {
     pub fn verify_st(&self, st: &[(usize, usize)]) -> VerifyResult {
         let mut vertx = self
             .vertexs()
-            .cloned()
             .map(|v| (v, ()))
             .collect::<HashMap<usize, ()>>();
 
@@ -208,6 +291,15 @@ impl Graph {
         } else {
             Err(VerifyError::Fail)
         }
+    }
+
+
+    pub fn is_connected(&self) -> bool {
+        let comps = self.components();
+
+        debug_assert!(comps.len() > 0);
+
+        comps.len() == 1
     }
 }
 
@@ -322,7 +414,7 @@ mod tests {
 
 
     #[test]
-    fn test_mst() {
+    fn test_mst_fixed() {
         let g = setup_g_data();
 
         let data =

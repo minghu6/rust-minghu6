@@ -5,7 +5,8 @@ pub mod sort;
 pub mod math;
 pub mod hash;
 
-use std::{cmp::Ordering, cell::RefCell};
+use std::ops::Range;
+pub(crate) use std::{cmp::Ordering, cell::RefCell};
 
 use rand::Rng;
 
@@ -33,6 +34,15 @@ pub fn hardware_random() -> usize {
     0
 }
 
+
+pub fn software_random_range(range: Range<isize>) -> isize {
+    #[allow(unused_imports)]
+    use rand;
+
+    rand::thread_rng().gen_range(range.start, range.end)
+}
+
+
 /// More fast than hardware_random
 pub fn software_random() -> usize {
     #[allow(unused_imports)]
@@ -44,6 +54,7 @@ pub fn software_random() -> usize {
 
     RNG.with(|rngcell| rngcell.borrow_mut().gen::<usize>())
 }
+
 
 pub fn random() -> usize {
     if cfg!(any(
@@ -73,6 +84,8 @@ fn lexi_cmp<E: Ord>(l1: &[E], l2: &[E]) -> Ordering {
 
 #[cfg(test)]
 mod test {
+    use crate::hashset;
+
     use super::*;
     extern crate test;
     use test::Bencher;
@@ -116,22 +129,45 @@ mod test {
         assert_eq!(lexi_cmp(&vec![4, 2, 3][..], &vec![4, 3, 2][..]), Ordering::Less);
     }
 
+
     #[ignore = "just see see"]
     #[test]
     fn stats_random() {
+        let mut coll = hashset!();
         let mut odd = 0;
         let mut even = 0;
+        let mut dup = 0;
+        let mut cont_dup = 0;
 
-        for _ in 0..1000 {
-            if random() % 2 == 0{
+        let batch = 1000;
+        let range = 100;
+
+        let mut prev = range;
+
+        for _ in 0..batch {
+            let v = random() % range;
+
+            if random() % 2 == 0 {
                 even += 1;
             }
             else {
                 odd += 1;
             }
+
+            if !coll.insert(v) {
+                dup += 1;
+            }
+
+            if prev == v {
+                cont_dup += 1;
+            }
+            prev = v;
         }
 
+        println!("{batch} rounds in 0..{range}");
         println!("odd: {odd}, even: {even}");
+        println!("dup: {dup}");
+        println!("cont_dup: {cont_dup}");
 
     }
 }

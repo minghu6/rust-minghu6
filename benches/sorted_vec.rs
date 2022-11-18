@@ -3,7 +3,7 @@
 extern crate test;
 
 use std::{collections::BinaryHeap, cmp::Reverse};
-use m6coll::Entry;
+use m6coll::KVEntry as Entry;
 use sorted_vec::SortedVec;
 
 use minghu6::test::sort::gen_bench_case;

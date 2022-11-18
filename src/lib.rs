@@ -16,6 +16,9 @@
 #![feature(int_log)]
 #![feature(macro_metavar_expr)]
 #![feature(concat_idents)]
+#![feature(rustc_private)]
+#![feature(type_alias_impl_trait)]
+
 
 
 use proc_macros::{
@@ -31,7 +34,8 @@ pub mod test;
 pub mod etc;
 pub mod error_code;
 pub mod io;
-pub mod tools;
+pub(crate) mod debug;
+
 
 // make_vec_macro_rules!(vecdeq , std::collections::VecDeque, push_back);
 

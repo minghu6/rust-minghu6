@@ -26,6 +26,7 @@ sorted-vec = "0.7.0"
 futures = "0.3"
 walkdir = "2.3"
 concat-idents = "1.0"
+csv = "1.1"
 clap = { version = "3", features = ["derive"] }
 clap_complete = "3"
 configparser = { version = "3.0", features = ["indexmap"] }
