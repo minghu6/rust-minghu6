@@ -1,7 +1,7 @@
 use std::{collections::HashSet, ops::Range};
 
 use crate::{
-    algs::{random, software_random_range},
+    algs::{random, random_range},
     collections::{
         graph::{to_undirected_vec, Graph},
         union_find::{MergeBy, UnionFind},
@@ -96,8 +96,8 @@ impl Graph {
 
         for _ in 0..edge_limit {
             loop {
-                let u = random() % vrange + 1;
-                let v = random() % vrange + 1;
+                let u = random::<usize>() % vrange + 1;
+                let v = random::<usize>() % vrange + 1;
 
                 if u == v {
                     continue;
@@ -109,7 +109,7 @@ impl Graph {
 
                 dsu.cunion(u, v);
 
-                let w = software_random_range(wrange.clone());
+                let w = random_range(wrange.clone());
                 g.insert_edge((u, v), w);
 
                 if !opt.dir {
@@ -135,7 +135,7 @@ impl Graph {
             let u = comps_iter.next().unwrap();
 
             for v in comps_iter {
-                let w = software_random_range(wrange.clone());
+                let w = random_range(wrange.clone());
 
                 g.insert_edge((u, v), w);
                 dsu.cunion(u, v);
@@ -192,7 +192,7 @@ fn gen_scc_graph(
         for v in 1..=vrange {
             if u == v { continue }
 
-            let w = software_random_range(wrange.clone());
+            let w = random_range(wrange.clone());
             edges.push((u, v, w));
             edges.push((v, u, w));
         }
@@ -220,7 +220,7 @@ pub fn batch_graph(
     let mut res = vec![];
 
     for _ in 0..n {
-        let sparsity = random() % 10 + 1;
+        let sparsity = random::<usize>() % 10 + 1;
 
         let g = Graph::gen(opt, vrange, sparsity, wrange.clone());
         res.push(g);

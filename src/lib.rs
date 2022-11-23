@@ -20,7 +20,6 @@
 #![feature(type_alias_impl_trait)]
 
 
-
 use proc_macros::{
     // make_vec_macro_rules,
     make_simple_error_rules

@@ -8,7 +8,9 @@ pub mod hash;
 pub mod graph;
 
 
-use rand::random;
+use std::collections::HashSet;
+
+use crate::algs::random;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -26,7 +28,6 @@ pub trait Provider<T> {
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Structure
-
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default, PartialOrd, Ord)]
 #[repr(C)]
@@ -55,7 +56,6 @@ pub struct UI1000Provider {}
 ////////////////////////////////////////////////////////////////////////////////
 //// Implementation
 
-
 impl Provider<Inode> for InodeProvider {
     fn get_one(&self) -> Inode {
         Inode {
@@ -75,7 +75,7 @@ impl Provider<Inode> for InodeProvider {
 
 impl Provider<usize> for UZProvider {
     fn get_one(&self) -> usize {
-        random::<usize>() % 1000
+        rand::random::<usize>() % 1000
     }
 }
 
@@ -86,7 +86,7 @@ impl Provider<usize> for UZProvider {
 
 #[inline]
 fn now_secs() -> u64 {
-    random::<u32>() as u64
+    rand::random::<u32>() as u64
 }
 
 
@@ -117,4 +117,49 @@ pub fn normalize<T: Ord>(raw_data: &[T]) -> Vec<usize> {
     }
 
     res
+}
+
+
+#[cfg(test)]
+pub(crate) fn gen() -> impl FnMut() -> usize {
+    let mut _inner = 0;
+    move || {
+        let old = _inner;
+        _inner += 1;
+        old
+    }
+}
+
+
+pub fn gen_unique() -> impl FnMut() -> usize {
+    let mut set = HashSet::new();
+
+    move || {
+        let mut v = random();
+
+        while set.contains(&v) {
+            v = random();
+        }
+
+        set.insert(v);
+
+        v
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::gen_unique;
+
+
+    #[test]
+    fn test_gen_unique() {
+
+        let mut unique = gen_unique();
+
+        for _ in 0..1000 {
+            unique();
+        }
+    }
 }

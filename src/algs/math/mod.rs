@@ -1,10 +1,8 @@
 
-// pub mod num;
+pub mod num;
 
 use std::ops::AddAssign;
-
 use itertools::Itertools;
-
 use crate::ht;
 
 

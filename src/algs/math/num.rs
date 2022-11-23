@@ -1,42 +1,38 @@
-use std::hash::Hash;
 
 
-
-
-pub trait Num: Copy + Clone + Hash {
-    fn as_i32(&self) -> i32;
-}
+pub trait Num{}
 
 pub trait Int: Num {}
 pub trait UInt: Int {}
 pub trait SInt: Int {}
 
+
+
 // impl<T: Int> Num for T {}
-impl Num for i32 {
-    fn as_i32(&self) -> i32 {
-        *self
-    }
+// impl<T: SInt> Int for T where T {}
+// impl<T: UInt + SInt> Int for T {}
 
-
+macro_rules! impl_for {
+    (uint, $ty:ty) => {
+        impl Num for $ty {}
+        impl Int for $ty {}
+        impl UInt for $ty {}
+    };
 }
 
-impl<T: SInt> Int for T {}
 
-// impl SInt for isize {}
-impl SInt for i32 {}
-
+impl_for!(uint, usize);
+impl_for!(uint, u32);
 
 
-// impl Int for isize {}
-// impl Int for isize {}
 
 
-pub fn log2<T: Int>(mut a: T) -> impl Int {
-    let mut i = 0;
-    while a.as_i32() > 0 {
-        i += 1;
-        a >>= 1;
-    }
+// pub fn log2<T: Int>(mut a: T) -> impl Int {
+//     let mut i = 0;
+//     while a.as_i32() > 0 {
+//         i += 1;
+//         a >>= 1;
+//     }
 
-    i
-}
+//     i
+// }

@@ -8,9 +8,10 @@
 use std::collections::{HashMap, HashSet};
 
 use super::Graph;
+#[allow(unused)]
 use crate::{
     collections::{
-        heap::fib::FibHeap,
+        heap::{fib::FibHeap, dary::DaryHeap},
         union_find::{MergeBy, UnionFind},
     },
     get,
@@ -25,11 +26,14 @@ use crate::{
 ///
 pub fn mst_kruskal(g: &Graph) -> Vec<(usize, usize)> {
     /* init sorted edge set */
-    let mut sorted_edges = FibHeap::new();
+    // let mut sorted_edges = FibHeap::new();
+    let mut sorted_edges = vec![];
 
     for (u, v, w) in g.edges() {
-        sorted_edges.push((u, v), w);
+        sorted_edges.push((u, v, w));
     }
+
+    sorted_edges.sort_unstable_by_key(|x| x.2);
 
     /* init disjoint set */
     let mut ds = UnionFind::new(Some(MergeBy::SZ));
@@ -40,7 +44,7 @@ pub fn mst_kruskal(g: &Graph) -> Vec<(usize, usize)> {
 
     let mut res = vec![];
 
-    while let Some(((u, v), _w)) = sorted_edges.pop_item() {
+    for (u, v, _w) in sorted_edges {
         if ds.cfind(u) != ds.cfind(v) {
             ds.cunion(u, v);
             res.push((u, v));
@@ -61,9 +65,9 @@ pub fn mst_kruskal(g: &Graph) -> Vec<(usize, usize)> {
 ///
 /// 1. 稠密图 e = v^2
 ///
-/// | Fib Heap | Binary Heap |
-/// | --- | --- |
-/// | O(vlogv + e) | O(vlogv + elogv) |
+/// | Fib Heap | Binary Heap | Dary2^5 Heap |
+/// | --- | --- | --- |
+/// | O(vlogv + e) | O(vlogv + elogv) | O(v + e) |
 ///
 ///
 pub fn mst_prim(g: &Graph) -> Vec<(usize, usize)> {
@@ -88,26 +92,24 @@ pub fn mst_prim(g: &Graph) -> Vec<(usize, usize)> {
 
     /* init dis heap && dis edge map */
 
-    let mut dis = FibHeap::new();
+    // let mut dis = FibHeap::new();
+    let mut dis
+        = DaryHeap::<5, usize, isize>::with_capacity(rest.len() + 1);
 
     let mut dis_edge = HashMap::new();
 
-    dis.push(root, 0);
+    dis.insert(root, 0);
     dis_edge.insert(root, Some(root));
 
     for v in viter {
         rest.insert(v);
-        dis.push(v, isize::MAX);
+        dis.insert(v, isize::MAX);
         dis_edge.insert(v, None);
     }
 
     while !rest.is_empty() {
         // u is current vertex
         let (u, _uw) = dis.pop_item().unwrap().clone();
-
-        if get!(dis_edge => u).is_none() {
-            println!("u: {u}, w: {_uw}");
-        }
 
         // "decrease-key" (It's increase-key actually for min-heap)
         // dis.update(u, isize::MAX);

@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 
 # echo "$@"
-cargo test --package minghu6 --lib --all-features -- $@ --nocapture
+RUST_BACKTRACE=1 cargo test --package minghu6 --lib -- --nocapture  $@

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+# echo "$1, $2"
+cargo bench --package minghu6 --lib --bench $1 -- --nocapture $2
+

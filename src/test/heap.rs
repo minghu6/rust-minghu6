@@ -30,12 +30,13 @@ pub trait HeapProvider<V: CollKey + Clone>: Provider<V> {
             /* Basic Test */
 
             let mut heap = heap_new();
+            let mut unique = gen_unique();
 
             let batch_num = 1000;
 
             for _ in 0..batch_num {
                 let e = self.get_one();
-                heap.push(0, e);
+                heap.push(unique(), e);
             }
 
             let mut res = vec![];
@@ -63,7 +64,7 @@ pub trait HeapProvider<V: CollKey + Clone>: Provider<V> {
             }
 
             for _ in 0..(3 * batch_num) / 4 {
-                if random() % 2 == 0 {
+                if random::<usize>() % 2 == 0 {
                     seq.push(true);
                     rems += 1;
                 } else {
@@ -79,12 +80,15 @@ pub trait HeapProvider<V: CollKey + Clone>: Provider<V> {
             let refheap =
                 &mut UnionBinHeap::new(non_dec) as &mut dyn Heap<usize, V>;
             let mut testheap = heap_new();
+            let mut unique = gen_unique();
 
             for flag in seq {
                 if flag {
                     let e = self.get_one();
-                    refheap.push(0, e.clone());
-                    testheap.push(0, e);
+                    let i = unique();
+
+                    refheap.push(i, e.clone());
+                    testheap.push(i, e);
                 } else {
                     let target = refheap.pop();
                     assert_eq!(testheap.pop(), target);
@@ -138,7 +142,7 @@ pub trait AdvHeapProvider<V: CollKey + Clone>: Provider<V> {
 
             for _ in 0..batch_num / 2 {
                 let newkey = self.get_one();
-                let i = random() % testheap.len();
+                let i = random::<usize>() % testheap.len();
 
                 testheap.update(i, newkey.clone());
             }
@@ -148,15 +152,6 @@ pub trait AdvHeapProvider<V: CollKey + Clone>: Provider<V> {
 
     }
 
-    // fn test_advheap_cloneable<'a>(
-    //     &self,
-    //     non_dec: bool,
-    //     heap_new: fn() -> Box<dyn AdvCloneHeap<V>>,
-    // ) where V: CollKey + Clone
-    // {
-
-
-    // }
 }
 
 

@@ -433,6 +433,7 @@ impl<I: CollKey + Hash + Clone, T: CollKey> FibHeap<I, T> {
     }
 
 
+    /// Same index node would be overidden
     pub fn push(&mut self, i: I, v: T) {
         let node = node!(i.clone(), v);
         self.nodes.insert(i, node.clone());
@@ -508,7 +509,7 @@ impl<I: CollKey + Hash + Clone, T: CollKey> FibHeap<I, T> {
     ///
     /// Exec push if the key doesn't exist.
     ///
-    pub fn update(&mut self, i: I, v: T) -> Option<T> {
+    pub fn insert(&mut self, i: I, v: T) -> Option<T> {
         match self.nodes.entry(i.clone()) {
             Occupied(ent) => {
                 let x = ent.get().clone();
@@ -544,9 +545,7 @@ impl<I: CollKey + Hash + Clone, T: CollKey> FibHeap<I, T> {
 
     /// Return oldval
     ///
-    /// Exec push if the key doesn't exist.
-    ///
-    pub fn decrease_key(&mut self, i: I, v: T) -> Option<T> {
+    pub fn decrease_key(&mut self, i: I, v: T) -> T {
         let x;
         match self.nodes.entry(i.clone()) {
             Occupied(ent) => {
@@ -561,7 +560,7 @@ impl<I: CollKey + Hash + Clone, T: CollKey> FibHeap<I, T> {
                 );
 
                 self.decrease_key_(x);
-                Some(oldv)
+                oldv
             }
             Vacant(_ent) => {
                 unreachable!("Empty index {i:?}")
@@ -595,6 +594,11 @@ impl<I: CollKey + Hash + Clone, T: CollKey> FibHeap<I, T> {
         Q: Hash + Eq,
     {
         self.nodes.get(i).map(|node| key!(node))
+    }
+
+
+    pub fn indexes(&self) -> impl Iterator<Item=&I> {
+        self.nodes.keys()
     }
 
 
@@ -956,14 +960,14 @@ impl<I: CollKey + Hash + Clone, T: CollKey> Heap<I, T> for FibHeap<I, T> {
     }
 
     fn push(&mut self, key: I, val: T) {
-        self.push(key, val)
+        self.push(key, val);
     }
 }
 
 
 impl<I: CollKey + Hash + Clone, T: CollKey> AdvHeap<I, T> for FibHeap<I, T> {
     fn update(&mut self, i: I, val: T) -> Option<T> {
-        self.update(i, val)
+        self.insert(i, val)
     }
 }
 
@@ -1068,7 +1072,7 @@ mod tests {
     #[test]
     fn test_fibheap_randomdata_extra() {
         // let batch_num = 10;
-        let get_one = || random() % 1000;
+        let get_one = || random::<usize>() % 1000;
         let validate = |heap: &FibHeap<i32, usize>, non_dec: bool| {
             let mut heap = (*heap).clone();
             let mut storage = vec![];
@@ -1108,8 +1112,8 @@ mod tests {
 
             for _ in 0..100 {
                 let newkey = get_one();
-                let i = random() % heap.len;
-                heap.update(i as i32, newkey.clone());
+                let i = random::<usize>() % heap.len;
+                heap.insert(i as i32, newkey.clone());
 
                 validate(&heap, non_dec);
             }
