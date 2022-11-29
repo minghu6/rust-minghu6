@@ -1,8 +1,51 @@
-use std::{borrow::Borrow, collections::{HashMap, VecDeque}, fmt::Debug, hash::Hash};
+use std::{borrow::Borrow, collections::{HashMap, VecDeque, HashSet}, fmt::Debug, hash::Hash};
 
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Macro
+
+#[macro_export]
+macro_rules! delopt {
+    ($var:expr => $($e:expr),+) => {
+        {
+            #[allow(unused_imports)]
+            use $crate::collections::easycoll::EasyCollRemove;
+
+            let var = &mut $var;
+
+            var.remove(&($($e),+))
+        }
+    }
+}
+
+
+#[macro_export]
+macro_rules! del {
+    ($var:expr => $($e:expr),+) => {
+        {
+            #[allow(unused_imports)]
+            use $crate::collections::easycoll::EasyCollRemove;
+
+            let var = &mut $var;
+
+            if let Some(v) = var.remove(&($($e),+)) {
+                v
+            }
+            else {
+                unreachable!("remove None for {:?}", &($($e),+))
+            }
+        }
+    };
+    ($var:expr => $($e:expr),+ => $default:expr) => {
+        {
+            #[allow(unused_imports)]
+            use $crate::collections::easycoll::EasyCollRemove;
+
+            let var = &$var;
+            var.get((&($($e),+))).unwrap_or($default)
+        }
+    };
+}
 
 #[macro_export]
 macro_rules! get {
@@ -84,6 +127,32 @@ macro_rules! contains {
     };
 }
 
+
+#[macro_export]
+macro_rules! concat {
+    ($var:expr $(=> $k:expr)+ ) => {
+        {
+            let mut _var = $var;
+            $(
+                _var.extend($k);
+            )+
+            _var
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! push {
+    ($var:expr $(=> $k:expr)+ ) => {
+        {
+            let mut _var = $var;
+            $(
+                _var.push($k);
+            )+
+            _var
+        }
+    };
+}
 
 
 #[macro_export]
@@ -223,6 +292,14 @@ macro_rules! btreemap {
 ////////////////////////////////////////////////////////////////////////////////
 //// Trait
 
+pub trait EasyCollRemove<K, V> {
+    type Target;
+
+    fn remove<Q: ?Sized>(&mut self, k: &Q) -> Option<Self::Target>
+    where K: Borrow<Q>, Q: Hash + Eq
+    ;
+}
+
 pub trait EasyCollGet<K, V> {
     type Target;
 
@@ -253,10 +330,13 @@ pub struct M1<K, V>(pub HashMap<K, V>);
 pub struct M2<K1, K2, V>(pub HashMap<K1, HashMap<K2, V>>);
 
 
-#[derive(Default, Debug)]
+#[derive(Default)]
 #[repr(transparent)]
 pub struct MV<K, V>(pub HashMap<K, Vec<V>>);
 
+#[derive(Default, Debug)]
+#[repr(transparent)]
+pub struct MS<K, V>(pub HashMap<K, HashSet<V>>);
 
 #[derive(Default, Debug)]
 #[repr(transparent)]
@@ -273,7 +353,9 @@ pub struct Queue<T> (pub VecDeque<T>);
 ////////////////////////////////////////////////////////////////////////////////
 //// Implementation
 
-/* M1 */
+////////////////////////////////////////
+//// Implementation M1
+
 impl<K, V> M1<K, V> {
     pub fn new() -> Self {
         Self(HashMap::<K, V>::new())
@@ -305,10 +387,27 @@ where
 }
 
 
-/* M2 */
+
+////////////////////////////////////////
+//// Implementation M2
+
 impl<K1, K2, V> M2<K1, K2, V> {
     pub fn new() -> Self {
         Self(HashMap::<K1, HashMap<K2, V>>::new())
+    }
+}
+
+
+impl<K1, K2, V> EasyCollRemove<K1, V> for M2<K1, K2, V>
+where
+    K1: Hash + Eq + Debug,
+{
+    type Target = HashMap<K2, V>;
+
+    fn remove<Q: ?Sized + Hash + Eq>(&mut self, k: &Q) -> Option<Self::Target>
+    where K1: Borrow<Q>
+    {
+        self.0.remove(k)
     }
 }
 
@@ -351,7 +450,10 @@ where
 }
 
 
-/* MV */
+
+////////////////////////////////////////
+//// Implementation MV
+
 impl<K, V> MV<K, V> {
     pub fn new() -> Self {
         Self(HashMap::<K, Vec<V>>::new())
@@ -433,6 +535,83 @@ where
     }
 }
 
+impl<K: Debug, V: Debug> Debug for MV<K, V> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f)?;
+        for (k, v) in self.0.iter() {
+            writeln!(f, "k: {k:?}")?;
+            writeln!(f, "v: {:?}\n", v)?;
+        }
+
+        Ok(())
+    }
+}
+
+
+////////////////////////////////////////
+//// Implementation MS
+
+impl<K, V> MS<K, V> {
+    pub fn new() -> Self {
+        Self(HashMap::<K, HashSet<V>>::new())
+    }
+}
+
+
+impl<K, V> EasyCollInsert<K, HashSet<V>> for MS<K, V>
+where
+    K: Hash + Eq,
+    V: Clone,
+{
+    type Target = HashSet<V>;
+
+    fn insert(&mut self, k: K, v: HashSet<V>) -> Option<Self::Target> {
+        self.0.insert(k, v)
+    }
+}
+
+impl<K, V> EasyCollInsert<K, V> for MS<K, V>
+where
+    K: Hash + Eq,
+    V: Hash + Eq
+{
+    type Target = ();
+
+    fn insert(&mut self, k: K, v: V) -> Option<Self::Target> {
+        if self.0.entry(k).or_default().insert(v) {
+            Some(())
+        }
+        else {
+            None
+        }
+    }
+}
+
+impl<K, V> EasyCollAPush<K, V> for MS<K, V>
+where
+    K: Hash + Eq,
+    V: Hash + Eq,
+{
+    fn apush(&mut self, k: K, v: V) {
+        self.0.entry(k).or_default().insert(v);
+    }
+}
+
+impl<K, V> EasyCollRemove<K, V> for MS<K, V>
+where
+    K: Hash + Eq,
+{
+    type Target = HashSet<V>;
+
+    fn remove<Q: ?Sized + Hash + Eq>(&mut self, k: &Q) -> Option<Self::Target>
+    where K: Borrow<Q>
+    {
+        self.0.remove(k)
+    }
+}
+
+////////////////////////////////////////
+//// Implementation Stack
 
 impl<T> Stack<T> {
     // staic method
@@ -487,6 +666,9 @@ impl<I> Extend<I> for Stack<I> {
 }
 
 
+////////////////////////////////////////
+//// Implementation Queue
+
 impl<T> Queue<T> {
     // staic method
     pub fn new() -> Self {
@@ -537,5 +719,14 @@ impl<T> Queue<T> {
 
 #[cfg(test)]
 mod tests {
+    use std::vec;
 
+
+    #[test]
+    fn debug() {
+
+        let v = vec![1, 2];
+
+        println!("{:?}", concat!(v => vec![3, 4]));
+    }
 }

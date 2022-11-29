@@ -687,9 +687,8 @@ mod test {
 
     #[test]
     fn test_treap_heap() {
-        let provider = InodeProvider {};
-
-        (&provider as &dyn HeapProvider<Inode>).test_heap(false, || box Treap::new());
+        let provider = UZProvider {};
+        (&provider as &dyn HeapProvider<usize>).test_heap(false, || box Treap::new());
     }
 
 

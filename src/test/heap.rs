@@ -185,7 +185,7 @@ impl<T: Ord> UnionBinHeap<T> {
             }
         } else {
             Self {
-                inner: Either::Right(BinaryHeap::new()),
+                inner: Either::Left(BinaryHeap::new()),
             }
         }
     }

@@ -3,9 +3,10 @@
 //!
 
 use std::{
+    borrow::Borrow,
     cmp::{min, Ordering::*},
     collections::HashMap,
-    hash::Hash, borrow::Borrow,
+    hash::Hash,
 };
 
 use m6coll::Array;
@@ -44,17 +45,15 @@ macro_rules! basen {
 
 /// get level from no. of node. (no. = idx + 1)
 macro_rules! pos {
-    ($n:expr) => {{
-        let n = $n;
+    ($x:expr) => {{
+        let x = $x;
 
         // = q^n
-        let var = (base!() - 1) * n + 1;
+        let var = (base!() - 1) * x + 1;
 
         let mut ln = var.ilog2() as usize / E;
 
-        let mut col: usize = n - total!(ln);
-
-        // println!("n: {n}, ln: {ln}, total(ln): {}", total!(ln));
+        let mut col: usize = x - total!(ln);
 
         if col > 0 {
             ln += 1;
@@ -91,41 +90,37 @@ macro_rules! total {
     }};
 }
 
-/// paren's idx
 macro_rules! paren_pos {
-    ($n:expr) => {{
-        let n = $n;
-
-        let (ln, col) = pos!(n);
-        debug_assert!(ln > 1);
+    ($pos:expr) => {{
+        let (ln, col) = $pos;
 
         (ln - 1, (col - 1) / base!() + 1)
     }};
 }
 
-/// by idx to idx
-macro_rules! paren {
-    ($idx:expr) => {{
-        let (ln, col) = paren_pos!($idx + 1);
 
-        total!(ln, col) - 1
-    }};
-}
-
-/// first child idx
+/// first child pos
 macro_rules! child_pos {
-    ($n:expr) => {{
-        let n = $n;
-
-        let (ln, col) = pos!(n);
+    ($pos:expr) => {{
+        let (ln, col) = $pos;
 
         (ln + 1, (col - 1) * base!() + 1)
     }};
 }
 
+
+/// by idx to idx
+macro_rules! paren {
+    ($idx:expr) => {{
+        let (ln, col) = paren_pos!(pos!($idx + 1));
+
+        total!(ln, col) - 1
+    }};
+}
+
 macro_rules! child {
     ($idx:expr) => {{
-        let (ln, col) = child_pos!($idx + 1);
+        let (ln, col) = child_pos!(pos!($idx + 1));
 
         total!(ln, col) - 1
     }};
@@ -207,25 +202,22 @@ impl<const E: usize, I: CollKey + Hash + Clone, T: CollKey + Clone>
     ////////////////////////////////////////////////////////////////////////////
     //// Public method
 
+    /// ReplaceOrPush
     pub fn insert(&mut self, i: I, v: T) -> Option<T> {
-        if self.index.contains_key(&i) {
-            Some(self.update(i, v))
+        if let Some(idx) = self.index.remove(&i) {
+            let (_, oldv) = self.raw[idx].replace((i.clone(), v)).unwrap();
+
+            let newidx = match self.w(idx).cmp(&oldv) {
+                Less => self.sift_up(idx),
+                Equal => idx,
+                Greater => self.sift_down(idx),
+            };
+
+            self.index.insert(i, newidx);
+
+            Some(oldv)
         } else {
-            if self.cap() == 0 {
-                self.recap(E);
-            } else if self.len >= self.cap() {
-                self.recap(self.cap() << 1);
-            }
-
-            let ent = self.len;
-
-            self.raw[ent] = Some((i.clone(), v));
-            self.index.insert(i, ent);
-
-            self.sift_up(ent);
-
-            self.len += 1;
-
+            self.push(i, v);
             None
         }
     }
@@ -256,8 +248,7 @@ impl<const E: usize, I: CollKey + Hash + Clone, T: CollKey + Clone>
         self.index.get(i).map(|&idx| self.w(idx))
     }
 
-
-    pub fn indexes(&self) -> impl Iterator<Item=&I> {
+    pub fn indexes(&self) -> impl Iterator<Item = &I> {
         self.index.keys()
     }
 
@@ -270,7 +261,13 @@ impl<const E: usize, I: CollKey + Hash + Clone, T: CollKey + Clone>
     }
 
     #[inline]
-    pub fn decrease_key(&mut self, i: I, v: T) -> T {
+    pub fn decrease_key(&mut self, i: I, v: T) -> Option<T> {
+        #[cfg(debug_assertions)] {
+            if let Some(oldv) = self.get(&i) {
+                assert!(&v < oldv);
+            }
+        }
+
         self.update(i, v)
     }
 
@@ -278,10 +275,30 @@ impl<const E: usize, I: CollKey + Hash + Clone, T: CollKey + Clone>
     ////////////////////////////////////////////////////////////////////////////
     //// Assistant method
 
-    fn update(&mut self, i: I, v: T) -> T {
-        debug_assert!(self.index.contains_key(&i), "No {i:?}");
+    fn push(&mut self, i: I, v: T) {
+        if self.cap() == 0 {
+            self.recap(E);
+        } else if self.len >= self.cap() {
+            self.recap(self.cap() << 1);
+        }
 
-        let idx = self.index.remove(&i).unwrap();
+        let ent = self.len;
+
+        self.raw[ent] = Some((i.clone(), v));
+        self.index.insert(i, ent);
+
+        self.sift_up(ent);
+
+        self.len += 1;
+    }
+
+    /// ReplaceOrSkip
+    fn update(&mut self, i: I, v: T) -> Option<T> {
+        let idx = if let Some(idx) = self.index.remove(&i) {
+            idx
+        } else {
+            return None;
+        };
 
         let (_, oldv) = self.raw[idx].replace((i.clone(), v)).unwrap();
 
@@ -293,7 +310,7 @@ impl<const E: usize, I: CollKey + Hash + Clone, T: CollKey + Clone>
 
         self.index.insert(i, newidx);
 
-        oldv
+        Some(oldv)
     }
 
     fn recap(&mut self, new_cap: usize) {
@@ -402,25 +419,23 @@ impl<const E: usize, I: CollKey + Hash + Clone, T: CollKey + Clone>
 
 #[cfg(test)]
 mod tests {
+    use super::DaryHeap1;
     use crate::{
+        algs::random,
         collections::{
+            heap::{dary::DaryHeap, fib::FibHeap},
             Coll,
-            heap::{dary::DaryHeap, fib::FibHeap}
         },
         test::{
-            gen,
+            gen, gen_unique,
             heap::{AdvHeapProvider, HeapProvider},
-            UZProvider, gen_unique,
-        }, algs::random,
+            UZProvider,
+        },
     };
-
-    use super::DaryHeap1;
 
 
     #[test]
     fn test_daryheap_fixeddata() {
-        // use std::collections::BinaryHeap;
-        // let h = BinaryHeap::<usize>::new();
 
         let mut auto = gen();
         let mut heap = DaryHeap::<1, usize, usize>::new();
@@ -434,7 +449,6 @@ mod tests {
         assert_eq!(heap.pop().unwrap(), 4);
         assert_eq!(heap.pop(), None);
 
-        // println!("heap top {:?}", heap.top_item())
     }
 
     #[test]
@@ -461,7 +475,6 @@ mod tests {
 
     #[test]
     fn test_daryheap_randomdata_extra() {
-
         fn do_test<const E: usize>() {
             let validate = |heap: &DaryHeap<E, i32, usize>, non_dec: bool| {
                 let mut heap = (*heap).clone();
@@ -475,23 +488,17 @@ mod tests {
                     storage.reverse();
                 }
 
-                // println!("storage: {storage:?}");
-
                 let mut iter = storage.into_iter().enumerate();
                 let mut prev = iter.next().unwrap().1;
 
                 for (_i, e) in iter {
-                    // println!("{i}: {:?}", e);
                     assert!(prev <= e, "prev: {prev:?}, e: {e:?}");
                     prev = e;
                 }
             };
 
-            // let batch_num = 10;
-
             let non_dec = true;
             let get_one = || random::<usize>() % 1000;
-
 
             for _ in 0..1 {
                 let batch_num = 100 * 3;
@@ -517,7 +524,6 @@ mod tests {
 
 
         do_test::<1>();
-
     }
 
     #[test]
@@ -545,8 +551,6 @@ mod tests {
                 i = random::<usize>() % fibheap.len();
             }
 
-            // println!("update: i:{i}, w:{newkey}");
-
             let fibres = fibheap.insert(i, newkey.clone());
             let daryres = daryheap.insert(i, newkey.clone());
 
@@ -568,7 +572,6 @@ mod tests {
                 break;
             }
         }
-
     }
 
 
@@ -602,10 +605,10 @@ mod tests {
                 }
             }
 
-            println!("E: {E} ok");
+            // println!("E: {E} ok");
         }
 
-        println!("!1: {:0b}", !0usize << 2);
+        // println!("!1: {:0b}", !0usize << 2);
 
         do_test::<1>();
         do_test::<2>();

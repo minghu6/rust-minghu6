@@ -18,6 +18,7 @@
 #![feature(concat_idents)]
 #![feature(rustc_private)]
 #![feature(type_alias_impl_trait)]
+#![feature(iter_from_generator)]
 
 
 use proc_macros::{
@@ -33,7 +34,7 @@ pub mod test;
 pub mod etc;
 pub mod error_code;
 pub mod io;
-pub(crate) mod debug;
+pub mod debug;
 
 
 // make_vec_macro_rules!(vecdeq , std::collections::VecDeque, push_back);

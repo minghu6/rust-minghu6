@@ -13,7 +13,7 @@ use crate::{
 ////////////////////////////////////////////////////////////////////////////////
 //// Structure
 
-/// Binary lifting, (improved version of native) 对数式跳转
+/// Binary lifting, (improved version of native) 对数(2)式跳转
 ///
 /// Obviously, it's online algorithm.
 pub struct LCABL {

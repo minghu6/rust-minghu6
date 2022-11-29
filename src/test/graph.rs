@@ -3,11 +3,12 @@ use std::{collections::HashSet, ops::Range};
 use crate::{
     algs::{random, random_range},
     collections::{
-        graph::{to_undirected_vec, Graph},
-        union_find::{MergeBy, UnionFind},
-    },
+        graph::{to_undirected_vec, Graph, sp::SPBellmanFord, Path},
+        union_find::{MergeBy, UnionFind}, easycoll::{MS},
+    }, apush, del, set,
 };
 
+use rand::prelude::*;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -15,7 +16,9 @@ use crate::{
 
 pub struct GraphGenOptions {
     pub dir: bool,
+    /// if it's a tree
     pub cyclic: bool,
+    pub nonnegative_cycle: bool
 }
 
 
@@ -32,8 +35,6 @@ impl Graph {
     ///
     /// sparsity: 1-10,
     ///
-    /// 1: n-1 edge
-    /// 10: (n-1)(n-1) edge
     ///
     /// it ranges exponentially
     pub fn gen(
@@ -43,68 +44,62 @@ impl Graph {
         wrange: Range<isize>,
     ) -> Graph {
         debug_assert!(1 <= sparsity && sparsity <= 10);
+        let mut g;
 
         if sparsity == 10 {
-            if !opt.dir && opt.cyclic {
-                return gen_scc_graph(vrange, wrange);
-            }
-            else {
-                unreachable!()
-            }
+            assert!(opt.cyclic);
+            g = gen_scc_graph(vrange, wrange.clone());
         }
-
-        fn edges_limit(vrange: usize, sparsity: usize) -> usize {
-            if vrange == 1 {
-                return 0;
+        else {
+            let mut max = vrange * (vrange - 1);
+            let min = vrange - 1;
+            if !opt.dir {
+                max /= 2;
             }
 
-            let sv_edge = vrange - 1;
+            let peace = (max - min) / 10;
 
-            if sparsity == 1 {
-                return sv_edge;
+            let edge_limit = min + sparsity * peace;
+
+            g = Graph::new();
+            let mut dsu = UnionFind::new(Some(MergeBy::SZ));
+
+            for v in 1..=vrange {
+                dsu.insert(v);
             }
-            debug_assert!(sparsity != 10, "shouldn't generate complete connected graph");
-            // if sparsity == 10 {
-            //     return sv_edge * sv_edge;
-            // }
 
-            if sv_edge < 10 {
-                let slice = ((sv_edge - 1) as f64) / 10.0;
-
-                1 + (slice * sparsity as f64) as usize
-            } else {
-                let base = (sv_edge as f64).powf(0.1);
-
-                sv_edge * base.powf(0.1 * sparsity as f64) as usize
+            let mut rem_edges = MS::new();
+            for u in 1..=vrange {
+                for v in 1..=vrange {
+                    if u != v {
+                        apush!(rem_edges => u => v);
+                    }
+                }
             }
-        }
 
-        let edge_limit = edges_limit(vrange, sparsity);
-        let sv_edge = vrange - 1;
+            for _ in 0..edge_limit {
+                let u = *rem_edges
+                    .0
+                    .keys()
+                    .choose(&mut rand::thread_rng())
+                    .unwrap();
 
-        debug_assert!(
-            sv_edge <= edge_limit && vrange <= sv_edge * sv_edge,
-            "sv_edge: {sv_edge}, edge_limit: {edge_limit}"
-        );
+                let mut rem_vertexs = del!(rem_edges => u);
 
-        let mut g = Graph::new();
-        let mut dsu = UnionFind::new(Some(MergeBy::SZ));
+                let v = *rem_vertexs
+                    .iter()
+                    .choose(&mut rand::thread_rng())
+                    .unwrap();
 
-        for v in 1..=vrange {
-            dsu.insert(v);
-        }
-
-        for _ in 0..edge_limit {
-            loop {
-                let u = random::<usize>() % vrange + 1;
-                let v = random::<usize>() % vrange + 1;
-
-                if u == v {
-                    continue;
+                rem_vertexs.remove(&v);
+                if !rem_vertexs.is_empty() {
+                    set!(rem_edges => u => rem_vertexs);
                 }
 
-                if g.contains_edge((u, v)) {
-                    continue;
+                let mut othset = del!(rem_edges => v);
+                othset.remove(&u);
+                if !othset.is_empty() {
+                    set!(rem_edges => v => othset);
                 }
 
                 dsu.cunion(u, v);
@@ -115,33 +110,30 @@ impl Graph {
                 if !opt.dir {
                     g.insert_edge((v, u), w);
                 }
-
-                break;
             }
-        }
 
+            /* ensure connected */
 
-        /* ensure connected */
+            let mut comps = HashSet::new();
 
-        let mut comps = HashSet::new();
+            for v in 1..=vrange {
+                comps.insert(dsu.cfind(v));
+            }
 
-        for v in 1..=vrange {
-            comps.insert(dsu.cfind(v));
-        }
+            if comps.len() > 1 {
+                let mut comps_iter = comps.into_iter();
 
-        if comps.len() > 1 {
-            let mut comps_iter = comps.into_iter();
+                let u = comps_iter.next().unwrap();
 
-            let u = comps_iter.next().unwrap();
+                for v in comps_iter {
+                    let w = random_range(wrange.clone());
 
-            for v in comps_iter {
-                let w = random_range(wrange.clone());
+                    g.insert_edge((u, v), w);
+                    dsu.cunion(u, v);
 
-                g.insert_edge((u, v), w);
-                dsu.cunion(u, v);
-
-                if !opt.dir {
-                    g.insert_edge((v, u), w);
+                    if !opt.dir {
+                        g.insert_edge((v, u), w);
+                    }
                 }
             }
         }
@@ -168,11 +160,45 @@ impl Graph {
             g = Graph::from_iter(edges);
         }
         else {
-            debug_assert!(g.is_connected(), "Faield with ");
+            debug_assert!(g.is_connected());
+
+            if wrange.start < 0 && opt.nonnegative_cycle {
+                g.fix_negative_cycle(opt.dir);
+            }
         }
 
         g
     }
+
+
+    pub(crate) fn fix_negative_cycle(&mut self, dir: bool) {
+        loop {
+            let src = self.anypoint();
+
+            if let Err(ncycle) = SPBellmanFord::new(&self, src) {
+                assert!(ncycle.len() > 1);
+
+                let p = Path::from_cycle(self, &ncycle).freeze();
+                let mut totw = p.weight();
+                assert!(totw < 0);
+
+                for (u ,v, w) in p.iter() {
+                    if w < 0 {  // reverse weight
+                        totw += 2*(-w);
+                        set!(self.w => (u, v) => -w);
+
+                        if !dir {
+                            set!(self.w => (v, u) => -w);
+                        }
+                    }
+                }
+            }
+            else {
+                break;
+            }
+        }
+    }
+
 }
 
 
@@ -188,10 +214,8 @@ fn gen_scc_graph(
 {
     let mut edges = vec![];
 
-    for u in 1..=vrange {
-        for v in 1..=vrange {
-            if u == v { continue }
-
+    for u in 1..vrange {
+        for v in u + 1..=vrange {
             let w = random_range(wrange.clone());
             edges.push((u, v, w));
             edges.push((v, u, w));
@@ -207,9 +231,17 @@ pub fn ucgopt() -> GraphGenOptions {
     GraphGenOptions {
         dir: false,
         cyclic: true,
+        nonnegative_cycle: false
     }
 }
 
+pub fn ucg_nncycle_opt() -> GraphGenOptions {
+    GraphGenOptions {
+        dir: false,
+        cyclic: true,
+        nonnegative_cycle: true
+    }
+}
 
 pub fn batch_graph(
     n: usize,

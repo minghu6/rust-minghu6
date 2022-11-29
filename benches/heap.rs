@@ -44,11 +44,15 @@ fn bench_heap_basic_binaryheap(b: &mut Bencher) {
 
     b.iter(|| {
         let mut heap = BinaryHeap::new();
+        let mut index = HashMap::new();
         for (_, v) in batch.iter() {
             heap.push(*v);
+            index.insert(*v, *v);
         }
 
-        while heap.pop().is_some() {}
+        while let Some(v) = heap.pop() {
+            index.remove(&v);
+        }
     })
 }
 

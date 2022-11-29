@@ -505,7 +505,7 @@ impl<I: CollKey + Hash + Clone, T: CollKey> FibHeap<I, T> {
     }
 
 
-    /// Return oldval
+    /// Return oldval, alias of ReplaceOrPush
     ///
     /// Exec push if the key doesn't exist.
     ///
@@ -545,7 +545,7 @@ impl<I: CollKey + Hash + Clone, T: CollKey> FibHeap<I, T> {
 
     /// Return oldval
     ///
-    pub fn decrease_key(&mut self, i: I, v: T) -> T {
+    pub fn decrease_key(&mut self, i: I, v: T) -> Option<T> {
         let x;
         match self.nodes.entry(i.clone()) {
             Occupied(ent) => {
@@ -560,10 +560,10 @@ impl<I: CollKey + Hash + Clone, T: CollKey> FibHeap<I, T> {
                 );
 
                 self.decrease_key_(x);
-                oldv
+                Some(oldv)
             }
             Vacant(_ent) => {
-                unreachable!("Empty index {i:?}")
+                None
             }
         }
     }

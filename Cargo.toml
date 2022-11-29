@@ -28,8 +28,8 @@ walkdir = "2.3"
 concat-idents = "1.0"
 indexmap = "1"
 csv = "1.1"
-clap = { version = "3", features = ["derive"] }
-clap_complete = "3"
+clap = { version = "4", features = ["derive"] }
+clap_complete = "4"
 configparser = { version = "3.0", features = ["indexmap"] }
 
 
@@ -73,3 +73,7 @@ path = "tools/read.rs"
 [[bin]]
 name = "pkcheat"
 path = "tools/pkcheat.rs"
+
+[[bin]]
+name = "graph"
+path = "tools/graph.rs"

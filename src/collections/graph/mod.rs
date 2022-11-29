@@ -1,4 +1,5 @@
 pub mod mst;
+pub mod sp;
 pub mod toposort;
 pub mod tree;
 
@@ -6,14 +7,18 @@ pub mod tree;
 use std::{
     collections::{HashMap, HashSet},
     fmt::Debug,
+    iter::once,
 };
 
-use self::tree::diameter::diameter_dp;
+use self::{tree::diameter::diameter_dp, sp::pre_to_path};
 use super::{
     aux::VerifyResult,
-    easycoll::{M1, MV}, union_find::{UnionFind, SZ},
+    easycoll::{M1, MV},
+    union_find::{UnionFind, SZ},
 };
-use crate::{apush, collections::aux::VerifyError, get, queue, set, stack, getopt};
+use crate::{
+    apush, collections::aux::VerifyError, get, getopt, queue, set, stack,
+};
 
 
 
@@ -28,8 +33,83 @@ pub struct Graph {
 }
 
 
+pub struct Path<'a> {
+    g: &'a Graph,
+    path: Vec<usize>,
+}
+
+
+/// Freezed path
+pub struct FPath {
+    weight: isize,
+    path: Vec<(usize, usize, isize)>,
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //// Implementation
+
+impl FPath {
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = (usize, usize, isize)> + 'a {
+        self.path.iter().cloned()
+    }
+
+    #[inline]
+    pub const fn weight(&self) -> isize {
+        self.weight
+    }
+}
+
+
+impl<'a> Path<'a> {
+    pub fn new(g: &'a Graph, path: &[usize]) -> Self {
+        Self {
+            g,
+            path: path.into_iter().cloned().collect(),
+        }
+    }
+
+    pub fn from_cycle(g: &'a Graph, cycle: &[usize]) -> Self {
+        Self {
+            g,
+            path: cycle
+                .into_iter()
+                .cloned()
+                .chain(once(cycle[0]))
+                .collect(),
+        }
+    }
+
+    pub fn from_pre(g: &'a Graph, dst: usize, pre: &M1<usize, usize>) -> Self {
+        let path = pre_to_path(dst, pre);
+
+        Self { g, path }
+    }
+
+    /// Empty path weight is zero
+    pub fn weight(&self) -> isize {
+        self.iter().map(|x| x.2).sum::<isize>()
+    }
+
+    pub fn iter<'b>(
+        &'b self,
+    ) -> impl Iterator<Item = (usize, usize, isize)> + 'b {
+        std::iter::from_generator(|| {
+            let mut cur = self.path[0];
+
+            for v in self.path[1..].iter().cloned() {
+                yield (cur, v, get!(self.g.w => (cur, v)));
+                cur = v;
+            }
+        })
+    }
+
+    pub fn freeze(&self) -> FPath {
+        FPath { weight: self.weight(), path: self.iter().collect() }
+    }
+}
+
+
 
 impl FromIterator<(usize, usize, isize)> for Graph {
     fn from_iter<T: IntoIterator<Item = (usize, usize, isize)>>(
@@ -55,16 +135,13 @@ impl IntoIterator for Graph {
     fn into_iter(self) -> Self::IntoIter {
         let w = self.w;
 
-        self.e.0
+        self.e
+            .0
             .into_iter()
-            .map(
-                |(u, vs)|
-                vs.into_iter().map(move |v| (u, v))
-            )
+            .map(|(u, vs)| vs.into_iter().map(move |v| (u, v)))
             .flatten()
             .map(move |(u, v)| (u, v, get!(w => (u, v))))
     }
-
 }
 
 
@@ -213,8 +290,7 @@ impl Graph {
 
         if let Some(tos) = tos {
             tos.into_iter().find(|&x| x == v).is_some()
-        }
-        else {
+        } else {
             false
         }
     }
@@ -239,11 +315,7 @@ impl Graph {
             apush!(comps => p => v);
         }
 
-        comps.0
-            .into_iter()
-            .map(|(_k, vs)| vs)
-            .collect()
-
+        comps.0.into_iter().map(|(_k, vs)| vs).collect()
     }
 
 
@@ -293,6 +365,78 @@ impl Graph {
         }
     }
 
+    pub fn verify_path(
+        &self,
+        src: usize,
+        dst: usize,
+        path: &[usize],
+    ) -> VerifyResult {
+        let mut u = src;
+
+        for v in path {
+            if self.contains_edge((u, *v)) {
+                u = *v;
+            } else {
+                return Err(VerifyError::Inv(format!(
+                    "No edge {u}-{v} for {path:?}"
+                )));
+            }
+        }
+
+        if u == dst {
+            Ok(())
+        } else {
+            Err(VerifyError::Inv(format!("Not end in {dst}, found {u}")))
+        }
+    }
+
+    pub fn verify_cycle(&self, dir: bool, cycle: &[usize]) -> VerifyResult {
+        if cycle.len() == 0 {
+            return Err(VerifyError::Inv(format!("Empty negative cycle")));
+        }
+
+        let src = *cycle.first().unwrap();
+        let dst = *cycle.last().unwrap();
+
+        self.verify_path(src, dst, &cycle[1..])?;
+
+        if let Some(_w) = getopt!(self.w => (dst, src)) {
+            if !dir && dst == src {
+                return Err(VerifyError::Fail);
+            }
+        } else {
+            return Err(VerifyError::Fail);
+        }
+
+        Ok(())
+    }
+
+    pub fn verify_negative_cycle(
+        &self,
+        dir: bool,
+        cycle: &[usize],
+    ) -> VerifyResult {
+        self.verify_cycle(dir, cycle)?;
+
+        /* verify negative weights sumeration */
+
+        let sumw: isize = cycle
+            .iter()
+            .cloned()
+            .zip(cycle[1..].iter().cloned().chain(once(cycle[0])))
+            .map(|(u, v)| get!(self.w => (u, v)))
+            .sum();
+
+        if sumw < 0 {
+            Ok(())
+        } else {
+            Err(VerifyError::Fail)
+        }
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    /// Introspection
 
     pub fn is_connected(&self) -> bool {
         let comps = self.components();
@@ -301,6 +445,30 @@ impl Graph {
 
         comps.len() == 1
     }
+
+    /// 1-10 (0 means sp)
+    pub fn sparisity(&self, dir: bool) -> usize {
+        let n = self.vertexs().count();
+        let m = self.edges().count();
+
+        if dir {
+            let max = n * (n - 1);
+            let min = n - 1;
+            let peace = (max - min) / 10;
+
+            (m - min) / peace
+        }
+        else {
+            let max = n * (n - 1) / 2;
+            let min = n - 1;
+            let peace = (max - min) / 10;
+
+            (m/2 - min) / peace
+        }
+
+    }
+
+
 }
 
 

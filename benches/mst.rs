@@ -42,7 +42,7 @@ fn prepare_low_density_graphs() -> Vec<Graph> {
 fn prepare_high_density_graphs() -> Vec<Graph> {
     let opt = ucgopt();
     let wrange = 1..1000;
-    let vrange = 50;
+    let vrange = 100;
     let mut res = vec![];
 
     for _ in 0..BATCH_NUM {
