@@ -90,10 +90,10 @@ impl<'a> SPBellmanFord<'a> {
 }
 
 impl<'a> SPDijkstra<'a> {
-    pub fn new(g: &'a Graph, src: usize) -> Result<Self, Vec<usize>>{
+    pub fn new(g: &'a Graph, src: usize) -> Self {
         let (spw, pre) = sp_dijkstra(g, src);
 
-        Ok(Self { g, src, spw, pre })
+        Self { g, src, spw, pre }
     }
 
     pub fn query(&self, dst: usize) -> (isize, Vec<usize>) {
@@ -296,11 +296,16 @@ pub fn sp_fa(g: &Graph, src: usize) -> Result<(M1<usize, isize>, M1<usize, usize
 
 
 pub fn sp_dijkstra(g: &Graph, src: usize) -> (M1<usize, isize>, M1<usize, usize>) {
-    // let mut pre = M1::new();
+    let mut pre = M1::new();
+    let mut dis_m1 = M1::new();
+
     let mut dis = DaryHeap5::new();
+    let mut rest = HashSet::new();
+
     let infi = isize::MAX / 2;
 
     for v in g.vertexs() {
+        rest.insert(v);
         if v == src {
             dis.insert(v, 0);
         }
@@ -309,14 +314,22 @@ pub fn sp_dijkstra(g: &Graph, src: usize) -> (M1<usize, isize>, M1<usize, usize>
         }
     }
 
-    while let Some((u, w_u)) = dis.pop_item() {
-        for v in get!(g.e => u) {
+    while let Some((u, dis_u)) = dis.pop_item() {
+        rest.remove(&u);
+        set!(dis_m1 => u => dis_u);
 
-            // dis.decrease_key(v);
+        for v in get!(g.e => u) {
+            if rest.contains(&v) {
+                let w = dis_u + get!(g.w => (u, v));
+                if w < *get!(dis => v) {
+                    dis.decrease_key(v, w);
+                    set!(pre => v => u);
+                }
+            }
         }
     }
 
-    todo!()
+    (dis_m1, pre)
 }
 
 
@@ -342,7 +355,7 @@ mod tests {
     use std::fs::File;
 
     use super::{SPFlod, SPBellmanFord};
-    use crate::{collections::graph::{Graph, sp::SPFA}, test::graph::{
+    use crate::{collections::graph::{Graph, sp::{SPFA, SPDijkstra}}, test::graph::{
         batch_graph,
         ucgopt, ucg_nncycle_opt
     }};
@@ -378,24 +391,28 @@ mod tests {
             for src in g.vertexs() {
                 let sp_bellmanford = SPBellmanFord::new(&g, src).unwrap();
                 let sp_fa = SPFA::new(&g, src).unwrap();
+                let sp_dijkstra = SPDijkstra::new(&g, src);
 
                 for dst in g.vertexs() {
                     let (w_bellmanford, p_bellmanford) = sp_bellmanford.query(dst);
                     let (w_spfa, p_spfa) = sp_fa.query(dst);
                     let (w_flod, p_flod) = sp_flod.query(src, dst);
+                    let (w_spdijkstra, p_spdijkstra) = sp_dijkstra.query(dst);
 
                     assert_eq!(w_bellmanford, w_flod);
                     assert_eq!(w_bellmanford, w_spfa);
+                    assert_eq!(w_bellmanford, w_spdijkstra);
 
                     g.verify_path(src, dst, &p_bellmanford).unwrap();
                     g.verify_path(src, dst, &p_flod).unwrap();
                     g.verify_path(src, dst, &p_spfa).unwrap();
+                    g.verify_path(src, dst, &p_spdijkstra).unwrap();
 
                 }
                 // println!("     {src:03} pass.");
             }
 
-            println!("g {i:03} pass.");
+            println!("g {i:03} pass");
             i += 1;
         }
     }
@@ -421,7 +438,6 @@ mod tests {
                 for dst in g.vertexs() {
                     let (w_bellmanford, p_bellmanford) = sp_bellmanford.query(dst);
                     let (w_spfa, p_spfa) = sp_fa.query(dst);
-
                     let (w_flod, p_flod) = sp_flod.query(src, dst);
 
                     assert_eq!(w_bellmanford, w_flod);
@@ -430,6 +446,7 @@ mod tests {
                     g.verify_path(src, dst, &p_bellmanford).unwrap();
                     g.verify_path(src, dst, &p_flod).unwrap();
                     g.verify_path(src, dst, &p_spfa).unwrap();
+
                 }
                 // println!("     {src:03} pass.");
             }
