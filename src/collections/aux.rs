@@ -68,7 +68,7 @@ pub type VerifyResult = Result<(), VerifyError>;
 #[derive(PartialEq, Eq, Debug)]
 pub enum VerifyError {
     Inv(String),
-    Fail
+    Fail(String)
 }
 
 

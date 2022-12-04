@@ -1,8 +1,57 @@
-use std::{borrow::Borrow, collections::{HashMap, VecDeque, HashSet}, fmt::Debug, hash::Hash};
+use std::{
+    borrow::Borrow,
+    collections::{HashMap, HashSet, VecDeque},
+    fmt::Debug,
+    hash::Hash, ops::{Index, RangeFrom, RangeTo}
+};
 
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Macro
+
+#[macro_export]
+macro_rules! min {
+    ($($val:expr),+) => {
+        {
+            [$($val),+].into_iter().min().unwrap()
+        }
+    }
+}
+
+#[macro_export]
+macro_rules! max {
+    ($($val:expr),+) => {
+        {
+            [$($val),+].into_iter().min().unwrap()
+        }
+    }
+}
+
+#[macro_export]
+macro_rules! same {
+    ($($val:expr),+) => {
+        {
+            let _arr = [$($val),+];
+            _arr.iter().min().unwrap() == _arr.iter().max().unwrap()
+        }
+    }
+}
+
+#[macro_export]
+macro_rules! slidedown1 {
+    ($var:expr, $e:expr) => {{
+        use $crate::collections::easycoll::Slide;
+        Slide::slide(&$var, 1, &[$e])
+    }};
+}
+
+#[macro_export]
+macro_rules! slideup1 {
+    ($var:expr, $e:expr) => {{
+        use $crate::collections::easycoll::Slide;
+        Slide::slide(&$var, -1, &[$e])
+    }};
+}
 
 #[macro_export]
 macro_rules! delopt {
@@ -17,7 +66,6 @@ macro_rules! delopt {
         }
     }
 }
-
 
 #[macro_export]
 macro_rules! del {
@@ -85,6 +133,21 @@ macro_rules! getopt {
             let var = &$var;
 
             var.get(&($($e),+))
+        }
+    };
+}
+
+/// Restricted getopt
+#[macro_export]
+macro_rules! rgetopt {
+    ($var:expr => $($e:expr),+) => {
+        {
+            #[allow(unused_imports)]
+            use $crate::collections::easycoll::EasyCollGet;
+
+            // let var = &$var;
+
+            EasyCollGet::get($var, &($($e),+))
         }
     };
 }
@@ -292,13 +355,69 @@ macro_rules! btreemap {
 ////////////////////////////////////////////////////////////////////////////////
 //// Trait
 
+pub trait Slide<T> {
+    fn slide(&self, off: isize, padding: &[T]) -> Self
+    where
+        T: Clone,
+        Self: Sized +
+              Index<RangeFrom<usize>, Output = [T]> +
+              Index<RangeTo<usize>, Output = [T]> +
+              FromIterator<T>
+    {
+        assert!(off > isize::MIN);
+        let abs_off = off.abs() as usize;
+
+        assert!(abs_off <= padding.len());
+        let debt = if self.len() < abs_off {
+            abs_off - self.len()
+        } else {
+            0
+        };
+
+        let new_view: Self = if off >= 0 {
+            let actual_off = if self.len() >= abs_off {
+                abs_off
+            } else {
+                self.len()
+            };
+
+            self[actual_off..]
+                .iter()
+                .cloned()
+                .chain(padding[debt..abs_off].iter().cloned())
+                .collect()
+        } else {
+            let actual_off = if self.len() >= abs_off {
+                self.len() - abs_off
+            } else {
+                0
+            };
+
+            padding[padding.len() - abs_off..padding.len() - debt]
+                .iter()
+                .cloned()
+                .chain(self[..actual_off].iter().cloned())
+                .collect()
+        };
+
+        debug_assert!(new_view.len() == self.len());
+
+        new_view
+    }
+
+    fn len(&self) -> usize;
+}
+
+
 pub trait EasyCollRemove<K, V> {
     type Target;
 
     fn remove<Q: ?Sized>(&mut self, k: &Q) -> Option<Self::Target>
-    where K: Borrow<Q>, Q: Hash + Eq
-    ;
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq;
 }
+
 
 pub trait EasyCollGet<K, V> {
     type Target;
@@ -325,33 +444,46 @@ pub trait EasyCollAPush<K, V> {
 pub struct M1<K, V>(pub HashMap<K, V>);
 
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 #[repr(transparent)]
 pub struct M2<K1, K2, V>(pub HashMap<K1, HashMap<K2, V>>);
 
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 #[repr(transparent)]
 pub struct MV<K, V>(pub HashMap<K, Vec<V>>);
 
-#[derive(Default, Debug)]
+
+#[derive(Default, Debug, Clone)]
 #[repr(transparent)]
 pub struct MS<K, V>(pub HashMap<K, HashSet<V>>);
 
-#[derive(Default, Debug)]
+
+#[derive(Default, Debug, Clone)]
 #[repr(transparent)]
-pub struct Stack<T> (pub Vec<T>);
+pub struct Stack<T>(pub Vec<T>);
 
 
 /// FIFO simple queue
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 #[repr(transparent)]
-pub struct Queue<T> (pub VecDeque<T>);
-
+pub struct Queue<T>(pub VecDeque<T>);
 
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Implementation
+
+impl<K, V> EasyCollGet<K, V> for HashMap<K, V>
+where
+    K: Hash + Eq,
+    V: Clone,
+{
+    type Target = V;
+
+    fn get<Q: Borrow<K>>(&self, k: &Q) -> Option<Self::Target> {
+        self.get(k.borrow()).cloned()
+    }
+}
 
 ////////////////////////////////////////
 //// Implementation M1
@@ -405,7 +537,8 @@ where
     type Target = HashMap<K2, V>;
 
     fn remove<Q: ?Sized + Hash + Eq>(&mut self, k: &Q) -> Option<Self::Target>
-    where K1: Borrow<Q>
+    where
+        K1: Borrow<Q>,
     {
         self.0.remove(k)
     }
@@ -434,6 +567,29 @@ where
     }
 }
 
+// impl<K1, K2, V> EasyCollGet<K1, M1<K2, V>> for M2<K1, K2, V>
+// where
+//     K1: Hash + Eq + Debug,
+//     K2: Hash + Eq + Debug,
+//     V: Clone,
+// {
+//     type Target<'a> = &'a M1<K2, V> where K2: 'a, V: 'a;
+
+//     fn get<Q: Borrow<(K1, K2)>>(&'a self, k: &Q) -> Option<Self::Target> {
+//         let (k1, k2) = k.borrow();
+
+//         if let Some(map1) = self.0.get(&k1) {
+//             if let Some(v) = map1.get(&k2) {
+//                 Some(v.clone())
+//             } else {
+//                 None
+//             }
+//         } else {
+//             None
+//         }
+//     }
+// }
+
 impl<K1, K2, V> EasyCollInsert<(K1, K2), V> for M2<K1, K2, V>
 where
     K1: Hash + Eq + Debug,
@@ -449,6 +605,18 @@ where
     }
 }
 
+impl<K1, K2, V> EasyCollInsert<K1, M1<K2, V>> for M2<K1, K2, V>
+where
+    K1: Hash + Eq + Debug,
+    K2: Hash + Eq + Debug,
+    V: Clone,
+{
+    type Target = M1<K2, V>;
+
+    fn insert(&mut self, k: K1, v: M1<K2, V>) -> Option<Self::Target> {
+        self.0.insert(k, v.0).map(|v| M1(v))
+    }
+}
 
 
 ////////////////////////////////////////
@@ -558,30 +726,17 @@ impl<K, V> MS<K, V> {
 }
 
 
-impl<K, V> EasyCollInsert<K, HashSet<V>> for MS<K, V>
-where
-    K: Hash + Eq,
-    V: Clone,
-{
-    type Target = HashSet<V>;
-
-    fn insert(&mut self, k: K, v: HashSet<V>) -> Option<Self::Target> {
-        self.0.insert(k, v)
-    }
-}
-
 impl<K, V> EasyCollInsert<K, V> for MS<K, V>
 where
     K: Hash + Eq,
-    V: Hash + Eq
+    V: Hash + Eq,
 {
     type Target = ();
 
     fn insert(&mut self, k: K, v: V) -> Option<Self::Target> {
         if self.0.entry(k).or_default().insert(v) {
             Some(())
-        }
-        else {
+        } else {
             None
         }
     }
@@ -604,7 +759,8 @@ where
     type Target = HashSet<V>;
 
     fn remove<Q: ?Sized + Hash + Eq>(&mut self, k: &Q) -> Option<Self::Target>
-    where K: Borrow<Q>
+    where
+        K: Borrow<Q>,
     {
         self.0.remove(k)
     }
@@ -644,12 +800,10 @@ impl<T> Stack<T> {
     }
 
     /// FILO
-    pub fn stack_iter<'a>(&'a self) -> impl Iterator<Item=&T> + 'a {
+    pub fn stack_iter<'a>(&'a self) -> impl Iterator<Item = &T> + 'a {
         let mut iter = self.0.iter().rev();
 
-        std::iter::from_fn(move || {
-            iter.next()
-        })
+        std::iter::from_fn(move || iter.next())
     }
 
     /// This method will move the content of stack
@@ -700,12 +854,10 @@ impl<T> Queue<T> {
     }
 
     /// FIFO
-    pub fn queue_iter<'a>(&'a self) -> impl Iterator<Item=&T> + 'a {
+    pub fn queue_iter<'a>(&'a self) -> impl Iterator<Item = &T> + 'a {
         let mut iter = self.0.iter();
 
-        std::iter::from_fn(move || {
-            iter.next()
-        })
+        std::iter::from_fn(move || iter.next())
     }
 
     /// This method will move the content of queue
@@ -715,18 +867,74 @@ impl<T> Queue<T> {
 }
 
 
+////////////////////////////////////////
+//// Implementation HashMap
+
+impl<K, V> EasyCollInsert<K, HashSet<V>> for MS<K, V>
+where
+    K: Hash + Eq,
+    V: Clone,
+{
+    type Target = HashSet<V>;
+
+    fn insert(&mut self, k: K, v: HashSet<V>) -> Option<Self::Target> {
+        self.0.insert(k, v)
+    }
+}
+
+
+////////////////////////////////////////
+//// Implementation Vector
+
+impl<T: Clone> Slide<T> for Vec<T> {
+    fn len(&self) -> usize {
+        self.len()
+    }
+}
 
 
 #[cfg(test)]
 mod tests {
-    use std::vec;
+    use crate::collections::easycoll::Slide;
 
 
     #[test]
-    fn debug() {
+    fn test_slide() {
+        /* test vector */
+        let v = vec![1, 2, 3];
+        let padding = vec![4, 5, 6, 7, 8];
 
-        let v = vec![1, 2];
+        assert_eq!(slidedown1!(v, 4), vec![2, 3, 4]);
+        assert_eq!(slideup1!(v, 4), vec![4, 1, 2]);
 
-        println!("{:?}", concat!(v => vec![3, 4]));
+        assert_eq!(v.slide(-2, &padding), vec![7, 8, 1]);
+        assert_eq!(v.slide(-4, &padding), vec![5, 6, 7]);
+        assert_eq!(v.slide(-5, &padding), vec![4, 5, 6]);
+
+        assert_eq!(v.slide(2, &padding), vec![3, 4, 5]);
+        assert_eq!(v.slide(4, &padding), vec![5, 6, 7]);
+        assert_eq!(v.slide(5, &padding), vec![6, 7, 8]);
+
+        assert_eq!(slidedown1!(vec![], 4), Vec::<i32>::new());
+        assert_eq!(slideup1!(vec![], 4), Vec::<i32>::new());
+        assert_eq!(Vec::<i32>::new().slide(2, &padding), Vec::<i32>::new());
+        assert_eq!(Vec::<i32>::new().slide(-2, &padding), Vec::<i32>::new());
+
+        /* test array */
+
+
+    }
+
+    #[test]
+    fn repl() {
+        let v = vec![1, 2, 3];
+
+        assert_eq!(slidedown1!(v, 4), vec![2, 3, 4]);
+        assert_eq!(slideup1!(v, 4), vec![4, 1, 2]);
+
+        println!("{:?}", slidedown1!(v, 4));
+
+        let _v2 = [1,2,3].into_iter().min().unwrap();
+
     }
 }

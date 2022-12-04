@@ -70,11 +70,7 @@ impl GraphShape {
     fn get_config(&self) -> (GraphGenOptions, RenderOptions) {
         match self {
             GraphShape::USP => (
-                GraphGenOptions {
-                    dir: false,
-                    cyclic: true,
-                    nonnegative_cycle: false
-                },
+                GraphGenOptions::undir_conn(),
                 RenderOptions {
                     dir: false,
                     weight_edge: true,

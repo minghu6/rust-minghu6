@@ -19,6 +19,7 @@
 #![feature(rustc_private)]
 #![feature(type_alias_impl_trait)]
 #![feature(iter_from_generator)]
+#![feature(generic_associated_types)]
 
 
 use proc_macros::{

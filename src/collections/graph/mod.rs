@@ -1,4 +1,5 @@
 pub mod mst;
+#[macro_use]
 pub mod sp;
 pub mod toposort;
 pub mod tree;
@@ -10,7 +11,7 @@ use std::{
     iter::once,
 };
 
-use self::{tree::diameter::diameter_dp, sp::pre_to_path};
+use self::tree::diameter::diameter_dp;
 use super::{
     aux::VerifyResult,
     easycoll::{M1, MV},
@@ -26,8 +27,10 @@ use crate::{
 //// Structure
 
 /// Adjacent link formed simple (directed) connected graph
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Graph {
+    /// If it's directed
+    pub dir: bool,
     pub e: MV<usize, usize>,
     pub w: M1<(usize, usize), isize>,
 }
@@ -50,7 +53,9 @@ pub struct FPath {
 //// Implementation
 
 impl FPath {
-    pub fn iter<'a>(&'a self) -> impl Iterator<Item = (usize, usize, isize)> + 'a {
+    pub fn iter<'a>(
+        &'a self,
+    ) -> impl Iterator<Item = (usize, usize, isize)> + 'a {
         self.path.iter().cloned()
     }
 
@@ -72,16 +77,12 @@ impl<'a> Path<'a> {
     pub fn from_cycle(g: &'a Graph, cycle: &[usize]) -> Self {
         Self {
             g,
-            path: cycle
-                .into_iter()
-                .cloned()
-                .chain(once(cycle[0]))
-                .collect(),
+            path: cycle.into_iter().cloned().chain(once(cycle[0])).collect(),
         }
     }
 
     pub fn from_pre(g: &'a Graph, dst: usize, pre: &M1<usize, usize>) -> Self {
-        let path = pre_to_path(dst, pre);
+        let path = pre_to_path!(dst, pre);
 
         Self { g, path }
     }
@@ -105,7 +106,10 @@ impl<'a> Path<'a> {
     }
 
     pub fn freeze(&self) -> FPath {
-        FPath { weight: self.weight(), path: self.iter().collect() }
+        FPath {
+            weight: self.weight(),
+            path: self.iter().collect(),
+        }
     }
 }
 
@@ -123,7 +127,7 @@ impl FromIterator<(usize, usize, isize)> for Graph {
             set!(w => (u, v) => _w);
         }
 
-        Self { e, w }
+        Self { dir: true, e, w }
     }
 }
 
@@ -284,6 +288,9 @@ impl Graph {
     }
 
     pub fn contains_edge(&self, edge: (usize, usize)) -> bool {
+        // self.w 与 self.e 可能是独立修改的
+        // getopt!(self.w => edge).is_some()
+
         let (u, v) = edge;
 
         let tos = getopt!(self.e => u);
@@ -341,7 +348,7 @@ impl Graph {
         if vertx.is_empty() {
             Ok(())
         } else {
-            Err(VerifyError::Fail)
+            Err(VerifyError::Fail(format!("remains vertex: {vertx:?}",)))
         }
     }
 
@@ -361,7 +368,7 @@ impl Graph {
         } else if tot < min {
             Err(VerifyError::Inv(format!("cur_tot: {tot} < min: {min}")))
         } else {
-            Err(VerifyError::Fail)
+            Err(VerifyError::Fail(format!("too big")))
         }
     }
 
@@ -378,7 +385,7 @@ impl Graph {
                 u = *v;
             } else {
                 return Err(VerifyError::Inv(format!(
-                    "No edge {u}-{v} for {path:?}"
+                    "No edge {u}-{v} for {path:?} src: {src} dst: {dst}"
                 )));
             }
         }
@@ -390,9 +397,15 @@ impl Graph {
         }
     }
 
-    pub fn verify_cycle(&self, dir: bool, cycle: &[usize]) -> VerifyResult {
+    pub fn verify_cycle(&self, cycle: &[usize]) -> VerifyResult {
         if cycle.len() == 0 {
             return Err(VerifyError::Inv(format!("Empty negative cycle")));
+        }
+        if cycle.len() == 1 {
+            return Err(VerifyError::Inv(format!("Self loop")));
+        }
+        if cycle.len() == 2 && !self.dir {
+            return Err(VerifyError::Fail(format!("Single edge cycle for undirected graph")));
         }
 
         let src = *cycle.first().unwrap();
@@ -400,23 +413,18 @@ impl Graph {
 
         self.verify_path(src, dst, &cycle[1..])?;
 
-        if let Some(_w) = getopt!(self.w => (dst, src)) {
-            if !dir && dst == src {
-                return Err(VerifyError::Fail);
-            }
+        if self.contains_edge((dst, src)) {
+            Ok(())
         } else {
-            return Err(VerifyError::Fail);
+            Err(VerifyError::Fail(format!("{dst} can't goback to {src}")))
         }
-
-        Ok(())
     }
 
     pub fn verify_negative_cycle(
         &self,
-        dir: bool,
         cycle: &[usize],
     ) -> VerifyResult {
-        self.verify_cycle(dir, cycle)?;
+        self.verify_cycle(cycle)?;
 
         /* verify negative weights sumeration */
 
@@ -430,7 +438,7 @@ impl Graph {
         if sumw < 0 {
             Ok(())
         } else {
-            Err(VerifyError::Fail)
+            Err(VerifyError::Fail(format!("weight sum: {sumw} >= 0, for cycle {cycle:?}")))
         }
     }
 
@@ -447,28 +455,24 @@ impl Graph {
     }
 
     /// 1-10 (0 means sp)
-    pub fn sparisity(&self, dir: bool) -> usize {
+    pub fn sparisity(&self) -> usize {
         let n = self.vertexs().count();
         let m = self.edges().count();
 
-        if dir {
+        if self.dir {
             let max = n * (n - 1);
             let min = n - 1;
             let peace = (max - min) / 10;
 
             (m - min) / peace
-        }
-        else {
+        } else {
             let max = n * (n - 1) / 2;
             let min = n - 1;
             let peace = (max - min) / 10;
 
-            (m/2 - min) / peace
+            (m / 2 - min) / peace
         }
-
     }
-
-
 }
 
 
@@ -579,7 +583,6 @@ mod tests {
             assert_eq!(g[gi].bfs(Some(start)).collect_vec(), seq);
         }
     }
-
 
     #[test]
     fn test_mst_fixed() {

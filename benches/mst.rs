@@ -4,8 +4,7 @@
 extern crate test;
 
 use minghu6::{
-    collections::graph::{mst::*, Graph},
-    test::graph::ucgopt,
+    collections::graph::{mst::*, Graph}, test::graph::GraphGenOptions,
 };
 use rand::random;
 use test::Bencher;
@@ -24,7 +23,7 @@ lazy_static::lazy_static! {
 
 
 fn prepare_low_density_graphs() -> Vec<Graph> {
-    let opt = ucgopt();
+    let opt = GraphGenOptions::undir_conn();
     let wrange = 1..1000;
     let vrange = 100;
     let mut res = vec![];
@@ -40,7 +39,7 @@ fn prepare_low_density_graphs() -> Vec<Graph> {
 }
 
 fn prepare_high_density_graphs() -> Vec<Graph> {
-    let opt = ucgopt();
+    let opt = GraphGenOptions::undir_conn();
     let wrange = 1..1000;
     let vrange = 100;
     let mut res = vec![];

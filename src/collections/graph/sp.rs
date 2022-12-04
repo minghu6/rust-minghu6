@@ -1,8 +1,5 @@
 //! Shortest paths problem
 
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //// Structure
 
@@ -11,19 +8,45 @@ use std::collections::HashSet;
 use super::Graph;
 use crate::{
     apush,
-    collections::{easycoll::{M1, MV}, heap::dary::DaryHeap5},
-    concat, get, getopt, set, stack,
+    collections::{
+        easycoll::{M1, M2},
+        heap::dary::DaryHeap5,
+    },
+    get, getopt, set, stack,
 };
+
+
+macro_rules! pre_to_path {
+    ($dst:expr, $pre:expr) => {
+        {
+            let pre = $pre;
+            let dst = $dst;
+
+            let mut path = indexmap::IndexSet::new();
+
+            let mut cur = dst;
+
+            while let Some(prev) = $crate::rgetopt!(pre => cur) && !path.contains(&cur) {
+                path.insert(cur);
+                cur = prev;
+            }
+
+            path.into_iter().rev().collect::<Vec<usize>>()
+        }
+
+    };
+}
+
 
 
 /// Floyd algorithm (DP) 全源最短路径
 #[allow(unused)]
-pub struct SPFlod<'a> {
+pub struct SPFloyd<'a> {
     g: &'a Graph,
     /// shortest path weight
     spw: M1<(usize, usize), isize>,
     //// shortest path paths
-    spp: MV<(usize, usize), usize>,
+    next: M2<usize, usize, usize>,
 }
 
 
@@ -61,33 +84,45 @@ pub struct SPDijkstra<'a> {
 }
 
 
+#[allow(unused)]
+pub struct SPJohnson<'a> {
+    g: &'a Graph,
+    h: M1<usize, isize>,
+    spw: M2<usize, usize, isize>,
+    //// shortest path paths
+    sppre: M2<usize, usize, usize>,
+}
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Implementation
 
 impl<'a> SPFA<'a> {
-    pub fn new(g: &'a Graph, src: usize) -> Result<Self, Vec<usize>>{
-        let (spw, pre) = sp_fa(g, src)?;
+    pub fn new(g: &'a Graph, src: usize) -> Result<Self, Vec<usize>> {
+        let (spw, pre) = sp_fa_early_termination(g, src)?;
 
         Ok(Self { g, src, spw, pre })
     }
 
     pub fn query(&self, dst: usize) -> (isize, Vec<usize>) {
-        (get!(self.spw => dst), pre_to_path(dst, &self.pre))
+        (get!(self.spw => dst), pre_to_path!(dst, &self.pre))
     }
 }
 
+
 impl<'a> SPBellmanFord<'a> {
-    pub fn new(g: &'a Graph, src: usize) -> Result<Self, Vec<usize>>{
+    pub fn new(g: &'a Graph, src: usize) -> Result<Self, Vec<usize>> {
         let (spw, pre) = sp_bellman_ford(g, src)?;
 
         Ok(Self { g, src, spw, pre })
     }
 
     pub fn query(&self, dst: usize) -> (isize, Vec<usize>) {
-        (get!(self.spw => dst), pre_to_path(dst, &self.pre))
+        (get!(self.spw => dst), pre_to_path!(dst, &self.pre))
     }
 }
+
 
 impl<'a> SPDijkstra<'a> {
     pub fn new(g: &'a Graph, src: usize) -> Self {
@@ -97,39 +132,59 @@ impl<'a> SPDijkstra<'a> {
     }
 
     pub fn query(&self, dst: usize) -> (isize, Vec<usize>) {
-        (get!(self.spw => dst), pre_to_path(dst, &self.pre))
+        (get!(self.spw => dst), pre_to_path!(dst, &self.pre))
     }
 }
 
-impl<'a> SPFlod<'a> {
-    pub fn new(g: &'a Graph) -> Self {
-        let (spw, spp) = sp_floyd(g);
 
-        SPFlod { g, spw, spp }
+/// 对于无向图，探不到负环，或者说每条边都是负环
+impl<'a> SPFloyd<'a> {
+    pub fn new(g: &'a Graph) -> Result<Self, Vec<usize>> {
+        let (spw, next) = sp_floyd(g)?;
+
+        Ok(Self { g, spw, next })
     }
 
-    /// (total_weight, (from), .. , k1, k2, .. to)
-    pub fn query(&self, from: usize, to: usize) -> (isize, Vec<usize>) {
-        (get!(self.spw => (from, to)), get!(self.spp => (from, to)))
+    /// (total_weight, (src), .. , k1, k2, .. dst)
+    pub fn query(&self, src: usize, dst: usize) -> (isize, Vec<usize>) {
+        (
+            get!(self.spw => (src, dst)),
+            next_to_path((src, dst), &self.next),
+        )
     }
 }
 
+
+impl<'a> SPJohnson<'a> {
+    pub fn new(g: &'a Graph) -> Result<Self, (Graph, Vec<usize>)> {
+        let (h, spw, sppre) = sp_johnson(g)?;
+
+        Ok(Self { g, h, spw, sppre })
+    }
+
+    /// (total_weight, (src), .. , k1, k2, .. dst)
+    pub fn query(&self, src: usize, dst: usize) -> (isize, Vec<usize>) {
+        (
+            get!(self.spw => (src, dst)) - get!(self.h => src)
+                + get!(self.h => dst),
+            pre_to_path!(dst, self.sppre.0.get(&src).unwrap()),
+        )
+    }
+}
 
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Function
 
-pub fn sp_floyd(
+fn sp_floyd(
     g: &Graph,
-) -> (M1<(usize, usize), isize>, MV<(usize, usize), usize>) {
+) -> Result<(M1<(usize, usize), isize>, M2<usize, usize, usize>), Vec<usize>> {
     let mut vertexs: Vec<usize> = g.vertexs().collect();
     vertexs.sort_unstable();
 
     let n = vertexs.len();
     let mut spw = M1::<(usize, usize), isize>::new();
-    let mut spp = MV::<(usize, usize), usize>::new();
-
-    let infi = isize::MAX / 2;
+    let mut next = M2::<usize, usize, usize>::new();
 
     /* init sp */
     for x in 0..n {
@@ -139,91 +194,82 @@ pub fn sp_floyd(
 
             if let Some(w) = getopt!(g.w => (x, y)) {
                 set!(spw => (x, y) => w);
-                apush!(spp => (x, y) => y); // 便于算法实现
+                set!(next => (x, y) => y); // 便于算法实现
             } else if x == y {
                 set!(spw => (x, y) => 0);
-                set!(spp => (x, y) => vec![]);
-            } else {
-                set!(spw => (x, y) => infi);
             }
         }
     }
-
-    // println!("INIT SPP: {:?}", spp);
 
     for k in 0..n {
         for x in 0..n {
             for y in 0..n {
-                if k == x || k == y || x == y {
-                    continue;
-                }
-
                 let x = vertexs[x];
                 let y = vertexs[y];
                 let k = vertexs[k];
 
-                let w = get!(spw => (x, k)) + get!(spw => (k, y));
-                if w < get!(spw => (x, y)) {
-                    set!(spw => (x, y) => w);
-                    // 确保都可达
-                    let p_x_k = get!(spp => (x, k));
-                    let p_k_y = get!(spp => (k, y));
+                if let Some(w_xk) = getopt!(spw => (x, k)) &&
+                   let Some(w_ky) = getopt!(spw => (k, y))
+                {
+                    if getopt!(spw => (x, y)).is_none() || w_xk + w_ky < get!(spw => (x, y)) {
+                        set!(spw => (x, y) => w_xk + w_ky);
+                        set!(next => (x, y) => get!(next => (x, k)));
 
-                    set!(spp => (x, y) => concat!(p_x_k => p_k_y));
+                        if x == y && w_xk + w_ky < 0 {
+                            let mut cycle = vec![x];
+                            let mut c = get!(next => (x, y));
+
+                            while c != y {
+                                cycle.push(c);
+                                c = get!(next => (c, y));
+                            }
+
+                            return Err(cycle);
+                        }
+                    }
                 }
             }
         }
     }
 
-    (spw, spp)
+    Ok((spw, next))
 }
 
 
-
-pub fn sp_bellman_ford(
+fn sp_bellman_ford(
     g: &Graph,
-    src: usize
+    src: usize,
 ) -> Result<(M1<usize, isize>, M1<usize, usize>), Vec<usize>> {
     let mut pre = M1::new();
     let mut dis = M1::new();
     let n = g.vertexs().count();
-    let infi = isize::MAX / 2;
 
     set!(dis => src => 0);
 
     for _ in 1..=n-1 {
         for (u, v, w) in g.edges() {
-            let dis_u = get!(dis => u => infi);
-            let dis_v = get!(dis => v => infi);
-
-            if dis_u + w < dis_v {
-                set!(dis => v => dis_u + w);
-                set!(pre => v => u);
+            if let Some(dis_u) = getopt!(dis => u) {
+                if getopt!(dis => v).is_none() || dis_u + w < get!(dis => v) {
+                    set!(dis => v => dis_u + w);
+                    set!(pre => v => u);
+                }
             }
         }
     }
 
     for (u, v, w) in g.edges() {
-        let dis_u = get!(dis => u => infi);
-        let dis_v = get!(dis => v => infi);
+        if let Some(dis_u) = getopt!(dis => u) {
+            if getopt!(dis => v).is_none() || dis_u + w < get!(dis => v) {
+                // negative cycle found!
+                let mut c = v;
 
-        if dis_u + w < dis_v {
-            // negative cycle found!
-            let mut c = v;
+                // 确保在环上
+                for _ in 1..=n {
+                    c = get!(pre => c);
+                }
 
-            // 确保在环上
-            for _ in 1..=n {
-                c = get!(pre => c);
+                return Err(install_cycle(c, &pre));
             }
-
-            let mut cycle = Vec::new();
-            let mut cur = c;
-            while cycle.is_empty() || cur != c {
-                cycle.push(cur);
-                cur = get!(pre => cur);
-            }
-
-            return Err(cycle)
         }
     }
 
@@ -235,43 +281,60 @@ pub fn sp_bellman_ford(
 /// Shortest Path Faster Algorithm, imporoved Bellman-Ford algorithm
 ///
 /// O(ev), single source,
-pub fn sp_fa(g: &Graph, src: usize) -> Result<(M1<usize, isize>, M1<usize, usize>), Vec<usize>> {
+pub fn sp_fa(
+    g: &Graph,
+    src: usize,
+) -> Result<(M1<usize, isize>, M1<usize, usize>), Vec<usize>> {
     let mut pre = M1::new();
     let mut dis = M1::new();
-    let mut cnt: M1<usize, usize> = M1::new();  // 穿过的边数
+    let mut cnt: M1<usize, usize> = M1::new(); // 穿过的边数
     let n = g.vertexs().count();
-    let infi = isize::MAX / 2;
 
     set!(dis => src => 0);
 
-    // use stack instead of queue to quick find negative circle
+    // use stack instead of queue dst quick find negative circle
     let mut vis = HashSet::new();
     let mut stack = stack![src];
 
     let mut c = None;
 
-    while let Some(u) = stack.pop() {
+    'outer: while let Some(u) = stack.pop() {
         vis.remove(&u);
+        // println!("test through {u}");
 
-        for v in get!(g.e => u) {
-            let w = get!(dis => u => infi) + get!(g.w => (u, v));
-            if w < get!(dis => v => infi) {
-                set!(dis => v => w);
-                set!(pre => v => u);
+        for v in get!(g.e => u => vec![]) {
+            // 无向图不存在这条路径
+            if !g.dir && getopt!(pre => u) == Some(v) {
+                continue;
+            }
 
-                if get!(cnt => v => 0) >= n {
-                    c = Some(v);
-                    break;
-                }
+            if let Some(dis_u) = getopt!(dis => u) {
+                if getopt!(dis => v).is_none() ||
+                   dis_u + get!(g.w => (u, v)) < get!(dis => v)
+                {
+                    set!(dis => v => dis_u + get!(g.w => (u, v)));
+                    set!(pre => v => u);
+                    set!(cnt => v => get!(cnt => u => 0) + 1);
 
-                set!(cnt => v => get!(cnt => u => 0) + 1);
+                    if get!(cnt => v => 0) >= n {
+                        c = Some(v);
+                        break 'outer;
+                    }
 
-                if !vis.contains(&v) {
-                    stack.push(v);
-                    vis.insert(v);
+                    if !vis.contains(&v) {
+                        stack.push(v);
+                        vis.insert(v);
+                    }
                 }
             }
         }
+
+        // /* print pre */
+        // for v in g.vertexs() {
+        //     println!("{src}->{v}: {:?}", pre_to_path!(v, &pre));
+        // }
+        // println!("=============== round {r:02} end  ==============\n");
+        // r += 1;
     }
 
     if let Some(mut c) = c {
@@ -279,23 +342,72 @@ pub fn sp_fa(g: &Graph, src: usize) -> Result<(M1<usize, isize>, M1<usize, usize
             c = get!(pre => c);
         }
 
-        let mut cycle = Vec::new();
-        let mut cur = c;
-        while cycle.is_empty() || cur != c {
-            cycle.push(cur);
-            cur = get!(pre => cur);
-        }
-
-        Err(cycle)
-    }
-    else {
+        Err(install_cycle(c, &pre))
+    } else {
         Ok((dis, pre))
     }
+}
+
+
+/// Shortest Path Faster Algorithm, imporoved Bellman-Ford algorithm
+///
+/// O(ev), single source,
+pub fn sp_fa_early_termination(
+    g: &Graph,
+    src: usize,
+) -> Result<(M1<usize, isize>, M1<usize, usize>), Vec<usize>> {
+    let mut pre = M1::new();
+    let mut dis = M1::new();
+    let n = g.vertexs().count();
+
+    set!(dis => src => 0);
+
+    // use stack instead of queue dst quick find negative circle
+    let mut vis = HashSet::new();
+    let mut stack = vec![src];
+
+    let mut i = 0;
+
+    while let Some(u) = stack.pop() {
+        vis.remove(&u);
+
+        for v in get!(g.e => u => vec![]) {
+            // 无向图不存在这条路径
+            if !g.dir && getopt!(pre => u) == Some(v) {
+                continue;
+            }
+
+            if let Some(dis_u) = getopt!(dis => u) {
+                if getopt!(dis => v).is_none() ||
+                   dis_u + get!(g.w => (u, v)) < get!(dis => v)
+                {
+                    set!(dis => v => dis_u + get!(g.w => (u, v)));
+                    set!(pre => v => u);
+
+                    i += 1;
+                    if i == n {
+                        if let Some(cycle) = detect_negative_cycle(n, v, &pre) {
+                            return Err(cycle);
+                        }
+
+                        i = 0;
+                    }
+
+                    if !vis.contains(&v) {
+                        stack.push(v);
+                        vis.insert(v);
+                    }
+                }
+            }
+        }
+    }
+
+    Ok((dis, pre))
 
 }
 
 
-pub fn sp_dijkstra(g: &Graph, src: usize) -> (M1<usize, isize>, M1<usize, usize>) {
+fn sp_dijkstra(g: &Graph, src: usize) -> (M1<usize, isize>, M1<usize, usize>) {
     let mut pre = M1::new();
     let mut dis_m1 = M1::new();
 
@@ -308,8 +420,7 @@ pub fn sp_dijkstra(g: &Graph, src: usize) -> (M1<usize, isize>, M1<usize, usize>
         rest.insert(v);
         if v == src {
             dis.insert(v, 0);
-        }
-        else {
+        } else {
             dis.insert(v, infi);
         }
     }
@@ -333,60 +444,173 @@ pub fn sp_dijkstra(g: &Graph, src: usize) -> (M1<usize, isize>, M1<usize, usize>
 }
 
 
-pub(crate) fn pre_to_path(dst: usize, pre: &M1<usize, usize>) -> Vec<usize> {
-    let mut path = Vec::new();
+fn sp_johnson(
+    g: &Graph,
+) -> Result<
+    (
+        M1<usize, isize>,
+        M2<usize, usize, isize>,
+        M2<usize, usize, usize>,
+    ),
+    (Graph, Vec<usize>),
+> {
+    /* Create a new map with special node q*/
+    let mut g2 = g.clone();
 
-    let mut cur = dst;
+    let mut vertexs: Vec<usize> = g2.vertexs().collect();
+    vertexs.sort_unstable();
 
-    while let Some(prev) = getopt!(pre => cur) {
-        path.push(cur);
-        cur = prev;
+    let q = *vertexs.last().unwrap() + 1;
+    for v in vertexs.iter().cloned() {
+        set!(g2.w => (q, v) => 0);
+        apush!(g2.e => q => v);
+
+        if !g.dir {
+            set!(g2.w => (v, q) => 0);
+            apush!(g2.e => v => q);
+        }
     }
 
-    path.reverse();
+    /* Using SPFA dst calc h((q, v)) */
+    let h = match sp_fa(&g2, q) {
+        Ok((h, _)) => h,
+        Err(cycle) => return Err((g2, cycle)),
+    };
+
+    /* Reweight */
+    for (u, v, w) in g.edges() {
+        set!(g2.w => (u, v) => w + get!(h => u) - get!(h => v));
+    }
+
+    /* Calc spw and spp usign Dijkstra */
+
+    let mut spw = M2::<usize, usize, isize>::new();
+    let mut sppre = M2::<usize, usize, usize>::new();
+
+    for v in vertexs {
+        let (sspw, sspp) = sp_dijkstra(&g2, v);
+
+        set!(spw => v => sspw);
+        set!(sppre => v => sspp);
+    }
+
+    Ok((h, spw, sppre))
+}
+
+
+fn next_to_path(
+    edge: (usize, usize),
+    next: &M2<usize, usize, usize>,
+) -> Vec<usize> {
+    let (src, dst) = edge;
+
+    let mut path = vec![];
+    let mut cur = src;
+
+    while cur != dst {
+        cur = get!(next => (cur, dst));
+        path.push(cur);
+    }
 
     path
+}
+
+
+fn install_cycle(
+    c: usize,
+    pre: &M1<usize, usize>,
+) -> Vec<usize> {
+    let mut cycle = vec![c];
+    let mut cur = get!(pre => c);
+
+    while cur != c {
+        cycle.push(cur);
+        cur = get!(pre => cur);
+    }
+
+    cycle.reverse();
+
+    cycle
+}
+
+/// for pre array
+fn detect_negative_cycle(
+    n: usize,
+    mut cur: usize,
+    pre: &M1<usize, usize>,
+) -> Option<Vec<usize>> {
+
+    let mut i = 0;
+
+    let c = loop {
+
+        if let Some(next) = getopt!(pre => cur) {
+            cur = next;
+        }
+        else {
+            break None;
+        }
+
+        i += 1;
+
+        if i >= n {
+            break Some(cur);
+        }
+    };
+
+    c.and_then(|c| Some(install_cycle(c, pre)))
 }
 
 
 
 #[cfg(test)]
 mod tests {
-    use std::fs::File;
+    use super::{SPBellmanFord, SPFloyd};
+    use crate::{
+        collections::graph::{
+            sp::{SPDijkstra, SPJohnson, SPFA},
+            Graph,
+        },
+        min, same,
+        test::graph::{batch_graph, GraphGenOptions},
+    };
 
-    use super::{SPFlod, SPBellmanFord};
-    use crate::{collections::graph::{Graph, sp::{SPFA, SPDijkstra}}, test::graph::{
-        batch_graph,
-        ucgopt, ucg_nncycle_opt
-    }};
-
-    fn get_graph(p: &str) -> Graph {
-        let mut file = File::open(p).unwrap();
-        let g = Graph::read_from_csv(&mut file).unwrap();
-        g
-    }
 
     #[test]
     fn test_sp_fixeddata() {
-        /* simple classic positive graph */
-        // let g = get_graph("res/sp1.csv");
-        // let sp = SPFlod::new(&g);
+        let mut g = Graph::read_from_csv_file("res/sp5.csv").unwrap();
+        g.dir = false;
+        assert!(g.is_connected());
 
-        /* negative circle graph */
-        // let g = get_graph("res/sp2.csv");
-        // let sp = SPFlod::new(&g);
+        if let Err(cycle) = SPFA::new(&g, 8) {
+            if let Err(_err) = g.verify_negative_cycle(&cycle) {
+                println!("detect negative cycle failed {:?}", cycle);
+                assert!(false);
+            } else {
+                println!("detect negative cycle {:?}", cycle);
+                // flag = true;
+            }
+        }
 
-        let g = get_graph("res/sp3.csv");
-        let sp = SPFlod::new(&g);
-        println!("spp: {:?}", sp.spp);
+        if let Err((g2, cycle)) = SPJohnson::new(&g) {
+            if let Err(_err) = g2.verify_negative_cycle(&cycle) {
+                println!("detect negative cycle failed {:?} for G2", cycle);
+                assert!(false);
+            } else {
+                println!("detect negative cycle {:?}", cycle);
+                // flag = true;
+            }
+        }
     }
+
 
     #[test]
     fn test_sp_randomdata_pw() {
         let mut i = 0;
 
-        for g in batch_graph(15, 50, 1..100, &ucgopt()) {
-            let sp_flod = SPFlod::new(&g);
+        for g in batch_graph(45, 30, 1..100, &GraphGenOptions::undir_conn()) {
+            let sp_flod = SPFloyd::new(&g).unwrap();
+            let sp_johnson = SPJohnson::new(&g).unwrap();
 
             for src in g.vertexs() {
                 let sp_bellmanford = SPBellmanFord::new(&g, src).unwrap();
@@ -394,22 +618,24 @@ mod tests {
                 let sp_dijkstra = SPDijkstra::new(&g, src);
 
                 for dst in g.vertexs() {
-                    let (w_bellmanford, p_bellmanford) = sp_bellmanford.query(dst);
+                    let (w_bellmanford, p_bellmanford) =
+                        sp_bellmanford.query(dst);
                     let (w_spfa, p_spfa) = sp_fa.query(dst);
                     let (w_flod, p_flod) = sp_flod.query(src, dst);
+                    let (w_johnson, p_johnson) = sp_johnson.query(src, dst);
                     let (w_spdijkstra, p_spdijkstra) = sp_dijkstra.query(dst);
-
-                    assert_eq!(w_bellmanford, w_flod);
-                    assert_eq!(w_bellmanford, w_spfa);
-                    assert_eq!(w_bellmanford, w_spdijkstra);
 
                     g.verify_path(src, dst, &p_bellmanford).unwrap();
                     g.verify_path(src, dst, &p_flod).unwrap();
                     g.verify_path(src, dst, &p_spfa).unwrap();
                     g.verify_path(src, dst, &p_spdijkstra).unwrap();
+                    g.verify_path(src, dst, &p_johnson).unwrap();
 
+                    assert_eq!(w_bellmanford, w_flod);
+                    assert_eq!(w_bellmanford, w_spfa);
+                    assert_eq!(w_bellmanford, w_spdijkstra);
+                    assert_eq!(w_bellmanford, w_johnson);
                 }
-                // println!("     {src:03} pass.");
             }
 
             println!("g {i:03} pass");
@@ -417,60 +643,213 @@ mod tests {
         }
     }
 
+
     #[test]
     fn test_sp_randomdata_nw() {
-        let graphs = batch_graph(25, 40, -15..85, &ucg_nncycle_opt());
-        println!("generate graphs done.");
+        let graphs = batch_graph(
+            45,
+            35,
+            -35..65,
+            &GraphGenOptions::dir_conn().non_negative_cycle(),
+        );
+        println!("Generate Graphs Done:");
+
+        let graphs: Vec<Graph> = graphs
+            .into_iter()
+            .filter(|g| {
+                let negative_edges =
+                    g.w.0.values().filter(|&&w| w < 0).count();
+                negative_edges > 0
+            })
+            .collect();
+
         for (i, g) in graphs.iter().enumerate() {
-            println!("g {i:03} sparisity {}", g.sparisity(false));
+            assert!(g.is_connected());
+            let negative_edges = g.w.0.values().filter(|&&w| w < 0).count();
+
+            println!("g {i:03} sparisity {:02}, negative edges: {negative_edges:02}",
+                g.sparisity()
+            );
         }
         println!();
 
         for (i, g) in graphs.into_iter().enumerate() {
             print!("-> {i:03} ...");
 
-            let sp_flod = SPFlod::new(&g);
+            let sp_johnson = match SPJohnson::new(&g) {
+                Ok(it) => it,
+                Err(_) => {
+                    println!(
+                        "Found negative cycle for spjohnson... skip {i:03}"
+                    );
+                    continue;
+                }
+            };
+            let sp_floyd = match SPFloyd::new(&g) {
+                Ok(it) => it,
+                Err(_) => {
+                    println!(
+                        "Found negative cycle for spfloyd... skip {i:03}"
+                    );
+                    continue;
+                }
+            };
 
             for src in g.vertexs() {
                 let sp_bellmanford = SPBellmanFord::new(&g, src).unwrap();
                 let sp_fa = SPFA::new(&g, src).unwrap();
 
                 for dst in g.vertexs() {
-                    let (w_bellmanford, p_bellmanford) = sp_bellmanford.query(dst);
+                    let (w_bellmanford, p_bellmanford) =
+                        sp_bellmanford.query(dst);
                     let (w_spfa, p_spfa) = sp_fa.query(dst);
-                    let (w_flod, p_flod) = sp_flod.query(src, dst);
-
-                    assert_eq!(w_bellmanford, w_flod);
-                    assert_eq!(w_bellmanford, w_spfa);
+                    let (w_johnson, p_johnson) = sp_johnson.query(src, dst);
+                    let (w_floyd, p_floyd) = sp_floyd.query(src, dst);
 
                     g.verify_path(src, dst, &p_bellmanford).unwrap();
-                    g.verify_path(src, dst, &p_flod).unwrap();
                     g.verify_path(src, dst, &p_spfa).unwrap();
+                    g.verify_path(src, dst, &p_johnson).unwrap();
+                    g.verify_path(src, dst, &p_floyd).unwrap();
 
+                    let w_min = min!(w_floyd, w_johnson, w_spfa);
+
+                    if !same!(w_floyd, w_spfa, w_johnson, w_bellmanford) {
+                        println!("w_min: {w_min}");
+                        println!("w_floyd: {w_floyd}");
+                        println!("w_johnson: {w_johnson}");
+                        println!("w_spfa: {w_spfa}");
+                        println!("w_bellmanford: {w_bellmanford}");
+
+                        assert!(false);
+                    }
                 }
-                // println!("     {src:03} pass.");
+                // println!("pass {src}")
             }
 
             println!("pass");
         }
     }
 
+
     #[test]
     fn test_sp_negative_cycle_detect() {
         let mut i = 0;
 
-        for g in batch_graph(20, 40, -40..60, &ucgopt()) {
+        for g in batch_graph(45, 35, -40..60, &GraphGenOptions::dir_conn()) {
             for src in g.vertexs() {
-                if let Err(ncycle) = SPBellmanFord::new(&g, src) {
-                    g.verify_negative_cycle(false, &ncycle).unwrap();
+                if let Err(cycle) = SPBellmanFord::new(&g, src) {
+                    g.verify_negative_cycle(&cycle).unwrap();
                 }
-                if let Err(ncycle) = SPFA::new(&g, src) {
-                    g.verify_negative_cycle(false, &ncycle).unwrap();
+                if let Err(cycle) = SPFA::new(&g, src) {
+                    g.verify_negative_cycle(&cycle).unwrap();
                 }
             }
-            println!("g {i:03} pass.");
+            if let Err((_g2, cycle)) = SPJohnson::new(&g) {
+                g.verify_negative_cycle(&cycle).unwrap();
+            }
+            if let Err(cycle) = SPFloyd::new(&g) {
+                g.verify_negative_cycle(&cycle).unwrap();
+            }
+            println!("g {i:03} pass");
             i += 1;
         }
     }
+
+    fn detect_negative_cycle(g: &Graph) {
+        let mut flags = false;
+        for src in g.vertexs() {
+            if let Err(cycle) = SPBellmanFord::new(&g, src) {
+                eprintln!("SPBellmanFord detect it!");
+                g.verify_negative_cycle(&cycle).unwrap();
+                flags = true;
+            }
+            if let Err(cycle) = SPFA::new(&g, src) {
+                eprintln!("SPFA detect it!");
+                g.verify_negative_cycle(&cycle).unwrap();
+                flags = true;
+            }
+        }
+        if let Err((g2, cycle)) = SPJohnson::new(&g) {
+            eprintln!("SPJohnson detect it!");
+            g2.verify_negative_cycle(&cycle).unwrap();
+            flags = true;
+        }
+        if let Err(cycle) = SPFloyd::new(&g) {
+            eprintln!("SPFloyd detect it!");
+            g.verify_negative_cycle(&cycle).unwrap();
+            flags = true;
+        }
+
+        assert!(!flags);
+    }
+
+    #[test]
+    fn test_sp_negative_cycle_fix_floyd() {
+        let mut i = 0;
+
+        for mut g in batch_graph(45, 35, -40..60, &GraphGenOptions::dir_conn())
+        {
+            g.fix_negative_cycle_floyd(true);
+
+            let negative_edges = g.edges().filter(|&x| x.2 < 0).count();
+
+            detect_negative_cycle(&g);
+
+            println!("g {i:03} pass negative_edges: {negative_edges}");
+            i += 1;
+        }
+    }
+
+    #[test]
+    fn test_sp_negative_cycle_fix_bellmanford() {
+        let mut i = 0;
+
+        for mut g in batch_graph(45, 35, -40..60, &GraphGenOptions::dir_conn())
+        {
+            g.fix_negative_cycle_bellmanford(true);
+
+            let negative_edges = g.edges().filter(|&x| x.2 < 0).count();
+
+            detect_negative_cycle(&g);
+
+            println!("g {i:03} pass negative_edges: {negative_edges}");
+            i += 1;
+        }
+    }
+
+    #[test]
+    fn test_sp_negative_cycle_fix_spfa() {
+        let mut i = 0;
+
+        for mut g in batch_graph(45, 35, -40..60, &GraphGenOptions::dir_conn())
+        {
+            g.fix_negative_cycle_spfa(true);
+
+            let negative_edges = g.edges().filter(|&x| x.2 < 0).count();
+
+            detect_negative_cycle(&g);
+
+            println!("g {i:03} pass negative_edges: {negative_edges}");
+            i += 1;
+        }
+    }
+
+    #[test]
+    fn test_sp_negative_cycle_fix_johnson() {
+        let mut i = 0;
+
+        for mut g in batch_graph(45, 35, -40..60, &GraphGenOptions::dir_conn())
+        {
+            g.fix_negative_cycle_johnson(true);
+
+            let negative_edges = g.edges().filter(|&x| x.2 < 0).count();
+
+            detect_negative_cycle(&g);
+
+            println!("g {i:03} pass negative_edges: {negative_edges}");
+            i += 1;
+        }
+    }
+
 
 }
