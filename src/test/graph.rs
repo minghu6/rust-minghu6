@@ -228,8 +228,6 @@ impl Graph {
             g.dir = opt.dir;
 
         } else {
-            debug_assert!(g.is_connected());
-
             if wrange.start < 0 && opt.non_negative_cycle {
                 g.fix_negative_cycle_spfa(false);
             }

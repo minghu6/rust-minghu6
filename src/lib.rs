@@ -20,6 +20,7 @@
 #![feature(type_alias_impl_trait)]
 #![feature(iter_from_generator)]
 #![feature(generic_associated_types)]
+#![feature(trace_macros)]
 
 
 use proc_macros::{
@@ -27,6 +28,8 @@ use proc_macros::{
     make_simple_error_rules
 };
 
+// #[macro_use(mattr)]
+// extern crate macros_gen;
 
 pub mod text;
 pub mod collections;

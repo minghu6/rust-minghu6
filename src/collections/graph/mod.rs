@@ -3,6 +3,7 @@ pub mod mst;
 pub mod sp;
 pub mod toposort;
 pub mod tree;
+pub mod scc;
 
 
 use std::{
@@ -31,7 +32,10 @@ use crate::{
 pub struct Graph {
     /// If it's directed
     pub dir: bool,
+    /// Out-edges
     pub e: MV<usize, usize>,
+    /// In-edges
+    pub rev: MV<usize, usize>,
     pub w: M1<(usize, usize), isize>,
 }
 
@@ -120,14 +124,16 @@ impl FromIterator<(usize, usize, isize)> for Graph {
         iter: T,
     ) -> Self {
         let mut e = MV::new();
+        let mut rev = MV::new();
         let mut w = M1::new();
 
         for (u, v, _w) in iter {
             apush!(e => u => v);
+            apush!(rev => v => u);
             set!(w => (u, v) => _w);
         }
 
-        Self { dir: true, e, w }
+        Self { dir: true, e, rev, w }
     }
 }
 
@@ -167,6 +173,13 @@ impl Debug for Graph {
 impl Graph {
     pub fn new() -> Self {
         Default::default()
+    }
+
+    /// get Transpose
+    pub fn t(&self) -> Self {
+        Self::from_iter(
+            self.edges().map(|(u, v, w)| (v, u, w))
+        )
     }
 
     pub fn insert_edge(
@@ -302,8 +315,12 @@ impl Graph {
         }
     }
 
-    /// O(|E|)
+    /// O(|E|) for undirected graph
     pub fn components(&self) -> Vec<Vec<usize>> {
+        if self.dir {
+            unimplemented!()
+        }
+
         let mut dsu = UnionFind::new(Some(SZ));
         let vertexs: Vec<usize> = self.vertexs().collect();
 

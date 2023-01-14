@@ -3,55 +3,145 @@ use std::{
     ops::Index,
 };
 
+
 use super::Coll;
 use crate::etc::StrJoin;
-
 
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Macro
 
-#[macro_export]
-macro_rules! rc_eq {
-    ($x:expr,$y:expr) => {{
-        std::rc::Rc::ptr_eq(&$x.clone().unwrap(), &$y.clone().unwrap())
-    }};
-}
 
-/// Clone attr
-#[macro_export]
-macro_rules! attr {
-    ($node:expr, $attr:ident) => {{
-        let _unr = $node.clone().unwrap();
-        let _bor = _unr.as_ref().borrow();
-        let _attr = _bor.$attr.clone();
-        drop(_bor);
-        _attr
-    }}; // $node.clone().unwrap().as_ref().borrow().$attr};
-}
+////////////////////////////////////////
+//// Node wrapper
 
-#[macro_export]
-macro_rules! refattr {
-    ($node:expr, $attr:ident) => {
-        &$node.clone().unwrap().as_ref().borrow().$attr
+macro_rules! node {
+    (BST { $key:expr, $val:expr, $($attr:ident : $attr_val:expr)* }) => {
+        Node(Some(std::rc::Rc::new(std::cell::RefCell::new(Node_ {
+            left: Node::none(),
+            right: Node::none(),
+            paren: WeakNode::none(),
+
+            key: boxptr!($key),
+            val: boxptr!($val),
+
+            $(
+                $attr: $attr_val,
+            )*
+        }))))
+    };
+    (FREE { $($attr:ident : $attr_val:expr),* }) => {
+        Node(Some(std::rc::Rc::new(std::cell::RefCell::new(Node_ {
+            $(
+                $attr: $attr_val
+            ),*
+        }))))
     };
 }
 
-#[macro_export]
-macro_rules! mattr {
-    ($node:expr, $attr:ident) => {
-        $node.clone().unwrap().as_ref().borrow_mut().$attr
+
+macro_rules! boxptr {
+    ($v:expr) => {
+        Box::into_raw(Box::new($v))
     };
 }
 
-#[macro_export]
-macro_rules! justinto {
+
+macro_rules! unboxptr {
+    ($ptr:expr) => {
+        unsafe { *Box::from_raw($ptr) }
+    };
+}
+
+
+macro_rules! unwrap_into {
     ($node:expr) => {
-        std::rc::Rc::try_unwrap($node.unwrap())
+        std::rc::Rc::try_unwrap($node.0.unwrap())
             .unwrap()
             .into_inner()
     };
 }
+
+
+////////////////////////////////////////
+//// Attr macros
+
+/// In-place ref
+macro_rules! attr {
+    ($node:expr, $attr:ident) => {{
+        /* to pass runtime borrow check  */
+        if let Some(_unr) = $node.clone().0 {
+            let _bor = _unr.as_ref().borrow();
+            let _attr = _bor.$attr.clone();
+            drop(_bor);
+            _attr
+        }
+        else {
+            panic!("Access {} on None", stringify!($attr));
+        }
+    }}; // $node.clone().0.unwrap().as_ref().borrow().$attr;
+    ($node:expr, $attr:ident, $val:expr) => {{
+        if let Some(bor) = $node.clone().0 {
+            bor.as_ref().borrow_mut().$attr = $val
+        }
+        else {
+            panic!("MAccess {} on None", stringify!($attr));
+        }
+    }};
+}
+
+
+macro_rules! def_attr_macro {
+    ($($name:ident),+) => {
+        $(
+            macro_rules! $name {
+                ($node:expr) => {
+                    attr!($$node, $name)
+                };
+                ($node:expr, $val:expr) => {
+                    attr!($$node, $name, $$val)
+                };
+            }
+            #[allow(unused)]
+            pub(crate) use $name;
+
+        )+
+    };
+    (ptr | $($name:ident),+) => {
+        $(
+            macro_rules! $name {
+                ($node:expr) => {
+                    unsafe { &* attr!($$node, $name) }
+                };
+                ($node:expr, $val:expr) => {
+                    attr!($$node, $name, $$val)
+                };
+            }
+            #[allow(unused)]
+            pub(crate) use $name;
+
+            concat_idents::concat_idents! (name_mut = $name, _mut {
+                #[allow(unused)]
+                macro_rules! name_mut {
+                    ($node:expr) => {
+                        unsafe { &mut * attr!($$node, $name) }
+                    };
+                }
+                #[allow(unused)]
+                pub(crate) use name_mut;
+            });
+        )+
+    };
+}
+
+
+
+pub(crate) use node;
+pub(crate) use attr;
+pub(crate) use boxptr;
+pub(crate) use unboxptr;
+pub(crate) use unwrap_into;
+pub(crate) use def_attr_macro;
 
 
 ////////////////////////////////////////////////////////////////////////////////

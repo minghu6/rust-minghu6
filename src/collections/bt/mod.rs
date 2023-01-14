@@ -839,7 +839,6 @@ pub trait BTNode<'a, K: CollKey + 'a, V: 'a> {
     /// 1. A non-leaf node with k children contains k − 1 keys (m >= 3).
     /// 1. The root has at least two children if it is not a leaf node.
     ///
-    /// **WARNING:** order-2 (BST) is a excaption case for some rules above.
     fn basic_self_validate(&'a self) -> Result<(), Box<dyn std::error::Error>> {
         if self.order() == 2 {
             unsafe {

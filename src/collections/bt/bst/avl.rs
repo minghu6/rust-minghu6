@@ -263,36 +263,40 @@ impl<'a, K: CollKey + 'a, V: 'a> AVL<K, V> {
         }
     }
 
+    // unsafe fn insert_retracing(&mut self, new_node: *mut AVLNode<K, V>) {
+    //     let mut y = new_node;
+    //     let mut z = (*y).paren;
+
+    //     while !z.is_null() {
+    //         (*z).height = 1 + max((*z).left_height(), (*z).right_height());
+
+    //         let x = (*z).paren;
+
+    //         if !x.is_null() && (*x).bf().abs() > 1 {
+    //             let direction = if z == (*x).right {
+    //                 Either::Left(())
+    //             } else {
+    //                 Either::Right(())
+    //             };
+
+    //             if y == BSTNode::child(
+    //                 &*z,
+    //                 direction.reverse(),
+    //             ) as *mut AVLNode<K, V>
+    //             {
+    //                 self.rotate(x, direction);
+    //             } else {
+    //                 self.double_rotate(x, direction);
+    //             }
+    //         }
+
+    //         y = z;
+    //         z = x;
+    //     }
+    // }
+
     unsafe fn insert_retracing(&mut self, new_node: *mut AVLNode<K, V>) {
-        let mut y = new_node;
-        let mut z = (*y).paren;
-
-        while !z.is_null() {
-            (*z).height = 1 + max((*z).left_height(), (*z).right_height());
-
-            let x = (*z).paren;
-
-            if !x.is_null() && (*x).bf().abs() > 1 {
-                let direction = if z == (*x).right {
-                    Either::Left(())
-                } else {
-                    Either::Right(())
-                };
-
-                if y == BSTNode::child(
-                    &*BSTNode::child(&*x, direction.reverse()),
-                    direction.reverse(),
-                ) as *mut AVLNode<K, V>
-                {
-                    self.rotate(x, direction);
-                } else {
-                    self.double_rotate(x, direction);
-                }
-            }
-
-            y = z;
-            z = x;
-        }
+        self.remove_retracing(new_node);
     }
 
     unsafe fn remove_retracing(
