@@ -1,4 +1,7 @@
 pub mod avl;
+pub mod rb;
+pub mod lsg;
+
 
 use crate::collections::aux::*;
 
@@ -7,9 +10,7 @@ use crate::collections::aux::*;
 ////////////////////////////////////////////////////////////////////////////////
 //// Attr Access
 
-def_attr_macro!(
-    left, right, paren, height
-);
+def_attr_macro!(left, right,paren, height, color, size, deleted);
 def_attr_macro!(ptr | key, val);
 
 
@@ -20,11 +21,23 @@ macro_rules! child {
     ($p:expr, $dir:expr) => {
         if $dir.is_left() {
             left!($p)
-        }
-        else {
+        } else {
             right!($p)
         }
     };
+}
+
+
+/// Siblings of node-x
+#[allow(unused)]
+macro_rules! sib {
+    ($x:expr) => {{
+        let x = $x.clone();
+        let p = paren!(x).upgrade();
+        let x_dir = index_of_child!(p, x);
+
+        child!(p, x_dir.rev())
+    }};
 }
 
 
@@ -179,8 +192,102 @@ macro_rules! bst_predecessor {
 }
 
 
+/// Return matched-node or none-node
+macro_rules! bst_search {
+    (lazy | $x: expr, $k: expr) => {{
+        let mut x = $x.clone();
+        let k = $k;
+
+        while x.is_some() && k != key!(x).borrow() {
+            if k < key!(x).borrow() {
+                x = left!(x);
+            } else {
+                x = right!(x);
+            }
+        }
+
+        if x.is_some() && !deleted!(x) {
+            x
+        }
+        else {
+            Node::none()
+        }
+    }};
+    ($x: expr, $k: expr) => {{
+        let mut x = $x.clone();
+        let k = $k;
+
+        while x.is_some() && k != key!(x).borrow() {
+            if k < key!(x).borrow() {
+                x = left!(x);
+            } else {
+                x = right!(x);
+            }
+        }
+
+        x
+    }};
+}
+
+
 /// Return Option<V>
 macro_rules! bst_insert {
+    (lazy | $tree: expr, $z: expr) => {{
+        use std::cmp::Ordering::*;
+
+        let mut y = Node::none();
+        let mut x = $tree.root.clone();
+        let z = $z;
+
+        while !x.is_none() {
+            y = x.clone();
+
+            match key!(z).cmp(key!(x)) {
+                Less => {
+                    x = left!(x);
+                }
+                Equal => {
+                    break;
+                }
+                Greater => {
+                    x = right!(x);
+                }
+            }
+        }
+
+
+        if y.is_none() {
+            $tree.root = z;
+        } else {
+            match key!(z).cmp(key!(y)) {
+                Less => {
+                    conn_left!(y, z);
+                }
+                Equal => {
+                    let val_y = y.replace_val(z);
+
+                    return if deleted!(y) {
+                        // restore deleted node
+                        deleted!(y, false);
+                        $tree.cnt += 1;
+
+                        None
+                    }
+                    else {
+                        Some(val_y)
+                    }
+                },
+                Greater => {
+                    conn_right!(y, z);
+                }
+            }
+        }
+
+        $tree.cnt += 1;
+        $tree.max_cnt += 1;
+
+        None
+    }};
     ($tree: expr, $z: expr) => {{
         use std::cmp::Ordering::*;
 
@@ -206,28 +313,39 @@ macro_rules! bst_insert {
 
         if y.is_none() {
             $tree.root = z;
-            None
         } else {
             match key!(z).cmp(key!(y)) {
                 Less => {
                     conn_left!(y, z);
-                    None
                 }
-                Equal => Some(y.replace_val(z)),
+                Equal => {
+                    return Some(y.replace_val(z))
+                },
                 Greater => {
                     conn_right!(y, z);
-                    None
                 }
             }
         }
+
+        None
     }};
 }
 
 
 /// Return retracing node
 macro_rules! bst_delete {
+    (lazy | $z: expr) => {{
+        let z = $z.clone();
+
+        deleted!(z, true);
+
+        let oldvptr = attr!(z, val);
+        attr!(z, val, std::ptr::null_mut());
+
+        unboxptr!(oldvptr)
+    }};
     ($tree: expr, $z: expr) => {{
-        let tree = &mut * $tree;
+        let tree = &mut *$tree;
         let z = $z.clone();
 
         let retracing_entry;
@@ -236,13 +354,11 @@ macro_rules! bst_delete {
             retracing_entry = paren!(z).upgrade();
 
             subtree_shift!(tree, z, right!(z));
-        }
-        else if right!(z).is_none() {
+        } else if right!(z).is_none() {
             retracing_entry = paren!(z).upgrade();
 
             subtree_shift!(tree, z, left!(z));
-        }
-        else {
+        } else {
             /* case-1       case-2
 
                  z            z
@@ -260,8 +376,7 @@ macro_rules! bst_delete {
             if right!(z).rc_eq(&y) {
                 // just ok
                 retracing_entry = y.clone();
-            }
-            else {
+            } else {
                 debug_assert!(y.is_some());
                 retracing_entry = paren!(y).upgrade();
 
@@ -281,23 +396,75 @@ macro_rules! bst_delete {
 }
 
 
-/// Return matched-node or none-node
-macro_rules! bst_search {
-    ($x: expr, $k: expr) => {{
-        let mut x = $x.clone();
-        let k = $k;
+/// In-order Traversals
+macro_rules! bst_flatten {
+    ($z: expr) => {{
+        let mut x = $z;
+        let mut stack = vec![];  // paths
+        let mut nodes = vec![];
 
-        while x.is_some() && k != key!(x).borrow() {
-            if k < key!(x).borrow() {
+        'outter: loop {
+            while left!(x).is_some() {
+                stack.push(x.clone());
                 x = left!(x);
-            } else {
-                x = right!(x);
             }
+
+            nodes.push(x.clone());
+
+            while right!(x).is_none() {
+                if let Some(p) = stack.pop() {
+                    x = p;
+                    nodes.push(x.clone());
+                }
+                else {
+                    break 'outter
+                }
+            }
+
+            x = right!(x);
         }
 
-        x
+        for x in nodes.iter() {
+            paren!(x, WeakNode::none());
+            left!(x, Node::none());
+            right!(x, Node::none());
+            x.flatten_cleanup();
+        }
+
+        nodes
+    }}
+}
+
+
+macro_rules! bst_build {
+    ($nodes: expr) => {{
+        fn bst_build_<K, V>(nodes: &[Node<K, V>]) -> Node<K, V> {
+            let lo = 0;
+            let hi = nodes.len();
+
+            if lo == hi {
+                return Node::none();
+            }
+
+            let mid = (hi + lo) / 2;
+
+            let left = bst_build_(&nodes[lo..mid]);
+            let right = bst_build_(&nodes[mid+1..hi]);
+
+            let p = nodes[mid].clone();
+
+            conn_left!(p, left);
+            conn_right!(p, right);
+
+            p.build_cleanup();
+
+            p
+        }
+
+        bst_build_($nodes)
     }};
 }
+
 
 
 /// Simple Rotation (return new root)
@@ -352,7 +519,7 @@ macro_rules! rotate {
 }
 
 
-/// Double Rotation (return new root)
+/// Double Rotation (snd rotate dir, return new root)
 /// ```no_run
 ///             rotate [right]-left         rotate right-[left]
 ///    x        =========>         x        =========>       y
@@ -386,16 +553,52 @@ macro_rules! double_rotate {
 ////////////////////////////////////////////////////////////////////////////////
 //// Aux Impl
 
+/// (x: Node) for Node
+macro_rules! impl_flatten_cleanup {
+    ($fn:item ) => {
+        impl<K, V> Node<K, V> {
+            #[inline]
+            $fn
+        }
+    };
+    () => {
+        impl<K, V> $name<K, V> {
+            #[inline]
+            fn flatten_cleanup(&self) {}
+        }
+    }
+}
+
+
+/// (p: Node) for Node
+macro_rules! impl_build_cleanup {
+    ($fn:item ) => {
+        impl<K, V> Node<K, V> {
+            #[inline]
+            $fn
+        }
+    };
+    () => {
+        impl<K, V> Node<K, V> {
+            #[inline]
+            fn build_cleanup(&self) {}
+        }
+    }
+}
+
+
 /// Params: (x: Node, z: Node)
 macro_rules! impl_rotate_cleanup {
     ($name:ident -> $fn:item ) => {
         impl<K, V> $name<K, V> {
+            #[inline]
             $fn
         }
     };
     ($name:ident) => {
         impl<K, V> $name<K, V> {
-            fn rotate_cleanup(&self, x: Node<K, V>, z: Node<K, V>) {}
+            #[inline]
+            fn rotate_cleanup(&self, _x: Node<K, V>, _z: Node<K, V>) {}
         }
     }
 }
@@ -420,48 +623,38 @@ macro_rules! impl_balance_validation {
 }
 
 
-macro_rules! impl_tree {
-    ($(#[$attr:meta])* $treename:ident { $($name: ident : $ty: ty)* }) => {
+macro_rules! def_tree {
+    (
+        $(#[$attr:meta])*
+        $treename:ident { $(
+            $(#[$field_attr:meta])*
+            $name: ident : $ty: ty),*
+        }
+    ) =>
+    {
         $(#[$attr])*
         #[derive(Debug)]
+        #[allow(unused)]
         pub struct $treename<K, V> {
             root: Node<K, V>,
 
             /* extra attr */
             $(
-                $name: $ty,
-            )*
+                $(#[$field_attr])*
+                $name: $ty
+            ),*
         }
+    }
+}
 
+
+macro_rules! impl_tree_debug {
+    ($treename:ident) => {
         impl<K: Ord, V> $treename<K, V> {
-            pub fn get<Q>(&self, k: &Q) -> Option<&V>
-            where K: Borrow<Q>, Q: Ord + ?Sized
-            {
-                let x = bst_search!(self.root, k);
-
-                if x.is_some() {
-                    Some(val!(x))
-                }
-                else {
-                    None
-                }
-            }
-
-            pub fn get_mut<Q>(&mut self, k: &Q) -> Option<&mut V>
-            where K: Borrow<Q>, Q: Ord + ?Sized
-            {
-                let x = bst_search!(self.root, k);
-
-                if x.is_some() {
-                    Some(val_mut!(x))
-                }
-                else {
-                    None
-                }
-            }
-
-            pub fn debug_write<W: std::fmt::Write>(&self, f: &mut W)
-            -> std::fmt::Result
+            pub fn debug_write<W: std::fmt::Write>(
+                &self,
+                f: &mut W
+            ) -> std::fmt::Result
             where K: std::fmt::Debug, V: std::fmt::Debug
             {
                 /* print header */
@@ -525,6 +718,7 @@ macro_rules! impl_tree {
                 Ok(())
             }
 
+
             pub fn debug_print(&self) where K: std::fmt::Debug, V: std::fmt::Debug
             {
                 let mut cache = String::new();
@@ -534,6 +728,49 @@ macro_rules! impl_tree {
                 println!("{cache}")
             }
         }
+    };
+}
+
+
+macro_rules! impl_tree {
+    (
+        $(#[$attr:meta])*
+        $treename:ident { $(
+            $(#[$field_attr:meta])*
+            $name: ident : $ty: ty)*
+        }
+    ) =>
+    {
+        def_tree!($(#[$attr])* $treename { $(#[$field_attr])* $($name : $ty)* });
+        impl_tree_debug!($treename);
+
+        impl<K: Ord, V> $treename<K, V> {
+            pub fn get<Q>(&self, k: &Q) -> Option<&V>
+            where K: std::borrow::Borrow<Q>, Q: Ord + ?Sized
+            {
+                let x = bst_search!(self.root, k);
+
+                if x.is_some() {
+                    Some(val!(x))
+                }
+                else {
+                    None
+                }
+            }
+
+            pub fn get_mut<Q>(&mut self, k: &Q) -> Option<&mut V>
+            where K: std::borrow::Borrow<Q>, Q: Ord + ?Sized
+            {
+                let x = bst_search!(self.root, k);
+
+                if x.is_some() {
+                    Some(val_mut!(x))
+                }
+                else {
+                    None
+                }
+            }
+        }
 
     };
 }
@@ -541,7 +778,8 @@ macro_rules! impl_tree {
 
 /// Define inner node
 macro_rules! impl_node_ {
-    ({ $($name: ident : $ty: ty)* }) => {
+    ({ $($name: ident : $ty: ty),* }) => {
+        #[allow(unused)]
         struct Node_<K, V> {
             left: Node<K, V>,
             right: Node<K, V>,
@@ -552,13 +790,25 @@ macro_rules! impl_node_ {
 
             /* extra attr */
             $(
-                $name: $ty,
-            )*
+                $name: $ty
+            ),*
         }
 
-        impl<K: Debug, V: Debug> std::fmt::Debug for Node_<K, V> {
+        impl<K: std::fmt::Debug, V: std::fmt::Debug> std::fmt::Debug for Node_<K, V> {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 write!(f, "{:?}: {:?}", self.key, unsafe { &*self.val })
+            }
+        }
+
+        impl<K, V> Drop for Node_<K, V> {
+            fn drop(&mut self) {
+                if !self.key.is_null() {
+                    unboxptr!(self.key);
+                }
+
+                if !self.val.is_null() {
+                    unboxptr!(self.val);
+                }
             }
         }
     };
@@ -579,6 +829,7 @@ macro_rules! impl_node {
             Option<std::rc::Weak<std::cell::RefCell<Node_<K, V>>>>,
         );
 
+        #[allow(unused)]
         impl<K, V> Node<K, V> {
             fn downgrade(&self) -> WeakNode<K, V> {
                 WeakNode(
@@ -586,7 +837,6 @@ macro_rules! impl_node {
                 )
             }
 
-            #[allow(unused)]
             fn as_ptr(&self) -> *mut Node_<K, V> {
                 match self.0 {
                     Some(ref rc) => rc.as_ptr(),
@@ -606,11 +856,14 @@ macro_rules! impl_node {
                 self.0.is_none()
             }
 
-            #[allow(unused)]
+            /// Move val from x to self, return old val of self
+            ///
+            /// replace val of x with null_mut
             fn replace_val(&mut self, x: Node<K, V>) -> V {
                 let oldvptr = attr!(self, val);
-                attr!(self, val, attr!(x, val).clone());
+                attr!(self, val, attr!(x, val));
 
+                attr!(x, val, std::ptr::null_mut());
                 unboxptr!(oldvptr)
             }
 
@@ -652,17 +905,16 @@ macro_rules! impl_node {
 
         impl<K, V> Eq for Node<K, V> {}
 
-
+        #[allow(unused)]
         impl<K, V> WeakNode<K, V> {
             fn upgrade(&self) -> Node<K, V> {
-                Node(self.0.clone().map(|weak|
+                Node(self.0.clone().map(|weak| {
                     if let Some(strong) = weak.upgrade() {
                         strong
-                    }
-                    else {
+                    } else {
                         unreachable!("weak node upgrade failed")
                     }
-                ))
+                }))
             }
 
             fn none() -> Self {
@@ -680,8 +932,6 @@ macro_rules! impl_node {
                 Self(self.0.clone())
             }
         }
-
-
     };
 }
 
@@ -690,48 +940,70 @@ macro_rules! impl_node {
 //// Unify Test
 
 #[cfg(test)]
-macro_rules! test_dict {
-    ($dict: expr) => {
-        let get_one = || {
-            rand::random::<u64>()
-        };
+macro_rules! gen_data {
+    ($get_one: ident, $group: expr, $num: expr) => {{
+        let group = $group;
+        let num = $num;
 
-        for _ in 0..20 {
-            let mut dict = $dict;
-            let batch_num = 1000;
-            let mut elems = vec![];
-            let mut keys = std::collections::HashSet::new();
+        let mut keys = std::collections::HashSet::new();
+        let mut elems = vec![];
 
-            /* Verify Create */
+        for _ in 0..num {
+            let mut k = $get_one();
+            let mut j = 0;
 
-            let mut i = 0;
-
-            while i < batch_num {
-                let k = get_one();
-                let v = k + 1000;
-
+            while j < group {
+                k += 1;
                 if keys.contains(&k) {
                     continue;
                 }
 
                 keys.insert(k);
-                elems.push((k, v));
+                elems.push((k, k + 1000));
 
-                assert!(dict.insert(k, v).is_none(), "insert res invalid");
-                assert_eq!(dict.get(&k), Some(&v), "insert query failed");
+                j += 1;
+            }
+        }
 
+        elems
+    }};
+}
+#[cfg(test)]
+pub(crate) use gen_data;
+
+
+#[cfg(test)]
+macro_rules! test_dict {
+    ($dict: expr) => {
+        let get_one = || rand::random::<u64>();
+
+        for _ in 0..20 {
+            let mut dict = $dict;
+            let mut elems = gen_data!(get_one, 10, 100);
+
+            /* Verify Create */
+
+            for (i, (k, v)) in elems.iter().cloned().enumerate() {
+                assert!(
+                    dict.insert(k, v).is_none(),
+                    "[dict insert] insert res invalid"
+                );
+                assert_eq!(
+                    dict.get(&k), Some(&v),
+                     "[dict insert] insert but query failed"
+                );
+
+                if i % 20 == 0 {
+                    dict.balance_validation();
+                }
                 // println!("{i}. insert: ");
-
-                i += 1;
             }
 
             dict.balance_validation();
 
             /* Verify Update */
 
-            for i in 0..batch_num {
-                let (k, v) = elems[i];
-
+            for (i, (k, v)) in elems.clone().into_iter().enumerate() {
                 assert_eq!(dict.get(&k), Some(&v));
 
                 let newv = k + 500;
@@ -742,26 +1014,36 @@ macro_rules! test_dict {
                 assert_eq!(dict.get(&k), Some(&newv));
             }
 
-
             /* Verify Remove */
 
             use rand::{prelude::SliceRandom, thread_rng};
 
             elems.shuffle(&mut thread_rng());
 
-            for i in 0..batch_num {
-                let (k, v) = elems[i];
+            for (i, (k, v)) in elems.into_iter().enumerate() {
+                assert_eq!(
+                    dict.get(&k),
+                    Some(&v),
+                    "[dict remove] Assure get Some"
+                );
+                assert_eq!(
+                    dict.remove(&k),
+                    Some(v),
+                    "[dict remove] Assert remove failed"
+                );
+                assert_eq!(
+                    dict.get(&k),
+                    None,
+                    "[dict remove] Assure get None"
+                );
 
-                assert_eq!(dict.get(&k), Some(&v), "[dict remove] Assure get Some");
-                assert_eq!(dict.remove(&k), Some(v), "[dict remove] Assert remove failed");
-                assert_eq!(dict.get(&k), None, "[dict remove] Assure get None");
+                // println!("[dict remove]: {}", i);
 
                 // sample to save time
                 if i % 10 == 0 {
                     dict.balance_validation();
                 }
             }
-
         }
     };
 }
@@ -770,30 +1052,40 @@ macro_rules! test_dict {
 ////////////////////////////////////////////////////////////////////////////////
 //// ReExport Declarative Macro
 
-pub(super) use child;
-pub(super) use conn_child;
-pub(super) use conn_left;
-pub(super) use conn_right;
-
-pub(super) use bst_delete;
-pub(super) use bst_insert;
+use child;
+use conn_child;
+use conn_left;
+use conn_right;
+use index_of_child;
 #[allow(unused)]
-pub(super) use bst_maximum;
-pub(super) use bst_minimum;
-#[allow(unused)]
-pub(super) use bst_predecessor;
-pub(super) use bst_search;
-pub(super) use bst_successor;
-pub(super) use double_rotate;
+use sib;
+use subtree_shift;
 
-pub(super) use impl_balance_validation;
+use rotate;
+use double_rotate;
+
+use bst_delete;
+use bst_insert;
+#[allow(unused)]
+use bst_maximum;
+use bst_minimum;
+#[allow(unused)]
+use bst_predecessor;
+use bst_search;
+use bst_successor;
+use bst_flatten;
+use bst_build;
+
+use impl_balance_validation;
+use impl_rotate_cleanup;
+use impl_build_cleanup;
+use impl_flatten_cleanup;
+
 pub(super) use impl_node;
-pub(super) use impl_node_;
-pub(super) use impl_rotate_cleanup;
-pub(super) use impl_tree;
-pub(super) use index_of_child;
-pub(super) use rotate;
-pub(super) use subtree_shift;
+use impl_node_;
+use def_tree;
+use impl_tree_debug;
+use impl_tree;
 
 #[cfg(test)]
 pub(crate) use test_dict;
@@ -803,17 +1095,25 @@ pub(crate) use test_dict;
 //// Structure
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub(crate) enum Rotation {
+pub(crate) enum Dir {
     Left,
     Right,
 }
-pub(crate) use Rotation::*;
+pub(crate) use Dir::*;
+
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+enum Color {
+    Red,
+    Black,
+}
+use Color::*;
 
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Implementation
 
-impl Rotation {
+impl Dir {
     fn rev(&self) -> Self {
         match self {
             Left => Right,
@@ -828,5 +1128,23 @@ impl Rotation {
     #[allow(unused)]
     fn is_right(&self) -> bool {
         matches!(self, Right)
+    }
+}
+
+
+impl Color {
+    fn rev(&self) -> Self {
+        match self {
+            Red => Black,
+            Black => Red,
+        }
+    }
+
+    fn is_red(&self) -> bool {
+        matches!(self, Red)
+    }
+
+    fn is_black(&self) -> bool {
+        matches!(self, Black)
     }
 }

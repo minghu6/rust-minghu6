@@ -15,31 +15,6 @@ use crate::etc::StrJoin;
 ////////////////////////////////////////
 //// Node wrapper
 
-macro_rules! node {
-    (BST { $key:expr, $val:expr, $($attr:ident : $attr_val:expr)* }) => {
-        Node(Some(std::rc::Rc::new(std::cell::RefCell::new(Node_ {
-            left: Node::none(),
-            right: Node::none(),
-            paren: WeakNode::none(),
-
-            key: boxptr!($key),
-            val: boxptr!($val),
-
-            $(
-                $attr: $attr_val,
-            )*
-        }))))
-    };
-    (FREE { $($attr:ident : $attr_val:expr),* }) => {
-        Node(Some(std::rc::Rc::new(std::cell::RefCell::new(Node_ {
-            $(
-                $attr: $attr_val
-            ),*
-        }))))
-    };
-}
-
-
 macro_rules! boxptr {
     ($v:expr) => {
         Box::into_raw(Box::new($v))
@@ -50,6 +25,31 @@ macro_rules! boxptr {
 macro_rules! unboxptr {
     ($ptr:expr) => {
         unsafe { *Box::from_raw($ptr) }
+    };
+}
+
+
+macro_rules! node {
+    (BST { $key:expr, $val:expr, $($attr:ident : $attr_val:expr),* }) => {
+        Node(Some(std::rc::Rc::new(std::cell::RefCell::new(Node_ {
+            left: Node::none(),
+            right: Node::none(),
+            paren: WeakNode::none(),
+
+            key: boxptr!($key),
+            val: boxptr!($val),
+
+            $(
+                $attr: $attr_val
+            ),*
+        }))))
+    };
+    (FREE { $($attr:ident : $attr_val:expr),* }) => {
+        Node(Some(std::rc::Rc::new(std::cell::RefCell::new(Node_ {
+            $(
+                $attr: $attr_val
+            ),*
+        }))))
     };
 }
 
@@ -66,7 +66,6 @@ macro_rules! unwrap_into {
 ////////////////////////////////////////
 //// Attr macros
 
-/// In-place ref
 macro_rules! attr {
     ($node:expr, $attr:ident) => {{
         /* to pass runtime borrow check  */
@@ -79,7 +78,7 @@ macro_rules! attr {
         else {
             panic!("Access {} on None", stringify!($attr));
         }
-    }}; // $node.clone().0.unwrap().as_ref().borrow().$attr;
+    }};
     ($node:expr, $attr:ident, $val:expr) => {{
         if let Some(bor) = $node.clone().0 {
             bor.as_ref().borrow_mut().$attr = $val
@@ -133,7 +132,6 @@ macro_rules! def_attr_macro {
         )+
     };
 }
-
 
 
 pub(crate) use node;

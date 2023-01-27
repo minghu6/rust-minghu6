@@ -1,129 +1,70 @@
 #![feature(test)]
 #![feature(box_syntax)]
 
-#![allow(dead_code)]
-#![allow(unused_imports)]
-
-use std::collections::HashMap;
-
-use minghu6::collections::CollKey;
-use minghu6::collections::Dictionary;
-use minghu6::collections::bt::bst::*;
-use minghu6::collections::bt::*;
-use minghu6::test::Inode;
-use minghu6::test::dict::*;
-use minghu6::test::{ Provider, InodeProvider };
+use lazy_static::lazy_static;
+use minghu6::{
+    collections::{
+        bt::bst::*,
+        bst2,
+        Dictionary
+    }
+};
 
 extern crate test;
-use rand::prelude::SliceRandom;
-use rand::thread_rng;
 use test::Bencher;
 
-const BATCH_NUM: usize = 10_000;
+mod dict_common;
 
 
-#[bench]
-#[allow(unused)]
-fn bench_dict_insert_prepare(b: &mut Bencher) {
-    let provider = InodeProvider {};
-    let mut rng = thread_rng();
-    let mut batch = provider.prepare_batch(BATCH_NUM);
+lazy_static! {
+    static ref INSERT_DATA: Vec<(u64, u64)> = {
+        let get_one = || rand::random::<u64>();
 
-    b.iter( || {
-        batch.shuffle(&mut rng);
-        let new_batch = batch.clone();
-    })
+        gen_data!(get_one, 50, 200)
+    };
 }
 
 
-fn bench_insert<
-    K: CollKey + Clone,
-    V: GetKey<K> + Eq + Clone + std::fmt::Debug,
->(
-    b: &mut Bencher,
-    dict_new: fn() -> Box<(dyn Dictionary<K, V>)>,
-    provider: &(dyn DictProvider<K, V>),
-) {
-    let mut batch = provider.prepare_batch(BATCH_NUM);
-    let mut rng = thread_rng();
+macro_rules! bench_dict_insert {
+    ($v:ident, $name: ident, $dict: expr) => {
+        bench_dict_insert!($v, $name, $dict, i: insert);
+    };
+    ($v:ident, $name: ident, $dict: expr, i: $i:ident) => {
+        concat_idents::concat_idents! (bench_name = bench_dict_insert_, $v, _, $name {
+            #[allow(non_snake_case)]
+            #[bench]
+            fn bench_name (b: &mut Bencher) {
+                b.iter(|| {
+                    let mut dict = $dict;
 
-    b.iter( || {
-        batch.shuffle(&mut rng);
-        provider.bench_dict_insert(dict_new, batch.clone())
-    })
+                    for (k, v) in INSERT_DATA.iter().cloned() {
+                        dict.$i(k, v);
+                    }
+                });
+            }
+        });
+   };
 }
 
 
-#[bench]
-fn bench_avl_insert(b: &mut Bencher) {
-    bench_insert::<u32, Inode>(b, || box avl::AVL::new(), &InodeProvider{})
-}
+bench_dict_insert!(_0_, HASH_MAP, std::collections::HashMap::new());
 
 
-#[bench]
-fn bench_rawst_insert(b: &mut Bencher) {
-    bench_insert::<u32, Inode>(b, || box rawst::RawST::new(), &InodeProvider{})
-}
+bench_dict_insert!(V1, AVL, avl::AVL::new());
+bench_dict_insert!(V1, RAW, rawst::RawST::new());
+bench_dict_insert!(V1, RB, rb::RB::new());
+bench_dict_insert!(V1, LLRB, llrb::LLRB::new());
+// bench_dict_insert!(B3_V1, bt::b3::B3::new());
+// bench_dict_insert!(B4_V1, bt::b4::B4::new());
+// bench_dict_insert!(B4_STAR_V1, bt::b4::B4::new());
+bench_dict_insert!(V1, AA, aa::AA::new());
+bench_dict_insert!(V1, TREAP, treap::Treap::new());
+bench_dict_insert!(V1, SPLAY, splay::Splay::new());
+bench_dict_insert!(V1, LSG, lsg::LSG::new());
+bench_dict_insert!(V1, LSG_06, lsg::LSG::with_alpha(0.6));
 
 
-#[bench]
-fn bench_vecdict_insert(b: &mut Bencher) {
-    bench_insert::<u32, Inode>(b, || box Vec::new(), &InodeProvider{})
-}
-
-
-#[bench]
-fn bench_hashmapdict_insert(b: &mut Bencher) {
-    bench_insert::<u32, Inode>(b, || box HashMap::new(), &InodeProvider{})
-}
-
-#[bench]
-fn bench_b3_insert(b: &mut Bencher) {
-    bench_insert::<u32, Inode>(b, || box b3::B3::new(), &InodeProvider{})
-}
-
-#[bench]
-fn bench_b4_insert(b: &mut Bencher) {
-    bench_insert::<u32, Inode>(b, || box b4::B4::new(), &InodeProvider{})
-}
-
-#[bench]
-fn bench_bstar4_insert(b: &mut Bencher) {
-    bench_insert::<u32, Inode>(b, || box bstar4::BStar4::new(), &InodeProvider{})
-}
-
-#[bench]
-fn bench_rb_insert(b: &mut Bencher) {
-    bench_insert::<u32, Inode>(b, || box rb::RB::new(), &InodeProvider{})
-}
-
-#[bench]
-fn bench_llrb_insert(b: &mut Bencher) {
-    bench_insert::<u32, Inode>(b, || box llrb::LLRB::new(), &InodeProvider{})
-}
-
-#[bench]
-fn bench_aa_insert(b: &mut Bencher) {
-    bench_insert::<u32, Inode>(b, || box aa::AA::new(), &InodeProvider{})
-}
-
-#[bench]
-fn bench_treap_insert(b: &mut Bencher) {
-    bench_insert::<u32, Inode>(b, || box treap::Treap::new(), &InodeProvider{})
-}
-
-#[bench]
-fn bench_splay_insert(b: &mut Bencher) {
-    bench_insert::<u32, Inode>(b, || box splay::Splay::new(), &InodeProvider{})
-}
-
-#[bench]
-fn bench_lsg_insert(b: &mut Bencher) {
-    bench_insert::<u32, Inode>(b, || box lsg::LSG::new(), &InodeProvider{})
-}
-
-#[bench]
-fn bench_lsg_06_insert(b: &mut Bencher) {
-    bench_insert::<u32, Inode>(b, || box lsg::LSG::with_alpha(0.6), &InodeProvider{})
-}
+bench_dict_insert!(V2, LSG, bst2::lsg::LSG::new(0.7));
+bench_dict_insert!(V2, AVL, bst2::avl::AVL::new());
+bench_dict_insert!(V2, RB, bst2::rb::RB::new());
 

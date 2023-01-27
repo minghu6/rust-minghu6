@@ -17,6 +17,9 @@ use rand::prelude::SliceRandom;
 use rand::thread_rng;
 use test::Bencher;
 
+mod dict_common;
+
+
 const BATCH_NUM: usize = 10_000;
 
 

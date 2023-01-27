@@ -591,7 +591,7 @@ pub trait BSTNode<'a, K: CollKey + 'a, V: 'a>: BTNode<'a, K, V> {
 }
 
 #[allow(unused)]
-pub(crate) static mut ROTATE_NUM: usize = 0;
+pub static mut ROTATE_NUM: usize = 0;
 
 
 

@@ -16,7 +16,7 @@ use rand::random;
 
 use super::{BSTNode, BST};
 use crate::collections::bt::{BTNode, BT};
-use crate::collections::{CollKey, Dictionary, Heap, Coll};
+use crate::collections::{Coll, CollKey, Dictionary, Heap};
 use crate::etc::Reverse;
 use crate::*;
 
@@ -464,14 +464,14 @@ impl<'a, K: CollKey + 'a, V: 'a> Dictionary<K, V> for Treap<K, V> {
 }
 
 
-impl<K:CollKey, W: CollKey> Coll for Treap<K, (), W> {
+impl<K: CollKey, W: CollKey> Coll for Treap<K, (), W> {
     fn len(&self) -> usize {
         todo!()
     }
 }
 
 
-impl<K:CollKey, W: CollKey> Heap<K, W> for Treap<K, (), W> {
+impl<K: CollKey, W: CollKey> Heap<K, W> for Treap<K, (), W> {
     fn top(&self) -> Option<&W> {
         if self.root.is_null() {
             None
@@ -688,7 +688,8 @@ mod test {
     #[test]
     fn test_treap_heap() {
         let provider = UZProvider {};
-        (&provider as &dyn HeapProvider<usize>).test_heap(false, || box Treap::new());
+        (&provider as &dyn HeapProvider<usize>)
+            .test_heap(false, || box Treap::new());
     }
 
 
