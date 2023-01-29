@@ -11,12 +11,14 @@ const LARGE: usize = 10_000_000_000_000_000_000;
 #[cfg(not(target_pointer_width = "64"))]
 const LARGE: usize = 2_000_000_000;
 
+
 pub struct BMPattern<'a> {
     pat_bytes: &'a [u8],
     delta1: [usize; 256],
     delta2: Vec<usize>,
     k: usize
 }
+
 
 impl<'a> BMPattern<'a> {
     pub fn new(pat: &'a str) -> Self {
@@ -493,8 +495,8 @@ impl<'a> SimplifiedBMPattern<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::super::super::test::spm;
-    use super::*;
+    use super::{ *, super::* };
+
 
     #[test]
     fn bm_delta2_table_built_correctly() {
@@ -539,7 +541,7 @@ mod tests {
 
     #[test]
     fn bm_find_all_randomdata_works() {
-        for (pat, text, result) in spm::gen_test_case() {
+        for (pat, text, result) in gen_test_case() {
             let r = BMPattern::new(pat.as_str()).find_all(text.as_str());
             if r != result {
                 println!("pat:{}", pat);
@@ -560,10 +562,10 @@ mod tests {
 
     #[test]
     fn bm_dna_test() {
-        for pat in spm::gen_dna_pattern((100..200, 100), 1) {
+        for pat in gen_dna_pattern((100..200, 100), 1) {
             //println!("pat: {}", pat);
             let bmpat = BMPattern::new(pat.as_str());
-            let res = bmpat.find_all(spm::gen_random_dna_text(2_000_000).as_str());
+            let res = bmpat.find_all(gen_random_dna_text(2_000_000).as_str());
             println!("result: {:?}", res);
         }
     }
@@ -582,7 +584,7 @@ mod tests {
 
     #[test]
     fn simplified_bm_find_all_randomdata_works() {
-        for (pat, text, result) in spm::gen_test_case() {
+        for (pat, text, result) in gen_test_case() {
             assert_eq!(
                 SimplifiedBMPattern::new(pat.as_str()).find_all(text.as_str()),
                 result

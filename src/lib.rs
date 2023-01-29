@@ -34,7 +34,6 @@ use proc_macros::{
 pub mod text;
 pub mod collections;
 pub mod algs;
-pub mod test;
 pub mod etc;
 pub mod error_code;
 pub mod io;

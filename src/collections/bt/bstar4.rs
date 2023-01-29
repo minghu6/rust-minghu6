@@ -485,7 +485,7 @@ impl<'a, K: CollKey + 'a, V: 'a> Dictionary<K, V> for BStar4<K, V> {
         }
     }
 
-    fn lookup(&self, key: &K) -> Option<&V> {
+    fn get(&self, key: &K) -> Option<&V> {
         let res = self.search_approximately(key) as *const BStar4Node<K, V>;
 
         if res.is_null() {
@@ -505,7 +505,7 @@ impl<'a, K: CollKey + 'a, V: 'a> Dictionary<K, V> for BStar4<K, V> {
         }
     }
 
-    fn lookup_mut(&mut self, key: &K) -> Option<&mut V> {
+    fn get_mut(&mut self, key: &K) -> Option<&mut V> {
         let res = self.search_approximately(key) as *mut BStar4Node<K, V>;
 
         if res.is_null() {
@@ -555,12 +555,8 @@ mod tests {
 
     use crate::{
         collections::{
-            bt::{bstar4::BStar4, BT},
+            bt::{bstar4::BStar4, BT, test_dict },
             Dictionary,
-        },
-        test::{
-            dict::{ DictProvider, GetKey },
-            *,
         },
     };
 
@@ -629,71 +625,7 @@ mod tests {
 
     #[test]
     pub(crate) fn test_bstar4_randomdata() {
-        let provider = InodeProvider {};
-
-        (&provider as &dyn DictProvider<u32, Inode>)
-            .test_dict(|| box BStar4::new());
-    }
-
-
-
-    ///
-    /// Debug B4 entry
-    ///
-    #[ignore]
-    #[test]
-    fn hack_bstar4() {
-        for _ in 0..50 {
-        let batch_num = 20;
-        let mut collected_elems = vec![];
-        let mut keys = vec![];
-        let provider = InodeProvider {};
-        let mut dict = BStar4::new();
-
-        // Create
-        let mut i = 0;
-        while i < batch_num {
-            let e = provider.get_one();
-            let k = e.get_key();
-            if keys.contains(&k) {
-                continue;
-            }
-
-            keys.push(k.clone());
-            collected_elems.push(e.clone());
-
-            assert!(dict.insert(k, e));
-
-            println!("insert {}: {:?}", i, k);
-
-            assert!(dict.lookup(&keys.last().unwrap()).is_some());
-
-            dict.self_validate().unwrap();
-
-            i += 1;
-        }
-
-        collected_elems.shuffle(&mut thread_rng());
-
-        // Remove-> Verify
-        for i in 0..batch_num {
-            let e = &collected_elems[i];
-            let k = &e.get_key();
-
-            println!("remove i: {}, k: {}", i, k);
-            assert!(dict.lookup(k).is_some());
-            let res = dict.remove(k);
-            if res.is_none() {
-                assert!(dict.lookup(k).is_some());
-                dict.remove(k);
-            }
-
-            // assert!(dict.remove(k).is_some());
-            assert!(!dict.lookup(k).is_some());
-            dict.self_validate().unwrap();
-
-        }
-    }
+        test_dict!(BStar4::new());
     }
 
 

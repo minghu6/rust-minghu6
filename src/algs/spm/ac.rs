@@ -3,6 +3,14 @@
 use std::collections::{BTreeMap, VecDeque};
 use std::ptr;
 
+
+
+pub struct TrieTree<'a> {
+    root_ptr: *mut TrieNode<'a>,
+    pub keys: &'a Vec<String>,
+}
+
+
 struct TrieNode<'a> {
     elem: char,
     word: &'a str,
@@ -11,93 +19,7 @@ struct TrieNode<'a> {
     failed_ptr: *mut TrieNode<'a>,
 }
 
-impl<'a> TrieNode<'a> {
-    fn new(elem: char) -> *mut TrieNode<'a> {
-        Box::into_raw(Box::new(TrieNode {
-            elem,
-            word: "",
-            next_ptr: ptr::null_mut(),
-            child_ptr: ptr::null_mut(),
-            failed_ptr: ptr::null_mut(),
-        }))
-    }
 
-    fn try_find_child(&self, elem: char) -> *mut TrieNode<'a> {
-        if self.child_ptr.is_null() {
-            return self.child_ptr;
-        }
-
-        let mut sibling_ptr = self.child_ptr;
-        let mut sibling = unsafe { &*sibling_ptr };
-
-        while !sibling.next_ptr.is_null() {
-            if sibling.elem == elem {
-                return sibling_ptr;
-            }
-
-            sibling_ptr = sibling.next_ptr;
-            sibling = unsafe { &*sibling_ptr };
-        }
-        sibling_ptr
-    }
-
-    fn find_child(&self, elem: char) -> Option<*mut TrieNode<'a>> {
-        let result_ptr = self.try_find_child(elem);
-
-        if result_ptr.is_null() {
-            return None;
-        }
-
-        let result = unsafe { &*result_ptr };
-        if result.elem == elem {
-            Some(result_ptr)
-        } else {
-            None
-        }
-    }
-
-    fn mark_position(&self) -> String {
-        let mut tail = String::new();
-        let mut whole_word = &self.word;
-        let mut mark_str = String::new();
-
-        let mut node_ptr = self.child_ptr;
-
-        while !node_ptr.is_null() {
-            let node = unsafe { &mut *node_ptr };
-            tail.push(node.elem);
-
-            node_ptr = node.child_ptr;
-            whole_word = &node.word;
-        }
-
-        if let Some(target_index) = whole_word.find(tail.as_str()) {
-            if tail.len() > 0 && target_index == 0 {
-                mark_str.push_str("[]");
-            }
-
-            for (i, c) in whole_word.char_indices() {
-                let c_len = c.to_string().len();
-                if target_index > 0 && i == target_index - c_len
-                    || tail.len() == 0 && i + c_len == whole_word.len()
-                {
-                    mark_str.push_str(format!("[{}]", c).as_str());
-                } else {
-                    mark_str.push(c);
-                }
-            }
-
-            mark_str
-        } else {
-            String::from("???")
-        }
-    }
-}
-
-pub struct TrieTree<'a> {
-    root_ptr: *mut TrieNode<'a>,
-    pub keys: &'a Vec<String>,
-}
 
 impl<'a> TrieTree<'a> {
     pub fn new(keys: &'a Vec<String>) -> Self {
@@ -219,6 +141,91 @@ impl<'a> TrieTree<'a> {
     }
 }
 
+
+impl<'a> TrieNode<'a> {
+    fn new(elem: char) -> *mut TrieNode<'a> {
+        Box::into_raw(Box::new(TrieNode {
+            elem,
+            word: "",
+            next_ptr: ptr::null_mut(),
+            child_ptr: ptr::null_mut(),
+            failed_ptr: ptr::null_mut(),
+        }))
+    }
+
+    fn try_find_child(&self, elem: char) -> *mut TrieNode<'a> {
+        if self.child_ptr.is_null() {
+            return self.child_ptr;
+        }
+
+        let mut sibling_ptr = self.child_ptr;
+        let mut sibling = unsafe { &*sibling_ptr };
+
+        while !sibling.next_ptr.is_null() {
+            if sibling.elem == elem {
+                return sibling_ptr;
+            }
+
+            sibling_ptr = sibling.next_ptr;
+            sibling = unsafe { &*sibling_ptr };
+        }
+        sibling_ptr
+    }
+
+    fn find_child(&self, elem: char) -> Option<*mut TrieNode<'a>> {
+        let result_ptr = self.try_find_child(elem);
+
+        if result_ptr.is_null() {
+            return None;
+        }
+
+        let result = unsafe { &*result_ptr };
+        if result.elem == elem {
+            Some(result_ptr)
+        } else {
+            None
+        }
+    }
+
+    fn mark_position(&self) -> String {
+        let mut tail = String::new();
+        let mut whole_word = &self.word;
+        let mut mark_str = String::new();
+
+        let mut node_ptr = self.child_ptr;
+
+        while !node_ptr.is_null() {
+            let node = unsafe { &mut *node_ptr };
+            tail.push(node.elem);
+
+            node_ptr = node.child_ptr;
+            whole_word = &node.word;
+        }
+
+        if let Some(target_index) = whole_word.find(tail.as_str()) {
+            if tail.len() > 0 && target_index == 0 {
+                mark_str.push_str("[]");
+            }
+
+            for (i, c) in whole_word.char_indices() {
+                let c_len = c.to_string().len();
+                if target_index > 0 && i == target_index - c_len
+                    || tail.len() == 0 && i + c_len == whole_word.len()
+                {
+                    mark_str.push_str(format!("[{}]", c).as_str());
+                } else {
+                    mark_str.push(c);
+                }
+            }
+
+            mark_str
+        } else {
+            String::from("???")
+        }
+    }
+}
+
+
 fn bfs_trie_tree(tree: &TrieTree) {
     let mut queue: VecDeque<&TrieNode> = VecDeque::new();
     let root = unsafe { &mut *tree.root_ptr };
@@ -257,18 +264,18 @@ fn bfs_trie_tree(tree: &TrieTree) {
     print!("")
 }
 
+
+
 #[cfg(test)]
 mod tests {
     extern crate test;
 
     use crate::btreemap;
 
-    use super::*;
-    use super::super::super::super::test::spm;
-
+    use super::{ *, super::* };
 
     #[test]
-    fn ac_automaton_fixeddata_works() {
+    fn test_ac_automaton_fixeddata() {
         let mut result = TrieTree::new(&vec![
             "bcd".to_string(),
             "cdfkcdf".to_string(),
@@ -349,8 +356,8 @@ mod tests {
     }
 
     #[test]
-    fn ac_automaton_randomdata_works() {
-        for (pats, text, res) in spm::gen_test_case_multiple() {
+    fn test_ac_automaton_randomdata() {
+        for (pats, text, res) in gen_test_case_multiple() {
             let tree = TrieTree::new(&pats);
 
             assert_eq!(tree.index_of(text.as_str()), res);

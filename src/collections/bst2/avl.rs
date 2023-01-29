@@ -62,7 +62,7 @@ impl<K: Ord, V> AVL<K, V> {
             let retracing_entry = bst_delete!(self, z);
             self.retracing(retracing_entry);
 
-            Some(unboxptr!(unwrap_into!(z).val))
+            Some(unwrap_into!(z).into_value())
         }
     }
 

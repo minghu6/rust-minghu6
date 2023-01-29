@@ -53,8 +53,8 @@ impl<'a> SundayPattern<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::super::super::test::spm;
-    use super::*;
+    use super::{ *, super::* };
+
     #[test]
     fn sunday_find_all_fixeddata_works() {
         let p1 = SundayPattern::new("abbaaba");
@@ -69,7 +69,7 @@ mod tests {
 
     #[test]
     fn sunday_find_all_randomdata_works() {
-        for (pat, text, result) in spm::gen_test_case() {
+        for (pat, text, result) in gen_test_case() {
             assert_eq!(
                 SundayPattern::new(pat.as_str()).find_all(text.as_str()),
                 result

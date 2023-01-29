@@ -1,8 +1,9 @@
 #![feature(test)]
 
 
-use minghu6::algs::spm::bm::BMPattern;
-use minghu6::test::spm::gen_pattern;
+use minghu6::algs::spm::{ bm::BMPattern };
+
+use minghu6::algs::spm::gen_pattern;
 
 extern crate test;
 

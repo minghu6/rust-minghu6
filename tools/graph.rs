@@ -1,9 +1,9 @@
-use std::{path::PathBuf, str::FromStr, ops::Range, fmt::Debug, fs::File};
+use std::{fmt::Debug, fs::File, ops::Range, path::PathBuf, str::FromStr};
 
 use clap::Parser;
 use minghu6::{
-    collections::graph::Graph, debug::graphviz::RenderOptions,
-    test::graph::GraphGenOptions,
+    collections::graph::{Graph, GraphGenOptions},
+    debug::graphviz::RenderOptions,
 };
 
 
@@ -32,7 +32,7 @@ struct Args {
     #[clap()]
     wrange: MyRange<isize>,
 
-    #[clap(short='o', default_value=".")]
+    #[clap(short = 'o', default_value = ".")]
     outdir: PathBuf,
 
     /// abc -> abc.dot && abc.csv
@@ -80,15 +80,20 @@ impl GraphShape {
     }
 }
 
-impl<T, E> FromStr for MyRange<T> where T: FromStr<Err=E>, E: Debug {
+impl<T, E> FromStr for MyRange<T>
+where
+    T: FromStr<Err = E>,
+    E: Debug,
+{
     type Err = String;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> where <T as FromStr>::Err: Debug {
+    fn from_str(s: &str) -> Result<Self, Self::Err>
+    where
+        <T as FromStr>::Err: Debug,
+    {
         let parts: Vec<&str> = s.split("~").collect();
 
-        let fail = || {
-            format!("failed {s}")
-        };
+        let fail = || format!("failed {s}");
 
         if parts.len() != 2 {
             return Err(fail());
@@ -127,4 +132,3 @@ fn main() {
     g.render(&render_opt, &mut File::create(dot_path).unwrap())
         .unwrap();
 }
-

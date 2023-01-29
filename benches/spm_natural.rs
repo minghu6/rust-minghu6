@@ -1,13 +1,15 @@
 #![feature(test)]
 
-use minghu6::algs::spm::ac::TrieTree;
-use minghu6::algs::spm::b5s::{ B5STimePattern, B5SSpacePattern };
-use minghu6::algs::spm::bm::{ BMPattern, SimplifiedBMPattern };
-use minghu6::algs::spm::bm_badimpl::BMPattern as BMBadImplPattern;
-use minghu6::algs::spm::horspool::HorspoolPattern;
-use minghu6::algs::spm::kmp::{ComputeNext, KMPPattern};
-use minghu6::algs::spm::sunday::SundayPattern;
-use minghu6::test::spm::{brute_force_match, gen_pattern, gen_random_text};
+use minghu6::algs::spm::{
+    ac::TrieTree,
+    b5s::{B5SSpacePattern, B5STimePattern},
+    bm::{BMPattern, SimplifiedBMPattern},
+    bm_badimpl::BMPattern as BMBadImplPattern,
+    brute_force_match, gen_pattern, gen_random_text,
+    horspool::HorspoolPattern,
+    kmp::{ComputeNext, KMPPattern},
+    sunday::SundayPattern,
+};
 
 extern crate test;
 
@@ -66,7 +68,8 @@ fn kmp_spm(b: &mut Bencher) {
         let tested_patterns = gen_tested_pattern();
         for text in &tested_texts {
             for pattern in &tested_patterns {
-                KMPPattern::new(pattern.as_str(), ComputeNext::Improved).find_all(text.as_str());
+                KMPPattern::new(pattern.as_str(), ComputeNext::Improved)
+                    .find_all(text.as_str());
             }
         }
     };
@@ -82,7 +85,8 @@ fn kmp_spm_naive(b: &mut Bencher) {
         let tested_patterns = gen_tested_pattern();
         for text in &tested_texts {
             for pattern in &tested_patterns {
-                KMPPattern::new(pattern.as_str(), ComputeNext::Naive).find_all(text.as_str());
+                KMPPattern::new(pattern.as_str(), ComputeNext::Naive)
+                    .find_all(text.as_str());
             }
         }
     };
@@ -113,7 +117,8 @@ fn bmbadimpl_spm(b: &mut Bencher) {
         let tested_patterns = gen_tested_pattern();
         for text in &tested_texts {
             for pattern in &tested_patterns {
-                BMBadImplPattern::new(pattern.as_str()).find_all(text.as_str());
+                BMBadImplPattern::new(pattern.as_str())
+                    .find_all(text.as_str());
             }
         }
     };
@@ -128,7 +133,8 @@ fn simplified_bm_spm(b: &mut Bencher) {
         let tested_patterns = gen_tested_pattern();
         for text in &tested_texts {
             for pattern in &tested_patterns {
-                SimplifiedBMPattern::new(pattern.as_str()).find_all(text.as_str());
+                SimplifiedBMPattern::new(pattern.as_str())
+                    .find_all(text.as_str());
             }
         }
     };

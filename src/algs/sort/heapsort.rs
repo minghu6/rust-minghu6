@@ -35,8 +35,8 @@ pub fn heapsort<T: Ord + Copy>(arr: &mut [T]) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use super::super::super::super::test::sort::gen_test_case;
+    use super::{ *, super::* };
+
 
     #[test]
     fn test_heapsort_sort() {

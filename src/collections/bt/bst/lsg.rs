@@ -481,7 +481,7 @@ impl<'a, K: CollKey + 'a, V: 'a> Dictionary<K, V> for LSG<'a, K, V> {
         self.basic_modify(key, value)
     }
 
-    fn lookup(&self, key: &K) -> Option<&V> {
+    fn get(&self, key: &K) -> Option<&V> {
         unsafe {
             let res = self.search_approximately(key) as *mut LSGNode<'a, K, V>;
 
@@ -495,7 +495,7 @@ impl<'a, K: CollKey + 'a, V: 'a> Dictionary<K, V> for LSG<'a, K, V> {
 
     }
 
-    fn lookup_mut(&mut self, key: &K) -> Option<&mut V> {
+    fn get_mut(&mut self, key: &K) -> Option<&mut V> {
         unsafe {
             let res = self.search_approximately(key) as *mut LSGNode<'a, K, V>;
 
@@ -549,81 +549,18 @@ pub(crate) mod tests {
     use rand::{prelude::SliceRandom, thread_rng};
 
     use super::LSG;
-    use crate::{
-        collections::{
+    use crate::collections::{
             bt::{
                 bst::{BSTNode, BST},
-                BTNode, BT,
+                BTNode, BT, test_dict
             },
             Dictionary,
-        },
-        test::{
-            dict::{DictProvider, GetKey},
-            *,
-        },
-    };
+        };
 
 
     #[test]
     pub(crate) fn test_lsg_randomdata() {
-        let provider = InodeProvider {};
-
-        (&provider as &dyn DictProvider<u32, Inode>)
-            .test_dict(|| box LSG::new());
-    }
-
-    ///
-    /// Debug Scapegoat entry
-    ///
-    // #[ignore = "Only used for debug"]
-    #[test]
-    fn hack_lsg() {
-        for _ in 0..20 {
-            let batch_num = 3;
-            let mut collected_elems = vec![];
-            let mut keys = vec![];
-            let provider = InodeProvider {};
-            let mut dict = LSG::new();
-            let m = 100;
-
-            // Create
-            let mut i = 0;
-            while i < batch_num {
-                let e = provider.get_one();
-                let k = e.get_key() % m;
-                if keys.contains(&k) {
-                    continue;
-                }
-
-                keys.push(k.clone());
-                collected_elems.push(e.clone());
-
-                println!("insert {}: {:?}", i, k);
-                assert!(dict.insert(k, e));
-                assert!(dict.lookup(&keys.last().unwrap()).is_some());
-
-                dict.self_validate().unwrap();
-
-                i += 1;
-            }
-
-            collected_elems.shuffle(&mut thread_rng());
-
-            // Remove-> Verify
-            for i in 0..batch_num {
-                let e = &collected_elems[i];
-                let k = &(e.get_key() % m);
-
-                println!("remove: {}", k);
-
-                assert!(dict.remove(k).is_some());
-                assert!(!dict.lookup(k).is_some());
-
-                if let Ok(_res) = dict.self_validate() {
-                } else {
-                }
-            }
-        }
+        test_dict!(LSG::new());
     }
 
 

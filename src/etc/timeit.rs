@@ -1,5 +1,3 @@
-
-
 #[macro_export]
 macro_rules! elapsed {
     ($($exprs:tt)*) => {
@@ -59,12 +57,6 @@ macro_rules! bench {
     // };
 
 }
-
-
-pub fn duration_collector() {
-
-}
-
 
 
 #[cfg(test)]

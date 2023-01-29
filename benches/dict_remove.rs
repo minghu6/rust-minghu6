@@ -1,12 +1,12 @@
 #![feature(test)]
 
+extern crate test;
+use test::Bencher;
 
 use lazy_static::lazy_static;
-use minghu6::collections::{bt::bst::*, Dictionary, bst2};
-
-extern crate test;
 use rand::{prelude::SliceRandom, thread_rng};
-use test::Bencher;
+
+use minghu6::collections::{bt::bst::*, Dictionary, bst2};
 
 
 mod dict_common;
@@ -69,5 +69,7 @@ bench_dict_remove!(V1, SPLAY, splay::Splay::new());
 // bench_dict_remove!(V1, LSG, lsg::LSG::new());
 // bench_dict_remove!(V1, LSG_06, lsg::LSG::with_alpha(0.6));
 
+bench_dict_remove!(V2, AVL, bst2::avl::AVL::new());
 // /// Too Slow
 // bench_dict_remove!(V2, LSG, bst2::lsg::LSG::new(0.7));
+// bench_dict_remove!(V2, SG, bst2::sg::SG::new(0.7));

@@ -1,15 +1,16 @@
 #![feature(test)]
 
-use std::thread;
 use std::sync::mpsc;
+use std::thread;
 
 extern crate num_cpus;
 
-use minghu6::algs::spm::sa::*;
-use minghu6::algs::spm::sais::suffix_array_sais;
-use minghu6::algs::spm::sa16::suffix_array_16;
-use minghu6::test::spm::gen_random_text;
-use minghu6::algs::math::*;
+use minghu6::algs::{
+    math::*,
+    spm::{
+        gen_random_text, sa::*, sa16::suffix_array_16, sais::suffix_array_sais,
+    },
+};
 
 extern crate test;
 
@@ -114,7 +115,6 @@ fn compute_sa_16_parallel(b: &mut Bencher) {
             child.join().unwrap();
             rx.recv().unwrap();
         }
-
     })
 }
 

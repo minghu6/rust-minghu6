@@ -212,8 +212,8 @@ pub fn mst_boruvka(g: &Graph) -> Vec<(usize, usize)> {
 
 #[cfg(test)]
 mod tests {
-    use crate::test::graph::{batch_graph, GraphGenOptions};
-    use super::*;
+    use super::{ *, super::* };
+
 
     #[test]
     fn verify_option_partial_ord() {
@@ -224,7 +224,6 @@ mod tests {
 
     #[test]
     fn test_mst_random() {
-
         for g in batch_graph(100, 100, -10..20, &GraphGenOptions::undir_conn()) {
 
             /* verify krusal (edge) algorithm */

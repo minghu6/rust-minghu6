@@ -223,8 +223,8 @@ impl BMPattern {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use super::super::super::super::test::spm;
+    use super::{ *, super::* };
+
 
     #[test]
     fn bm_badimpl_delta2_table_built_correctly() {
@@ -254,7 +254,7 @@ mod tests {
 
     #[test]
     fn bm_badimpl_find_all_randomdata_works() {
-        for (pat, text, result) in spm::gen_test_case() {
+        for (pat, text, result) in gen_test_case() {
             assert_eq!(BMPattern::new(pat.as_str()).find_all(text.as_str()), result)
         }
     }

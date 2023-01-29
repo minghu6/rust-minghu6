@@ -465,11 +465,11 @@ impl<'a, K: CollKey + 'a, V: 'a> Dictionary<K, V> for AA<K, V> {
         self.basic_modify(key, value)
     }
 
-    fn lookup(&self, income_key: &K) -> Option<&V> {
+    fn get(&self, income_key: &K) -> Option<&V> {
         self.basic_lookup(income_key)
     }
 
-    fn lookup_mut(&mut self, income_key: &K) -> Option<&mut V> {
+    fn get_mut(&mut self, income_key: &K) -> Option<&mut V> {
         self.basic_lookup_mut(income_key)
     }
 
@@ -537,27 +537,18 @@ mod test {
     use rand::{prelude::SliceRandom, thread_rng};
 
     use super::AA;
-    use crate::{
-        collections::{
+    use crate::collections::{
             bt::{
                 bst::{BSTNode, BST, ROTATE_NUM},
-                BTNode, BT,
+                BTNode, BT, test_dict
             },
             Dictionary,
-        },
-        test::{
-            dict::{DictProvider, GetKey},
-            *,
-        },
-    };
+        };
 
 
     #[test]
     pub(crate) fn test_aa_randomdata() {
-        let provider = InodeProvider {};
-
-        (&provider as &dyn DictProvider<u32, Inode>)
-            .test_dict(|| box AA::new());
+        test_dict!(AA::new());
 
         println!("AA rotate numer: {}", unsafe { ROTATE_NUM })
     }
@@ -627,60 +618,5 @@ mod test {
         aa.echo_stdout();
 
     }
-
-
-    ///
-    /// Debug RB entry
-    ///
-    // #[ignore = "Only used for debug"]
-    #[test]
-    fn hack_aa() {
-        for _ in 0..20 {
-            let batch_num = 13;
-            let mut collected_elems = vec![];
-            let mut keys = vec![];
-            let provider = InodeProvider {};
-            let mut dict = AA::new();
-
-            // Create
-            let mut i = 0;
-            while i < batch_num {
-                let e = provider.get_one();
-                let k = e.get_key();
-                if keys.contains(&k) {
-                    continue;
-                }
-
-                keys.push(k.clone());
-                collected_elems.push(e.clone());
-
-                println!("insert {}: {:?}", i, k);
-                assert!(dict.insert(k, e));
-                assert!(dict.lookup(&keys.last().unwrap()).is_some());
-
-                dict.self_validate().unwrap();
-
-                i += 1;
-            }
-
-            collected_elems.shuffle(&mut thread_rng());
-
-            // Remove-> Verify
-            for i in 0..batch_num {
-                let e = &collected_elems[i];
-                let k = &e.get_key();
-
-                println!("remove: {}", k);
-
-                assert!(dict.remove(k).is_some());
-                assert!(!dict.lookup(k).is_some());
-
-                if let Ok(_res) = dict.self_validate() {
-                } else {
-                }
-            }
-        }
-    }
-
 
 }

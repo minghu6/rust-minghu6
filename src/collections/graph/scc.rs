@@ -261,9 +261,8 @@ mod tests {
         algs::random_range,
         collections::graph::{
             scc::{normalize_comps, scc_path_based},
-            Graph,
+            Graph, GraphGenOptions
         },
-        test::graph::GraphGenOptions,
     };
 
 

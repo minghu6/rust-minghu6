@@ -1,33 +1,31 @@
-#![allow(unused_imports)]
 //! Clojure Vector
 //!
 //! Reference [It](https://hypirion.com/musings/understanding-persistent-vector-pt-1)
 //!
 
 use std::{
-    cmp::{max, min},
+    cmp::min,
     collections::VecDeque,
     error::Error,
     fmt::Debug,
     fmt::Display,
-    ops::{Index, IndexMut},
+    ops::Index,
     ptr::null_mut,
 };
 
 use itertools::Itertools;
-use m6coll::{array, Array};
+use m6coll::Array;
 use uuid::Uuid;
 
-use super::Vector;
 use crate::{
-    collections::{as_ptr, Coll},
-    etc::BitLen,
+    collections::{Coll, aux::boxptr},
     should,
 };
 
 const BIT_WIDTH: usize = 5;
 const NODE_SIZE: usize = 1 << BIT_WIDTH;
 const MASK: usize = NODE_SIZE - 1;
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -58,7 +56,7 @@ pub struct TTrieVec<T> {
 //// Implement
 
 /// Impl Node
-impl<T: Clone> Node<T> {
+impl<T> Node<T> {
     fn as_br(&self) -> &Array<*mut Node<T>> {
         match self {
             Node::BR(_, arr) => arr,
@@ -88,19 +86,19 @@ impl<T: Clone> Node<T> {
     }
 
     fn new_br(id: Option<Uuid>, cap: usize) -> *mut Self {
-        as_ptr(Node::BR(id, Array::new(cap)))
+        boxptr!(Node::BR(id, Array::new(cap)))
     }
 
     fn new_leaf(id: Option<Uuid>, cap: usize) -> *mut Self {
-        as_ptr(Node::LEAF(id, Array::new(cap)))
+        boxptr!(Node::LEAF(id, Array::new(cap)))
     }
 
-    fn duplicate(&self) -> *mut Self {
-        as_ptr(self.clone())
+    fn duplicate(&self) -> *mut Self where T: Clone {
+        boxptr!(self.clone())
     }
 
-    fn duplicate_with(&self, id: Option<Uuid>, cap: usize) -> *mut Self {
-        as_ptr(match self {
+    fn duplicate_with(&self, id: Option<Uuid>, cap: usize) -> *mut Self where T: Clone {
+        boxptr!(match self {
             Node::BR(_id, arr) => {
                 debug_assert!(
                     cap >= arr.len(),
@@ -125,7 +123,6 @@ impl<T: Clone> Node<T> {
         })
     }
 
-
     #[allow(unused)]
     fn is_empty(&self) -> bool {
         match self {
@@ -149,17 +146,16 @@ impl<T: Clone> Node<T> {
         .clone()
     }
 
-    #[allow(unused)]
-    fn clone_tree(&self) -> *mut Node<T> {
+    fn clone_tree(&self) -> *mut Node<T> where T: Clone {
         unsafe { Self::clone_tree_(self as *const Node<T> as *mut Node<T>) }
     }
 
-    unsafe fn clone_tree_(node: *mut Node<T>) -> *mut Node<T> {
+    unsafe fn clone_tree_(node: *mut Node<T>) -> *mut Node<T> where T: Clone {
         if node.is_null() {
             return node;
         }
 
-        let cloned_node = as_ptr((*node).clone());
+        let cloned_node = boxptr!((*node).clone());
 
         if let Self::BR(_, ref mut arr) = &mut *cloned_node {
             for i in 0..arr.len() {
@@ -234,6 +230,10 @@ impl<T: Display> Debug for Node<T> {
 
 /// Impl Persistent Vec
 impl<T: Debug + Clone> PTrieVec<T> {
+
+    ////////////////////////////////////////////////////////////////////////////
+    //// Public API
+
     pub fn empty() -> Self {
         Self {
             cnt: 0,
@@ -242,47 +242,9 @@ impl<T: Debug + Clone> PTrieVec<T> {
         }
     }
 
-
     fn new(cnt: usize, root: *mut Node<T>, tail: *mut Node<T>) -> Self {
         Self { cnt, root, tail }
     }
-
-
-    /// Tail Offset (elements number before tail)
-    fn tailoff(&self) -> usize {
-        if self.cnt == 0 {
-            return 0;
-        }
-
-        ((self.cnt - 1) >> BIT_WIDTH) << BIT_WIDTH
-    }
-
-
-    /// Indicate the trie structure.
-    fn shift(&self) -> i32 {
-        (self.height() as i32 - 1) * BIT_WIDTH as i32
-    }
-
-
-    /// Leaf should be same level
-    fn height(&self) -> usize {
-        Self::height_(self.tailoff())
-    }
-    fn height_(trie_size: usize) -> usize {
-        if trie_size == 0 {
-            return 0;
-        }
-
-        let mut h = 1;
-        let mut shift = (trie_size - 1) >> BIT_WIDTH;
-        while shift > 0 {
-            shift >>= BIT_WIDTH;
-            h += 1;
-        }
-
-        h
-    }
-
 
     pub fn id(&self) -> Option<Uuid> {
         if self.root.is_null() {
@@ -291,7 +253,6 @@ impl<T: Debug + Clone> PTrieVec<T> {
             unsafe { (*self.root).id() }
         }
     }
-
 
     pub fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = &T> + 'a> {
         let mut i = 0;
@@ -308,31 +269,7 @@ impl<T: Debug + Clone> PTrieVec<T> {
         })
     }
 
-
-    /// Get the Bucket
-    fn array_for(&self, idx: usize) -> *mut Node<T> {
-        debug_assert!(idx < self.cnt);
-
-        unsafe {
-            if idx >= self.tailoff() {
-                return self.tail;
-            }
-
-            let mut shift = self.shift();
-            let mut cur = self.root;
-
-            while shift > 0 {
-                cur = (*cur).as_br()[(idx >> shift) & MASK];
-
-                shift -= BIT_WIDTH as i32;
-            }
-
-            cur
-        }
-    }
-
-
-    pub fn push_(&self, item: T) -> Self {
+    pub fn push(&self, item: T) -> Self {
         unsafe {
             let cnt = self.cnt + 1;
 
@@ -388,186 +325,106 @@ impl<T: Debug + Clone> PTrieVec<T> {
         }
     }
 
-
-    fn new_path(
-        id: Option<Uuid>,
-        shift: i32,
-        node: *mut Node<T>,
-    ) -> *mut Node<T> {
-        if shift == 0 as i32 {
-            return node;
-        }
-
-        let ret = Node::new_br(id, 1);
-
+    pub fn pop(&self) -> Result<Self, Box<dyn Error>> {
         unsafe {
-            (*ret).as_br_mut()[0] =
-                Self::new_path(id, shift - BIT_WIDTH as i32, node);
-        }
+            should!(self.cnt > 0, "Can't pop empty vector");
 
-        ret
-    }
+            if self.cnt == 1 {
+                return Ok(Self::empty());
+            }
 
+            let cnt = self.cnt - 1;
 
-    // The Trie isn't full.
-    unsafe fn push_tail_into_trie(
-        &self,
-        shift: i32,
-        paren: *mut Node<T>,
-        leaf: *mut Node<T>,
-    ) -> *mut Node<T> {
-        let sub_idx = ((self.cnt - 1) >> shift) & MASK;
+            if self.cnt - self.tailoff() > 1 {
+                let tail = Node::new_leaf(self.id(), (*self.tail).len() - 1);
+                (*tail).as_leaf_mut()[..]
+                    .clone_from_slice(&(*self.tail).as_leaf()[..(*tail).len()]);
 
-        let paren_arr = (*paren).as_br();
-        let ret = Node::new_br(self.id(), min(paren_arr.len() + 1, NODE_SIZE));
-        (*ret).as_br_mut()[..paren_arr.len()].copy_from_slice(&paren_arr[..]);
+                let root = self.root;
 
-        let node_to_insert;
-        if shift == BIT_WIDTH as i32 {
-            node_to_insert = leaf;
-        } else {
-            node_to_insert = if (*paren).len() > sub_idx
-                && !(*paren).as_br()[sub_idx].is_null()
-            {
-                let child = (*paren).as_br()[sub_idx];
-                self.push_tail_into_trie(shift - BIT_WIDTH as i32, child, leaf)
+                return Ok(Self::new(cnt, root, tail));
+            }
+
+            let tail = self.array_for(self.cnt - 2);
+
+            let mut root;
+            if self.cnt == NODE_SIZE + 1 {
+                root = null_mut();
             } else {
-                Self::new_path(self.id(), shift - BIT_WIDTH as i32, leaf)
-            };
-        }
+                let shift = self.shift();
 
-        (*ret).as_br_mut()[sub_idx] = node_to_insert;
+                root = self.pop_tail_from_trie(shift, self.root);
 
-        ret
-    }
-
-
-    unsafe fn pop_(&self) -> Result<Self, Box<dyn Error>> {
-        should!(self.cnt > 0, "Can't pop empty vector");
-
-        if self.cnt == 1 {
-            return Ok(Self::empty());
-        }
-
-        let cnt = self.cnt - 1;
-
-        if self.cnt - self.tailoff() > 1 {
-            let tail = Node::new_leaf(self.id(), (*self.tail).len() - 1);
-            (*tail).as_leaf_mut()[..]
-                .clone_from_slice(&(*self.tail).as_leaf()[..(*tail).len()]);
-
-            let root = self.root;
-
-            return Ok(Self::new(cnt, root, tail));
-        }
-
-        let tail = self.array_for(self.cnt - 2);
-
-        let mut root;
-        if self.cnt == NODE_SIZE + 1 {
-            root = null_mut();
-        } else {
-            let shift = self.shift();
-
-            root = self.pop_tail_from_trie(shift, self.root);
-
-            if shift >= BIT_WIDTH as i32 && (*root).as_br()[1].is_null() {
-                root = (*root).as_br()[0]; // remove empty root
+                if shift >= BIT_WIDTH as i32 && (*root).as_br()[1].is_null() {
+                    root = (*root).as_br()[0]; // remove empty root
+                }
             }
-        }
 
-        Ok(Self::new(cnt, root, tail))
+            Ok(Self::new(cnt, root, tail))
+        }
     }
 
+    pub fn assoc(&self, idx: usize, item: T) -> Self {
+        unsafe {
+            assert!(self.cnt >= idx);
 
-    unsafe fn pop_tail_from_trie(
-        &self,
-        shift: i32,
-        node: *mut Node<T>,
-    ) -> *mut Node<T> {
-        let sub_id = ((self.cnt - 2) >> shift) & MASK;
+            if idx == self.cnt {
+                return self.push(item);
+            }
 
-        if shift > BIT_WIDTH as i32 {
-            debug_assert!((*node).len() > sub_id);
+            debug_assert!(self.cnt > 0);
 
-            let child = self.pop_tail_from_trie(
-                shift - BIT_WIDTH as i32,
-                (*node).as_br()[sub_id],
-            );
+            let cnt = self.cnt;
+            let root;
+            let tail;
+            if idx >= self.tailoff() {
+                root = self.root;
+                tail = (*self.tail).duplicate();
 
-            if child.is_null() && sub_id == 0 {
-                child
+                (*tail).as_leaf_mut()[idx & MASK] = item;
             } else {
-                let ret = (*node).duplicate();
-                (*ret).as_br_mut()[sub_id] = child;
-
-                ret
-            }
-        } else if sub_id == 0 {
-            null_mut()
-        } else {
-            let ret = (*node).duplicate();
-
-            if (*ret).len() > sub_id {
-                (*ret).as_br_mut()[sub_id] = null_mut();
+                let shift = self.shift();
+                root = Self::do_assoc(shift, self.root, idx, item);
+                tail = self.tail;
             }
 
-            ret
+            Self::new(cnt, root, tail)
         }
     }
 
-    unsafe fn assoc_(&self, idx: usize, item: T) -> Self {
-        assert!(self.cnt >= idx);
-
-        if idx == self.cnt {
-            return self.push_(item);
-        }
-
-        debug_assert!(self.cnt > 0);
-
-        let cnt = self.cnt;
-        let root;
-        let tail;
-        if idx >= self.tailoff() {
-            root = self.root;
-            tail = (*self.tail).duplicate();
-
-            (*tail).as_leaf_mut()[idx & MASK] = item;
-        } else {
-            let shift = self.shift();
-            root = Self::do_assoc(shift, self.root, idx, item);
-            tail = self.tail;
-        }
-
-        Self::new(cnt, root, tail)
-    }
-
-    unsafe fn do_assoc(
-        shift: i32,
-        node: *mut Node<T>,
-        idx: usize,
-        item: T,
-    ) -> *mut Node<T> {
-        let ret = (*node).duplicate();
-
-        if shift == 0 {
-            (*ret).as_leaf_mut()[idx & MASK] = item;
-        } else {
-            let sub_idx = (idx >> shift) & MASK;
-            let child = (*node).as_br()[sub_idx];
-
-            (*ret).as_br_mut()[sub_idx] =
-                Self::do_assoc(shift - BIT_WIDTH as i32, child, idx, item);
-        }
-
-        ret
-    }
-
-    fn transient_(&self) -> TTrieVec<T> {
+    pub fn transient(&self) -> TTrieVec<T> {
         TTrieVec {
             cnt: self.cnt,
             root: TTrieVec::editable(self.root),
             tail: TTrieVec::editable(self.tail),
+        }
+    }
+
+    pub fn persistent(&self) -> Self {
+        self.clone()
+    }
+
+    pub fn nth(&self, idx: usize) -> &T {
+        debug_assert!(idx < self.cnt);
+
+        let arr = self.array_for(idx);
+
+        unsafe { &(*arr).as_leaf()[idx & MASK] }
+    }
+
+    pub fn peek(&self) -> Option<&T> {
+        if self.cnt == 0 {
+            return None;
+        }
+
+        Some(self.nth(self.cnt - 1))
+    }
+
+    pub fn duplicate(&self) -> Self {
+        Self {
+            cnt: self.cnt,
+            root: self.root.clone(),
+            tail: self.tail.clone(),
         }
     }
 
@@ -623,60 +480,178 @@ impl<T: Debug + Clone> PTrieVec<T> {
             println!("------------- end --------------");
         }
     }
-}
 
 
+    ////////////////////////////////////////////////////////////////////////////
+    //// Inner Method
 
-impl<'a, T: 'a + Debug + Clone> Vector<'a, T> for PTrieVec<T> {
-    fn nth(&self, idx: usize) -> &T {
+    /// Tail Offset (elements number before tail)
+    fn tailoff(&self) -> usize {
+        if self.cnt == 0 {
+            return 0;
+        }
+
+        ((self.cnt - 1) >> BIT_WIDTH) << BIT_WIDTH
+    }
+
+    /// Indicate the trie structure.
+    fn shift(&self) -> i32 {
+        (self.height() as i32 - 1) * BIT_WIDTH as i32
+    }
+
+    /// Leaf should be same level
+    fn height(&self) -> usize {
+        Self::height_(self.tailoff())
+    }
+
+    fn height_(trie_size: usize) -> usize {
+        if trie_size == 0 {
+            return 0;
+        }
+
+        let mut h = 1;
+        let mut shift = (trie_size - 1) >> BIT_WIDTH;
+        while shift > 0 {
+            shift >>= BIT_WIDTH;
+            h += 1;
+        }
+
+        h
+    }
+
+    /// Get the Bucket
+    fn array_for(&self, idx: usize) -> *mut Node<T> {
         debug_assert!(idx < self.cnt);
 
-        let arr = self.array_for(idx);
-
-        unsafe { &(*arr).as_leaf()[idx & MASK] }
-    }
-
-    fn peek(&self) -> Option<&T> {
-        if self.cnt == 0 {
-            return None;
-        }
-
-        Some(self.nth(self.cnt - 1))
-    }
-
-    fn push(&self, item: T) -> Box<dyn Vector<'a, T> + 'a> {
-        box self.push_(item)
-    }
-
-    fn pop(&self) -> Result<Box<dyn Vector<'a, T> + 'a>, Box<dyn Error>> {
         unsafe {
-            match self.pop_() {
-                Ok(it) => Ok(box it),
-                Err(err) => Err(err),
+            if idx >= self.tailoff() {
+                return self.tail;
             }
+
+            let mut shift = self.shift();
+            let mut cur = self.root;
+
+            while shift > 0 {
+                cur = (*cur).as_br()[(idx >> shift) & MASK];
+
+                shift -= BIT_WIDTH as i32;
+            }
+
+            cur
         }
     }
 
-    fn assoc(&self, idx: usize, item: T) -> Box<dyn Vector<'a, T> + 'a> {
-        unsafe { box self.assoc_(idx, item) }
+    fn new_path(
+        id: Option<Uuid>,
+        shift: i32,
+        node: *mut Node<T>,
+    ) -> *mut Node<T> {
+        if shift == 0 as i32 {
+            return node;
+        }
+
+        let ret = Node::new_br(id, 1);
+
+        unsafe {
+            (*ret).as_br_mut()[0] =
+                Self::new_path(id, shift - BIT_WIDTH as i32, node);
+        }
+
+        ret
     }
 
-    fn duplicate(&self) -> Box<dyn Vector<'a, T> + 'a> {
-        box Self {
-            cnt: self.cnt,
-            root: self.root.clone(),
-            tail: self.tail.clone(),
+    // The Trie isn't full.
+    unsafe fn push_tail_into_trie(
+        &self,
+        shift: i32,
+        paren: *mut Node<T>,
+        leaf: *mut Node<T>,
+    ) -> *mut Node<T> {
+        let sub_idx = ((self.cnt - 1) >> shift) & MASK;
+
+        let paren_arr = (*paren).as_br();
+        let ret = Node::new_br(self.id(), min(paren_arr.len() + 1, NODE_SIZE));
+        (*ret).as_br_mut()[..paren_arr.len()].copy_from_slice(&paren_arr[..]);
+
+        let node_to_insert;
+        if shift == BIT_WIDTH as i32 {
+            node_to_insert = leaf;
+        } else {
+            node_to_insert = if (*paren).len() > sub_idx
+                && !(*paren).as_br()[sub_idx].is_null()
+            {
+                let child = (*paren).as_br()[sub_idx];
+                self.push_tail_into_trie(shift - BIT_WIDTH as i32, child, leaf)
+            } else {
+                Self::new_path(self.id(), shift - BIT_WIDTH as i32, leaf)
+            };
+        }
+
+        (*ret).as_br_mut()[sub_idx] = node_to_insert;
+
+        ret
+    }
+
+    unsafe fn pop_tail_from_trie(
+        &self,
+        shift: i32,
+        node: *mut Node<T>,
+    ) -> *mut Node<T> {
+        let sub_id = ((self.cnt - 2) >> shift) & MASK;
+
+        if shift > BIT_WIDTH as i32 {
+            debug_assert!((*node).len() > sub_id);
+
+            let child = self.pop_tail_from_trie(
+                shift - BIT_WIDTH as i32,
+                (*node).as_br()[sub_id],
+            );
+
+            if child.is_null() && sub_id == 0 {
+                child
+            } else {
+                let ret = (*node).duplicate();
+                (*ret).as_br_mut()[sub_id] = child;
+
+                ret
+            }
+        } else if sub_id == 0 {
+            null_mut()
+        } else {
+            let ret = (*node).duplicate();
+
+            if (*ret).len() > sub_id {
+                (*ret).as_br_mut()[sub_id] = null_mut();
+            }
+
+            ret
         }
     }
 
-    fn transient(&self) -> Result<Box<dyn Vector<'a, T> + 'a>, ()> {
-        Ok(box self.transient_())
+    unsafe fn do_assoc(
+        shift: i32,
+        node: *mut Node<T>,
+        idx: usize,
+        item: T,
+    ) -> *mut Node<T> {
+        let ret = (*node).duplicate();
+
+        if shift == 0 {
+            (*ret).as_leaf_mut()[idx & MASK] = item;
+        } else {
+            let sub_idx = (idx >> shift) & MASK;
+            let child = (*node).as_br()[sub_idx];
+
+            (*ret).as_br_mut()[sub_idx] =
+                Self::do_assoc(shift - BIT_WIDTH as i32, child, idx, item);
+        }
+
+        ret
     }
 
-    fn persistent(&self) -> Result<Box<dyn Vector<'a, T> + 'a>, ()> {
-        Ok(box self.clone())
-    }
 }
+
+
 
 
 impl<T: Debug + Clone> Debug for PTrieVec<T> {
@@ -711,6 +686,10 @@ impl<T> Clone for PTrieVec<T> {
 
 /// Impl Transient Vec
 impl<T: Debug + Clone> TTrieVec<T> {
+
+    ////////////////////////////////////////////////////////////////////////////
+    //// Public API
+
     pub fn empty() -> Self {
         TTrieVec {
             cnt: 0,
@@ -719,6 +698,223 @@ impl<T: Debug + Clone> TTrieVec<T> {
         }
     }
 
+    pub fn id(&self) -> Option<Uuid> {
+        if self.root.is_null() {
+            None
+        } else {
+            unsafe { (*self.root).id() }
+        }
+    }
+
+    pub fn clone_tree(&self) -> Self {
+        unsafe {
+            Self {
+                cnt: self.cnt,
+                root: (*self.root).clone_tree(),
+                tail: (*self.tail).clone_tree(),
+            }
+        }
+    }
+
+    pub fn clone_head(&self) -> Self {
+        Self {
+            cnt: self.cnt,
+            root: self.root,
+            tail: self.tail,
+        }
+    }
+
+    pub fn nth(&self, idx: usize) -> &T {
+        debug_assert!(idx < self.cnt);
+
+        let arr = self.array_for(idx);
+
+        unsafe { &(*arr).as_leaf()[idx & MASK] }
+    }
+
+    pub fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = &T> + 'a> {
+        let mut i = 0;
+
+        box std::iter::from_fn(move || {
+            if i == self.cnt {
+                return None;
+            }
+
+            let nxt = self.nth(i);
+            i += 1;
+
+            Some(nxt)
+        })
+    }
+
+    pub fn peek(&self) -> Option<&T> {
+        if self.cnt == 0 {
+            return None;
+        }
+
+        Some(self.nth(self.cnt - 1))
+    }
+
+    pub fn push(&mut self, item: T) -> Self {
+        unsafe {
+            if self.tail.is_null() {
+                self.tail = Node::new_leaf(self.id(), NODE_SIZE);
+                (*self.tail).as_leaf_mut()[0] = item;
+                self.cnt += 1;
+
+                return self.clone_head();
+            }
+
+            // tail isn't full
+            if self.cnt - self.tailoff() < NODE_SIZE {
+                let idx = self.cnt;
+
+                if (*self.tail).len() <= idx & MASK {
+                    self.tail = (*self.tail).duplicate_with(self.id(), NODE_SIZE);
+                }
+
+                (*self.tail).as_leaf_mut()[idx & MASK] = item;
+                self.cnt += 1;
+
+                return self.clone_head();
+            }
+
+            let root;
+
+            let tail = Node::new_leaf(self.id(), NODE_SIZE);
+            (*tail).as_leaf_mut()[0] = item;
+
+            // check overflow root?
+            // that's: tailoff == Full Trie Nodes Number
+            // So: tailoff == NODE_SIZE ^ H(trie)
+            let tailoff = self.tailoff();
+            if tailoff == 0 {
+                self.root = self.tail;
+                self.tail = tail;
+                self.cnt += 1;
+
+                return self.clone_head();
+            }
+
+            let leaf = self.tail;
+            let shift = self.shift();
+
+            if tailoff == NODE_SIZE.pow(self.height() as u32) {
+                root = Node::new_br(self.id(), NODE_SIZE);
+                (*root).as_br_mut()[0] = self.root;
+                (*root).as_br_mut()[1] = Self::new_path(self.id(), shift, leaf);
+            } else {
+                root = self.push_tail_into_trie(shift, self.root, leaf)
+            }
+
+            self.root = root;
+            self.tail = tail;
+            self.cnt += 1;
+
+            return self.clone_head();
+        }
+    }
+
+    pub fn pop(&mut self) -> Result<Self, Box<dyn Error>> {
+        unsafe {
+            should!(self.cnt > 0, "Can't pop empty vector");
+
+            if self.cnt == 1 || self.cnt - self.tailoff() > 1 {
+                self.cnt -= 1;
+
+                return Ok(self.clone_head());
+            }
+
+            let tail = self.editable_array_for(self.cnt - 2);
+
+            let mut root;
+            if self.cnt == NODE_SIZE + 1 {
+                root = null_mut();
+            } else {
+                let shift = self.shift();
+
+                root = self.pop_tail_from_trie(shift, self.root);
+
+                if shift >= BIT_WIDTH as i32 && (*root).as_br()[1].is_null() {
+                    // remove empty root
+                    root = self.ensure_editable((*root).as_br()[0]);
+                }
+            }
+
+            self.root = root;
+            self.tail = tail;
+            self.cnt -= 1;
+
+            Ok(self.clone_head())
+        }
+    }
+
+    pub fn assoc(&mut self, idx: usize, item: T) -> Self {
+        unsafe {
+            assert!(self.cnt >= idx);
+
+            if idx == self.cnt {
+                return self.push(item);
+            }
+
+            debug_assert!(self.cnt > 0);
+
+            if idx >= self.tailoff() {
+                (*self.tail).as_leaf_mut()[idx & MASK] = item;
+            } else {
+                let shift = self.shift();
+                self.root = self.do_assoc(shift, self.root, idx, item);
+            }
+
+            self.clone_head()
+        }
+    }
+
+    pub fn duplicate(&self) -> Self {
+        self.clone_tree()
+    }
+
+    pub fn transient(&self) -> Self {
+        self.clone_head()
+    }
+
+    pub fn persistent(&self) -> PTrieVec<T> {
+        unsafe {
+            let root = if self.root.is_null() {
+                self.root
+            } else {
+                (*self.root).duplicate_with(None, (*self.root).len())
+            };
+
+            let root_id = if root.is_null() {
+                None
+            } else {
+                (*self.root).id()
+            };
+
+            let tail = if self.tail.is_null() {
+                self.tail
+            } else {
+                let tail = Node::new_leaf(root_id, self.cnt - self.tailoff());
+
+                (*tail).as_leaf_mut()[..].clone_from_slice(
+                    &(*self.tail).as_leaf()[..(*tail).len()]
+                );
+
+                tail
+            };
+
+            PTrieVec {
+                cnt: self.cnt,
+                root,
+                tail,
+            }
+        }
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //// Inner Method
 
     unsafe fn ensure_editable(&self, node: *mut Node<T>) -> *mut Node<T> {
         if self.id() == (*node).id() {
@@ -738,7 +934,6 @@ impl<T: Debug + Clone> TTrieVec<T> {
         }
     }
 
-
     /// Tail Offset (elements number before tail)
     fn tailoff(&self) -> usize {
         if self.cnt == 0 {
@@ -748,17 +943,16 @@ impl<T: Debug + Clone> TTrieVec<T> {
         ((self.cnt - 1) >> BIT_WIDTH) << BIT_WIDTH
     }
 
-
     /// Indicate the trie structure.
     fn shift(&self) -> i32 {
         (self.height() as i32 - 1) * BIT_WIDTH as i32
     }
 
-
     /// Leaf should be same level
     fn height(&self) -> usize {
         Self::height_(self.tailoff())
     }
+
     fn height_(trie_size: usize) -> usize {
         if trie_size == 0 {
             return 0;
@@ -773,7 +967,6 @@ impl<T: Debug + Clone> TTrieVec<T> {
 
         h
     }
-
 
     /// Get the Bucket
     fn array_for(&self, idx: usize) -> *mut Node<T> {
@@ -796,82 +989,6 @@ impl<T: Debug + Clone> TTrieVec<T> {
             cur
         }
     }
-
-
-    pub fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = &T> + 'a> {
-        let mut i = 0;
-
-        box std::iter::from_fn(move || {
-            if i == self.cnt {
-                return None;
-            }
-
-            let nxt = self.nth(i);
-            i += 1;
-
-            Some(nxt)
-        })
-    }
-
-
-    unsafe fn push_(&mut self, item: T) -> Self {
-        if self.tail.is_null() {
-            self.tail = Node::new_leaf(self.id(), NODE_SIZE);
-            (*self.tail).as_leaf_mut()[0] = item;
-            self.cnt += 1;
-
-            return self.clone_head();
-        }
-
-        // tail isn't full
-        if self.cnt - self.tailoff() < NODE_SIZE {
-            let idx = self.cnt;
-
-            if (*self.tail).len() <= idx & MASK {
-                self.tail = (*self.tail).duplicate_with(self.id(), NODE_SIZE);
-            }
-
-            (*self.tail).as_leaf_mut()[idx & MASK] = item;
-            self.cnt += 1;
-
-            return self.clone_head();
-        }
-
-        let root;
-
-        let tail = Node::new_leaf(self.id(), NODE_SIZE);
-        (*tail).as_leaf_mut()[0] = item;
-
-        // check overflow root?
-        // that's: tailoff == Full Trie Nodes Number
-        // So: tailoff == NODE_SIZE ^ H(trie)
-        let tailoff = self.tailoff();
-        if tailoff == 0 {
-            self.root = self.tail;
-            self.tail = tail;
-            self.cnt += 1;
-
-            return self.clone_head();
-        }
-
-        let leaf = self.tail;
-        let shift = self.shift();
-
-        if tailoff == NODE_SIZE.pow(self.height() as u32) {
-            root = Node::new_br(self.id(), NODE_SIZE);
-            (*root).as_br_mut()[0] = self.root;
-            (*root).as_br_mut()[1] = Self::new_path(self.id(), shift, leaf);
-        } else {
-            root = self.push_tail_into_trie(shift, self.root, leaf)
-        }
-
-        self.root = root;
-        self.tail = tail;
-        self.cnt += 1;
-
-        return self.clone_head();
-    }
-
 
     // The Trie isn't full.
     unsafe fn push_tail_into_trie(
@@ -902,7 +1019,6 @@ impl<T: Debug + Clone> TTrieVec<T> {
         ret
     }
 
-
     fn new_path(
         id: Option<Uuid>,
         shift: i32,
@@ -921,7 +1037,6 @@ impl<T: Debug + Clone> TTrieVec<T> {
 
         ret
     }
-
 
     fn editable_array_for(&self, idx: usize) -> *mut Node<T> {
         debug_assert!(idx < self.cnt);
@@ -944,40 +1059,6 @@ impl<T: Debug + Clone> TTrieVec<T> {
             cur
         }
     }
-
-
-    unsafe fn pop_(&mut self) -> Result<Self, Box<dyn Error>> {
-        should!(self.cnt > 0, "Can't pop empty vector");
-
-        if self.cnt == 1 || self.cnt - self.tailoff() > 1 {
-            self.cnt -= 1;
-
-            return Ok(self.clone_head());
-        }
-
-        let tail = self.editable_array_for(self.cnt - 2);
-
-        let mut root;
-        if self.cnt == NODE_SIZE + 1 {
-            root = null_mut();
-        } else {
-            let shift = self.shift();
-
-            root = self.pop_tail_from_trie(shift, self.root);
-
-            if shift >= BIT_WIDTH as i32 && (*root).as_br()[1].is_null() {
-                // remove empty root
-                root = self.ensure_editable((*root).as_br()[0]);
-            }
-        }
-
-        self.root = root;
-        self.tail = tail;
-        self.cnt -= 1;
-
-        Ok(self.clone_head())
-    }
-
 
     unsafe fn pop_tail_from_trie(
         &self,
@@ -1016,27 +1097,6 @@ impl<T: Debug + Clone> TTrieVec<T> {
         }
     }
 
-
-    unsafe fn assoc_(&mut self, idx: usize, item: T) -> Self {
-        assert!(self.cnt >= idx);
-
-        if idx == self.cnt {
-            return self.push_(item);
-        }
-
-        debug_assert!(self.cnt > 0);
-
-        if idx >= self.tailoff() {
-            (*self.tail).as_leaf_mut()[idx & MASK] = item;
-        } else {
-            let shift = self.shift();
-            self.root = self.do_assoc(shift, self.root, idx, item);
-        }
-
-        self.clone_head()
-    }
-
-
     unsafe fn do_assoc(
         &self,
         shift: i32,
@@ -1058,70 +1118,6 @@ impl<T: Debug + Clone> TTrieVec<T> {
 
         ret
     }
-
-
-    pub fn id(&self) -> Option<Uuid> {
-        if self.root.is_null() {
-            None
-        } else {
-            unsafe { (*self.root).id() }
-        }
-    }
-
-
-    fn persistent_(&self) -> PTrieVec<T> {
-        unsafe {
-            let root = if self.root.is_null() {
-                self.root
-            } else {
-                (*self.root).duplicate_with(None, (*self.root).len())
-            };
-
-            let root_id = if root.is_null() {
-                None
-            } else {
-                (*self.root).id()
-            };
-
-            let tail = if self.tail.is_null() {
-                self.tail
-            } else {
-                let tail = Node::new_leaf(root_id, self.cnt - self.tailoff());
-
-                (*tail).as_leaf_mut()[..].clone_from_slice(
-                    &(*self.tail).as_leaf()[..(*tail).len()]
-                );
-
-                tail
-            };
-
-            PTrieVec {
-                cnt: self.cnt,
-                root,
-                tail,
-            }
-        }
-    }
-
-
-    pub fn clone_tree(&self) -> Self {
-        unsafe {
-            Self {
-                cnt: self.cnt,
-                root: Node::clone_tree_(self.root),
-                tail: Node::clone_tree_(self.tail),
-            }
-        }
-    }
-
-    pub fn clone_head(&self) -> Self {
-        Self {
-            cnt: self.cnt,
-            root: self.root,
-            tail: self.tail,
-        }
-    }
-
 
     pub fn bfs_display(&self)
     where
@@ -1179,63 +1175,6 @@ impl<T: Debug + Clone> TTrieVec<T> {
 
 
 
-impl<'a, T: 'a + Debug + Clone> Vector<'a, T> for TTrieVec<T> {
-    fn nth(&self, idx: usize) -> &T {
-        debug_assert!(idx < self.cnt);
-
-        let arr = self.array_for(idx);
-
-        unsafe { &(*arr).as_leaf()[idx & MASK] }
-    }
-
-    fn peek(&self) -> Option<&T> {
-        if self.cnt == 0 {
-            return None;
-        }
-
-        Some(self.nth(self.cnt - 1))
-    }
-
-    fn push(&self, item: T) -> Box<dyn Vector<'a, T> + 'a> {
-        unsafe {
-            let mut_self = &mut *(self as *const Self as *mut Self);
-
-            box mut_self.push_(item)
-        }
-    }
-
-    fn pop(&self) -> Result<Box<dyn Vector<'a, T> + 'a>, Box<dyn Error>> {
-        unsafe {
-            let mut_self = &mut *(self as *const Self as *mut Self);
-
-            match mut_self.pop_() {
-                Ok(it) => Ok(box it),
-                Err(err) => Err(err),
-            }
-        }
-    }
-
-    fn assoc(&self, idx: usize, item: T) -> Box<dyn Vector<'a, T> + 'a> {
-        unsafe {
-            let mut_self = &mut *(self as *const Self as *mut Self);
-
-            box mut_self.assoc_(idx, item)
-        }
-    }
-
-    fn duplicate(&self) -> Box<dyn Vector<'a, T> + 'a> {
-        box self.clone_tree()
-    }
-
-    fn transient(&self) -> Result<Box<dyn Vector<'a, T> + 'a>, ()> {
-        Ok(box self.clone_head())
-    }
-
-    fn persistent(&self) -> Result<Box<dyn Vector<'a, T> + 'a>, ()> {
-        Ok(box self.persistent_())
-    }
-}
-
 
 impl<T: Debug + Clone> Debug for TTrieVec<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -1269,76 +1208,22 @@ impl<T> Coll for TTrieVec<T> {
 
 #[cfg(test)]
 mod tests {
-    use itertools::Itertools;
-
-    use super::{PTrieVec, TTrieVec};
-    use crate::{
-        collections::{as_ptr, persistent::vector::Vector, Coll},
-        test::{persistent::VectorProvider, *},
-    };
+    use super::{PTrieVec, TTrieVec, super::* };
 
     #[test]
     fn test_ptrie_vec_randomedata() {
-        unsafe { InodeProvider {}.test_pvec(|| box PTrieVec::empty()) }
+        test_pvec!(PTrieVec::empty());
     }
 
     #[test]
     fn test_ttrie_vec_randomedata() {
-        unsafe { InodeProvider {}.test_tvec(|| box TTrieVec::empty()) }
+        test_tvec!(TTrieVec::empty());
     }
 
     #[test]
     fn test_pttrie_tran_randomdata() {
-        unsafe { InodeProvider {}.test_pttran(|| box PTrieVec::empty()) }
+        test_pttran!(PTrieVec::empty());
     }
-
-    #[test]
-    fn test_ptrie_vec_manually() {
-        // let pv = PTrieVec::empty();
-
-        // let mut bpv = (box pv) as Box<dyn Vector<Inode>>;
-        // // let mut bpv = pv;
-
-        // // let batch = provider.prepare_batch(BATCH_NUM);
-        // let provider = InodeProvider {};
-        // let batch_num = 1000;
-        // let batch = (0..batch_num).into_iter().map(|_| provider.get_one()).collect_vec();
-        // let batch = batch.clone();
-
-        // let mut i = 0;
-        // for e in batch.into_iter() {
-        //     bpv = bpv.push(e);
-
-        //     // println!("{}", i);
-        //     i += 1;
-        // }
-
-        let bench = || {
-            let provider = &InodeProvider {};
-            let batch = provider.prepare_batch(500);
-
-            for _ in 0..10 {
-                let mut vec =
-                    (box PTrieVec::empty()) as Box<dyn Vector<Inode>>;
-                let batch = batch.clone();
-
-                let mut _i = 0;
-                for e in batch.into_iter() {
-                    vec = vec.push(e);
-
-                    // println!("{}", _i);
-                    _i += 1;
-                }
-            }
-        };
-
-
-        bench();
-        bench();
-
-        // bpv.bfs_display();
-    }
-
 
     #[test]
     fn test_ttrievec_manually() {
@@ -1347,88 +1232,81 @@ mod tests {
         // let mut bpv = (box pv) as Box<dyn Vector<usize>>;
         let mut btv = tv;
 
-        unsafe {
-            btv = btv.push_(0);
-            btv = btv.push_(1);
-            btv = btv.push_(2);
-            btv = btv.push_(3);
-            btv = btv.push_(4);
-            btv = btv.push_(5);
-            btv = btv.push_(6);
-            btv = btv.push_(7);
-            btv = btv.push_(8);
-            btv = btv.push_(9);
-            btv = btv.push_(10);
-            btv = btv.push_(11);
+        btv = btv.push(0);
+        btv = btv.push(1);
+        btv = btv.push(2);
+        btv = btv.push(3);
+        btv = btv.push(4);
+        btv = btv.push(5);
+        btv = btv.push(6);
+        btv = btv.push(7);
+        btv = btv.push(8);
+        btv = btv.push(9);
+        btv = btv.push(10);
+        btv = btv.push(11);
 
-            let total = 500;
+        let total = 500;
 
-            for i in 12..total {
-                btv = btv.push_(i);
-            }
-
-            for i in 0..total {
-                btv = btv.assoc_(i, i * 100);
-            }
-
-            let mut uvec = btv.duplicate();
-            let mut uelem_vec = vec![];
-            for i in 0..total {
-                let e = i * 100;
-                uelem_vec.push(e);
-            }
-            for i in 0..total {
-                uvec = uvec.assoc(i, uelem_vec[i]);
-
-                assert_eq!(uvec.nth(i), &uelem_vec[i])
-            }
-
-
-            for i in (0..total).rev() {
-                btv = btv.pop_().unwrap();
-
-                for j in 0..i {
-                    assert_eq!(btv.nth(j), &uelem_vec[j]);
-                }
-            }
-
-            // btv = btv.pop_().unwrap();
-
-
-            btv.bfs_display();
+        for i in 12..total {
+            btv = btv.push(i);
         }
+
+        for i in 0..total {
+            btv = btv.assoc(i, i * 100);
+        }
+
+        let mut uvec = btv.duplicate();
+        let mut uelem_vec = vec![];
+        for i in 0..total {
+            let e = i * 100;
+            uelem_vec.push(e);
+        }
+        for i in 0..total {
+            uvec = uvec.assoc(i, uelem_vec[i]);
+
+            assert_eq!(uvec.nth(i), &uelem_vec[i])
+        }
+
+
+        for i in (0..total).rev() {
+            btv = btv.pop().unwrap();
+
+            for j in 0..i {
+                assert_eq!(btv.nth(j), &uelem_vec[j]);
+            }
+        }
+
+        // btv = btv.pop_().unwrap();
+
+        btv.bfs_display();
     }
 
 
     #[test]
     fn test_pttrietran_manually() {
-        unsafe {
-            // let mut vec = (box PVec::empty()) as Box<dyn Vector<usize>>;
-            let mut pvec = PTrieVec::empty();
-            let pbatchnum = 300;
-            for i in 0..pbatchnum {
-                pvec = pvec.push_(i);
+        // let mut vec = (box PVec::empty()) as Box<dyn Vector<usize>>;
+        let mut pvec = PTrieVec::empty();
+        let pbatchnum = 300;
+        for i in 0..pbatchnum {
+            pvec = pvec.push(i);
+        }
+
+        // println!("Before Transistent");
+        // pvec.bfs_display();
+
+
+        let mut tvec = pvec.transient();
+
+        // tvec = tvec.push(10);
+        let tbatchnum = 300;
+        for i in pbatchnum..pbatchnum + tbatchnum {
+            tvec = tvec.push(i * 10);
+
+            for j in pbatchnum..i {
+                // println!("j: {}", j);
+                assert_eq!(*tvec.nth(j), j * 10);
             }
-
-            // println!("Before Transistent");
-            // pvec.bfs_display();
-
-
-            let mut tvec = pvec.transient_();
-
-            // tvec = tvec.push_(10);
-            let tbatchnum = 300;
-            for i in pbatchnum..pbatchnum + tbatchnum {
-                tvec = tvec.push_(i * 10);
-
-                for j in pbatchnum..i {
-                    // println!("j: {}", j);
-                    assert_eq!(*tvec.nth(j), j * 10);
-                }
-            }
-
-            // println!("Transistrent");
-            // tvec.bfs_display();
         }
     }
+
 }

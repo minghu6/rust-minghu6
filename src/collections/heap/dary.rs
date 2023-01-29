@@ -419,25 +419,19 @@ impl<const E: usize, I: CollKey + Hash + Clone, T: CollKey + Clone>
 
 #[cfg(test)]
 mod tests {
-    use super::DaryHeap1;
+    use super::{ DaryHeap1, super::* };
     use crate::{
         algs::random,
         collections::{
             heap::{dary::DaryHeap, fib::FibHeap},
             Coll,
-        },
-        test::{
-            gen, gen_unique,
-            heap::{AdvHeapProvider, HeapProvider},
-            UZProvider,
-        },
+        }
     };
 
 
     #[test]
     fn test_daryheap_fixeddata() {
-
-        let mut auto = gen();
+        let mut auto = crate::etc::gen();
         let mut heap = DaryHeap::<1, usize, usize>::new();
 
         heap.insert(auto(), 2);
@@ -453,14 +447,10 @@ mod tests {
 
     #[test]
     fn test_daryheap_randomdata() {
+
         fn do_test<const E: usize>() {
-            let provider = UZProvider {};
-
-            (&provider as &dyn HeapProvider<usize>)
-                .test_heap(true, || box DaryHeap::<E, usize, usize>::new());
-
-            (&provider as &dyn AdvHeapProvider<usize>)
-                .test_advheap(true, || box DaryHeap::<E, usize, usize>::new());
+            test_heap!(DaryHeap::<E, usize, u64>::new(), MIN);
+            test_heap_update!(DaryHeap::<E, usize, u64>::new(), MIN);
         }
 
         do_test::<1>();
@@ -530,7 +520,7 @@ mod tests {
     /// Pacing with Fibheap
     fn test_daryheap_randomdata_extra2() {
         let batch_num = 1000 * 3;
-        let mut get_one = gen_unique();
+        let mut get_one = crate::etc::gen_unique();
 
         let mut daryheap = DaryHeap1::new();
         let mut fibheap = FibHeap::new();

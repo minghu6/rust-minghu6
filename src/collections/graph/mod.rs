@@ -4,7 +4,7 @@ pub mod sp;
 pub mod toposort;
 pub mod tree;
 pub mod scc;
-
+pub mod test;
 
 use std::{
     collections::{HashMap, HashSet},
@@ -22,6 +22,7 @@ use crate::{
     apush, collections::aux::VerifyError, get, getopt, queue, set, stack,
 };
 
+pub use test::*;
 
 
 ////////////////////////////////////////////////////////////////////////////////

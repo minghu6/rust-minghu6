@@ -130,35 +130,6 @@ pub fn make_simple_error_rules(input: TokenStream) -> TokenStream {
 }
 
 
-// struct DefBN {
-//     order: LitInt,
-// }
-
-// impl Parse for DefBN {
-//     fn parse(input: ParseStream) -> Result<Self> {
-//         let order: LitInt = input.parse()?;
-
-//         Ok(Self {
-//             order
-//         })
-//     }
-// }
-
-
-
-// #[proc_macro]
-// pub fn def_bn(input: TokenStream) -> TokenStream {
-//     let DefBN {
-//         order
-//     } = parse_macro_input!(input as DefBN);
-
-//     let BN = Ident::new(&format!("B{}", order), Span::call_site());
-//     let BNNode = Ident::new(&format!("B{}Node", order), Span::call_site());
-
-// }
-
-
-
 #[cfg(test)]
 mod tests {
 

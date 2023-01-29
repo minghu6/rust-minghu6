@@ -277,8 +277,8 @@ pub fn suffix_array_bl_radix_improved<'a>(pat: &'a [u8]) -> Vec<usize> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use super::super::super::super::test::spm::gen_sa_test_case;
+    use super::{ *, super::* };
+
     #[test]
     fn ensure_compute_sa_correctly_fixeddata() {
         for (pat, res) in [("aabaaaab", vec![3, 4, 5, 0, 6, 1, 7, 2]),

@@ -31,8 +31,8 @@ pub fn _merge_sort<T: Ord + Clone + Copy>(pat: &mut [T], temp: &mut [T], start: 
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use super::super::super::super::test::sort::gen_test_case;
+    use super::{ *, super::* };
+
 
     #[test]
     fn test_merge_sort() {

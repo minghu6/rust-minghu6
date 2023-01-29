@@ -444,11 +444,11 @@ impl<'a, K: CollKey + 'a, V: 'a> Dictionary<K, V> for AVL<K, V> {
         self.basic_modify(key, value)
     }
 
-    fn lookup(&self, income_key: &K) -> Option<&V> {
+    fn get(&self, income_key: &K) -> Option<&V> {
         self.basic_lookup(income_key)
     }
 
-    fn lookup_mut(&mut self, income_key: &K) -> Option<&mut V> {
+    fn get_mut(&mut self, income_key: &K) -> Option<&mut V> {
         self.basic_lookup_mut(income_key)
     }
 
@@ -499,113 +499,22 @@ pub(crate) mod tests {
     use serde_json;
 
     use super::AVL;
-    use crate::{
-        collections::{
+    use crate::collections::{
             bt::{
                 bst::{BSTNode, BST, ROTATE_NUM},
-                BTNode, BT,
+                BTNode, BT, test_dict
             },
             Dictionary,
-        },
-        test::{
-            dict::{DictProvider, GetKey},
-            *,
-        },
-    };
+        };
 
 
     #[test]
     pub(crate) fn test_avl_randomdata() {
-        let provider = InodeProvider {};
-
-        (&provider as &dyn DictProvider<u32, Inode>)
-            .test_dict(|| box AVL::new());
+        test_dict!(AVL::new());
 
         println!("rotate numer: {}", unsafe { ROTATE_NUM })
     }
 
-    ///
-    /// Debug AVL entry
-    ///
-    #[ignore]
-    #[test]
-    fn hack_avl() {
-        for _ in 0..20 {
-            let batch_num = 55;
-            let mut collected_elems = vec![];
-            let mut keys = vec![];
-            let provider = InodeProvider {};
-            let mut dict = AVL::new();
-
-            // Create
-            let mut i = 0;
-            while i < batch_num {
-                let e = provider.get_one();
-                let k = e.get_key();
-                if keys.contains(&k) {
-                    continue;
-                }
-
-                keys.push(k.clone());
-                collected_elems.push(e.clone());
-
-                assert!(dict.insert(k, e));
-                assert!(dict.lookup(&keys.last().unwrap()).is_some());
-
-                dict.self_validate().unwrap();
-
-                i += 1;
-            }
-
-            let mut dict_debug = dict.clone();
-
-            collected_elems.shuffle(&mut thread_rng());
-
-            // Remove-> Verify
-            for i in 0..batch_num {
-                let e = &collected_elems[i];
-                let k = &e.get_key();
-
-                assert!(dict.remove(k).is_some());
-                assert!(!dict.lookup(k).is_some());
-
-                if let Ok(_res) = dict.self_validate() {
-                } else {
-                    // restore the scene
-                    println!("{}", i);
-
-                    println!("DEBUG: {}", dict_debug.total());
-                    // dict_debug.echo_stdout();
-
-                    println!("ORIGIN: {}", dict.total());
-                    // dict.echo_stdout();
-
-
-                    for j in 0..i {
-                        let e = &collected_elems[j];
-                        let k = &e.get_key();
-
-                        assert!(dict_debug.remove(k).is_some());
-                        assert!(!dict_debug.lookup(k).is_some());
-                        dict_debug.self_validate().unwrap();
-                    }
-
-                    unsafe {
-                        let target = (*dict_debug.search_approximately(k))
-                            .try_as_bst_mut()
-                            .unwrap();
-                        let target_paren = (*target).paren_bst();
-
-                        println!("Target: {:?}", k);
-                        BSTNode::just_echo_stdout(&*target_paren);
-                    }
-
-                    dict_debug.remove(k).unwrap();
-                    dict_debug.self_validate().unwrap();
-                }
-            }
-        }
-    }
 
     #[test]
     fn test_avl_fixeddata_case_0() {
@@ -643,23 +552,23 @@ pub(crate) mod tests {
         dict.insert(22, ());
         dict.self_validate().unwrap();
 
-        assert!(dict.lookup(&10).is_some());
-        assert!(dict.lookup(&5).is_some());
-        assert!(dict.lookup(&12).is_some());
-        assert!(dict.lookup(&13).is_some());
-        assert!(dict.lookup(&14).is_some());
-        assert!(dict.lookup(&18).is_some());
-        assert!(dict.lookup(&7).is_some());
-        assert!(dict.lookup(&9).is_some());
-        assert!(dict.lookup(&11).is_some());
-        assert!(dict.lookup(&22).is_some());
+        assert!(dict.get(&10).is_some());
+        assert!(dict.get(&5).is_some());
+        assert!(dict.get(&12).is_some());
+        assert!(dict.get(&13).is_some());
+        assert!(dict.get(&14).is_some());
+        assert!(dict.get(&18).is_some());
+        assert!(dict.get(&7).is_some());
+        assert!(dict.get(&9).is_some());
+        assert!(dict.get(&11).is_some());
+        assert!(dict.get(&22).is_some());
 
         assert!(dict.remove(&10).is_some());
-        assert!(dict.lookup(&10).is_none());
+        assert!(dict.get(&10).is_none());
         dict.self_validate().unwrap();
 
         assert!(dict.remove(&5).is_some());
-        assert!(dict.lookup(&5).is_none());
+        assert!(dict.get(&5).is_none());
         dict.self_validate().unwrap();
 
         assert!(dict.remove(&12).is_some());
@@ -689,6 +598,7 @@ pub(crate) mod tests {
         avl.echo_stdout();
     }
 
+
     #[test]
     fn test_avl_fixeddata_case_1() {
         let mut avl = AVL::<u16, ()>::new();
@@ -696,22 +606,23 @@ pub(crate) mod tests {
         let dict = &mut avl as &mut dyn Dictionary<u16, ()>;
 
         dict.insert(52, ());
-        assert!(dict.lookup(&52).is_some());
+        assert!(dict.get(&52).is_some());
 
         dict.insert(47, ());
-        assert!(dict.lookup(&47).is_some());
+        assert!(dict.get(&47).is_some());
 
         dict.insert(3, ());
-        assert!(dict.lookup(&3).is_some());
+        assert!(dict.get(&3).is_some());
 
         dict.insert(35, ());
-        assert!(dict.lookup(&35).is_some());
+        assert!(dict.get(&35).is_some());
 
         dict.insert(24, ());
-        assert!(dict.lookup(&24).is_some());
+        assert!(dict.get(&24).is_some());
 
         // avl.echo_stdout();
     }
+
 
     #[test]
     fn test_avl_fixeddata_case_2() {

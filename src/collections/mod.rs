@@ -35,34 +35,15 @@ pub trait Dictionary<K: CollKey, V> {
     /// exist or else
     fn modify(&mut self, key: &K, value: V) -> bool;
 
-    fn lookup(&self, key: &K) -> Option<&V>;
+    fn get(&self, key: &K) -> Option<&V>;
 
-    fn lookup_mut(&mut self, key: &K) -> Option<&mut V>;
-
+    fn get_mut(&mut self, key: &K) -> Option<&mut V>;
 
     // check if dict's structure looks like it's expected.
     fn self_validate(&self) -> Result<(), Box<dyn std::error::Error>>;
-
 }
 
 pub trait CollKey = Ord + Debug;
-
-
-// pub trait Adictionary<K, V> {
-//     // need update or else?
-//     fn insert(&mut self, key: K, value: V) -> bool;
-
-//     // exist or else
-//     fn remove(&mut self, key: &K) -> Option<Arc<V>>;
-
-//     // exist or else
-//     fn modify(&mut self, key: &K, value: V) -> bool;
-
-//     fn lookup(&self, key: &K) -> Option<Arc<V>>;
-
-//     fn self_validate(&self);
-
-// }
 
 
 pub trait Heap<K: CollKey, T: CollKey>: Coll {
@@ -72,7 +53,6 @@ pub trait Heap<K: CollKey, T: CollKey>: Coll {
     fn pop(&mut self) -> Option<T>;
 
     fn push(&mut self, key: K, val: T);
-
 }
 
 
@@ -92,13 +72,4 @@ pub trait Coll {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Implments
-
-
-
-////////////////////////////////////////////////////////////////////////////////
 //// Utils
-
-pub fn as_ptr<T>(value: T) -> *mut T {
-    Box::into_raw(box value)
-}

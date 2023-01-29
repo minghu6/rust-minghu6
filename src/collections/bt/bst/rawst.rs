@@ -167,11 +167,11 @@ impl<'a, K: CollKey + 'a, V: 'a> Dictionary<K, V> for RawST<K, V> {
         self.basic_modify(key, value)
     }
 
-    fn lookup(&self, key: &K) -> Option<&V> {
+    fn get(&self, key: &K) -> Option<&V> {
         self.basic_lookup(key)
     }
 
-    fn lookup_mut(&mut self, key: &K) -> Option<&mut V> {
+    fn get_mut(&mut self, key: &K) -> Option<&mut V> {
         self.basic_lookup_mut(key)
     }
 
@@ -214,28 +214,18 @@ pub(crate) mod tests {
     use rand::{prelude::SliceRandom, thread_rng};
 
     use super::RawST;
-    use crate::{
-        collections::{
+    use crate::collections::{
             bt::{
                 bst::{BSTNode, BST},
-                BTNode, BT,
+                BTNode, BT, test_dict
             },
             Dictionary,
-        },
-        test::{
-            dict::{DictProvider, GetKey},
-            *,
-        },
-    };
+        };
 
 
     #[test]
     pub(crate) fn test_rawst_randomdata() {
-        let provider = InodeProvider {};
-
-        (&provider as &dyn DictProvider<u32, Inode>).test_dict(|| {
-            box RawST::new()
-        });
+        test_dict!(RawST::new());
     }
 
 }

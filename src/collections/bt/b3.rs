@@ -488,7 +488,7 @@ impl<'a, K: CollKey + 'a, V: 'a> Dictionary<K, V> for B3<K, V> {
         }
     }
 
-    fn lookup(&self, key: &K) -> Option<&V> {
+    fn get(&self, key: &K) -> Option<&V> {
         let res = self.search_approximately(key) as *const B3Node<K, V>;
 
         if res.is_null() {
@@ -508,7 +508,7 @@ impl<'a, K: CollKey + 'a, V: 'a> Dictionary<K, V> for B3<K, V> {
         }
     }
 
-    fn lookup_mut(&mut self, key: &K) -> Option<&mut V> {
+    fn get_mut(&mut self, key: &K) -> Option<&mut V> {
         let res = self.search_approximately(key) as *mut B3Node<K, V>;
 
         if res.is_null() {
@@ -557,12 +557,8 @@ mod tests {
 
     use crate::{
         collections::{
-            bt::{b3::B3, BT},
+            bt::{b3::B3, BT, test_dict},
             Dictionary,
-        },
-        test::{
-            dict::{DictProvider, GetKey},
-            *,
         },
     };
 
@@ -645,9 +641,9 @@ mod tests {
         dict.insert(4, ());
         dict.insert(13, ());
 
-        assert!(dict.lookup(&75).is_some());
+        assert!(dict.get(&75).is_some());
         assert!(dict.remove(&75).is_some());
-        assert!(dict.lookup(&75).is_none());
+        assert!(dict.get(&75).is_none());
         dict.self_validate().unwrap();
 
         assert!(dict.remove(&60).is_some());
@@ -681,10 +677,7 @@ mod tests {
 
     #[test]
     pub(crate) fn test_b3_randomdata() {
-        let provider = InodeProvider {};
-
-        (&provider as &dyn DictProvider<u32, Inode>)
-            .test_dict(|| box B3::new());
+        test_dict!(B3::new());
     }
 
     #[test]
@@ -695,65 +688,5 @@ mod tests {
 
         b3.self_validate().unwrap();
         b3.just_echo_stdout();
-    }
-
-
-    ///
-    /// Debug B3 entry
-    ///
-    #[ignore]
-    #[test]
-    fn hack_b3() {
-        for _ in 0..50 {
-        let batch_num = 20;
-        let mut collected_elems = vec![];
-        let mut keys = vec![];
-        let provider = InodeProvider {};
-        let mut dict = B3::new();
-
-        // Create
-        let mut i = 0;
-        while i < batch_num {
-            let e = provider.get_one();
-            let k = e.get_key();
-            if keys.contains(&k) {
-                continue;
-            }
-
-            keys.push(k.clone());
-            collected_elems.push(e.clone());
-
-            assert!(dict.insert(k, e));
-
-            println!("insert {}: {:?}", i, k);
-
-            assert!(dict.lookup(&keys.last().unwrap()).is_some());
-
-            dict.self_validate().unwrap();
-
-            i += 1;
-        }
-
-        collected_elems.shuffle(&mut thread_rng());
-
-        // Remove-> Verify
-        for i in 0..batch_num {
-            let e = &collected_elems[i];
-            let k = &e.get_key();
-
-            println!("remove i: {}, k: {}", i, k);
-            assert!(dict.lookup(k).is_some());
-            let res = dict.remove(k);
-            if res.is_none() {
-                assert!(dict.lookup(k).is_some());
-                dict.remove(k);
-            }
-
-            // assert!(dict.remove(k).is_some());
-            assert!(!dict.lookup(k).is_some());
-            dict.self_validate().unwrap();
-
-        }
-    }
     }
 }

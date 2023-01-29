@@ -6,7 +6,7 @@ use std::{collections::BinaryHeap, cmp::Reverse};
 use m6coll::KVEntry as Entry;
 use sorted_vec::SortedVec;
 
-use minghu6::test::sort::gen_bench_case;
+use minghu6::algs::sort::gen_bench_case;
 use test::Bencher;
 
 const UNIT_LEN: usize = 5_000;

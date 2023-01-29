@@ -2,7 +2,8 @@
 ///! BMHBNFS (fast search algorithm from stringlib of Python)[http://effbot.org/zone/stringlib.htm#BMHBNFS]
 
 use super::super::super::collections::bloom_filter::{ BloomFilter, BytesBloomFilter };
-use super::{ compute_k };
+use super::compute_k;
+
 
 pub struct B5STimePattern<'a> {
     pat_bytes: &'a [u8],
@@ -153,10 +154,13 @@ impl<'a> B5SSpacePattern<'a> {
     }
 }
 
+
+
 #[cfg(test)]
 mod tests {
-    use super::super::super::super::test::spm;
-    use super::*;
+    use super::{ *, super::* };
+
+
     #[test]
     fn b5s_time_find_all_fixeddata_works() {
         let mut p;
@@ -191,7 +195,7 @@ mod tests {
 
     #[test]
     fn b5s_time_find_all_randomdata_works() {
-        for (pat, text, result) in spm::gen_test_case() {
+        for (pat, text, result) in gen_test_case() {
             assert_eq!(
                 B5STimePattern::new(pat.as_str()).find_all(text.as_str()),
                 result
@@ -201,7 +205,7 @@ mod tests {
 
     #[test]
     fn b5s_space_find_all_randomdata_works() {
-        for (pat, text, result) in spm::gen_test_case() {
+        for (pat, text, result) in gen_test_case() {
             assert_eq!(
                 B5SSpacePattern::new(pat.as_str()).find_all(text.as_str()),
                 result

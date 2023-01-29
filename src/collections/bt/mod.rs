@@ -1032,6 +1032,90 @@ impl<'a, K: CollKey, V> BTItem<'a, K, V> {
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//// Unify Test
+
+
+#[cfg(test)]
+macro_rules! test_dict {
+    ($dict: expr) => {
+        let get_one = || rand::random::<u64>();
+
+        for _ in 0..20 {
+            let mut dict = $dict;
+            let mut elems = $crate::collections::bst2::gen_data!(get_one, 10, 100);
+
+            /* Verify Create */
+
+            for (i, (k, v)) in elems.iter().cloned().enumerate() {
+                assert!(
+                    dict.insert(k, v),
+                    "[dict insert] insert res invalid"
+                );
+                assert_eq!(
+                    dict.get(&k), Some(&v),
+                     "[dict insert] insert but query failed"
+                );
+
+                if i % 20 == 0 {
+                    dict.self_validate().unwrap();
+                }
+                // println!("{i}. insert: ");
+            }
+
+            dict.self_validate().unwrap();
+
+            /* Verify Update */
+
+            for (i, (k, v)) in elems.clone().into_iter().enumerate() {
+                assert_eq!(dict.get(&k), Some(&v));
+
+                let newv = k + 500;
+
+                assert!(dict.modify(&k, newv));
+
+                elems[i] = (k, newv);
+
+                assert_eq!(dict.get(&k), Some(&newv));
+            }
+
+            /* Verify Remove */
+
+            use rand::{prelude::SliceRandom, thread_rng};
+
+            elems.shuffle(&mut thread_rng());
+
+            for (i, (k, v)) in elems.into_iter().enumerate() {
+                assert_eq!(
+                    dict.get(&k),
+                    Some(&v),
+                    "[dict remove] Assure get Some"
+                );
+                assert_eq!(
+                    dict.remove(&k),
+                    Some(v),
+                    "[dict remove] Assert remove failed"
+                );
+                assert_eq!(
+                    dict.get(&k),
+                    None,
+                    "[dict remove] Assure get None"
+                );
+
+                // println!("[dict remove]: {}", i);
+
+                // sample to save time
+                if i % 10 == 0 {
+                    dict.self_validate().unwrap();
+                }
+            }
+        }
+    };
+}
+
+#[cfg(test)]
+pub(super) use test_dict;
+
 
 #[cfg(test)]
 mod tests {

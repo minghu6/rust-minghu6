@@ -1,12 +1,10 @@
 pub mod utf8;
 pub mod utf16;
 pub mod path;
+pub mod timeit;
 
-// use num_format::{ Locale, ToFormattedString };
-// use std::fmt::{ Debug, self };
-use std::mem::size_of;
-use std::ptr;
-use std::fmt::Write;
+
+use std::{ptr, fmt::Write, mem::size_of, collections::HashSet};
 
 use either::Either;
 
@@ -141,6 +139,62 @@ pub fn strshift<T: ToString>(it: T, pad: &str) -> String {
 }
 
 
+pub fn normalize<T: Ord>(raw_data: &[T]) -> Vec<usize> {
+    if raw_data.is_empty() {
+        return vec![];
+    }
+
+    let mut res = vec![0; raw_data.len()];
+    let mut taged: Vec<(usize, &T)> = raw_data
+        .into_iter()
+        .enumerate()
+        .collect();
+
+    taged.sort_by_key(|x| x.1);
+
+    let mut rank = 1;
+    let mut iter = taged.into_iter();
+    let (i, mut prev) = iter.next().unwrap();
+    res[i] = rank;
+
+    for (i, v) in iter {
+        if v != prev {
+            rank += 1;
+        }
+        prev = v;
+        res[i] = rank;
+    }
+
+    res
+}
+
+
+#[cfg(test)]
+pub(crate) fn gen() -> impl FnMut() -> usize {
+    let mut _inner = 0;
+    move || {
+        let old = _inner;
+        _inner += 1;
+        old
+    }
+}
+
+
+pub fn gen_unique() -> impl FnMut() -> usize {
+    let mut set = HashSet::new();
+
+    move || {
+        let mut v = crate::algs::random();
+
+        while set.contains(&v) {
+            v = crate::algs::random();
+        }
+
+        set.insert(v);
+
+        v
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Declare Macro
@@ -194,12 +248,9 @@ macro_rules! should {
 
 #[cfg(test)]
 mod tests {
-
-    use crate::*;
-    // use super::NumENDebug;
     use std::error::Error;
 
-    use super::DeepCopy;
+    use super::*;
 
     #[test]
     fn test_should() -> Result<(), Box<dyn Error>> {
@@ -223,6 +274,16 @@ mod tests {
         println!("{:?}", vec0);
         println!("{:?}", vec1);
 
+    }
+
+    #[test]
+    fn test_gen_unique() {
+
+        let mut unique = gen_unique();
+
+        for _ in 0..1000 {
+            unique();
+        }
     }
 
 }

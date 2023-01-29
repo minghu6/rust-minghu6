@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 pub mod ac;
 pub mod kmp;
 pub mod bm;
@@ -12,8 +10,14 @@ pub mod sa;
 pub mod sais;
 pub mod sa16;
 
+mod test;
+
+
 use std::cmp::PartialEq;
 
+
+
+/// Prefix Array
 pub fn compute_pi(s: &[impl PartialEq]) -> Vec<usize> {
     let slen = s.len();
 
@@ -36,6 +40,7 @@ pub fn compute_pi(s: &[impl PartialEq]) -> Vec<usize> {
     pi
 }
 
+
 /// AKA Galil rule
 /// k in 1..patlen+1
 pub fn compute_k(p: &[impl PartialEq]) -> usize {
@@ -47,9 +52,13 @@ pub fn compute_k(p: &[impl PartialEq]) -> usize {
     patlen - pi[lastpos]
 }
 
-#[cfg(test)]
-mod test {
 
+pub use test::*;
+
+
+
+#[cfg(test)]
+mod tests {
     use super::*;
 
     #[test]

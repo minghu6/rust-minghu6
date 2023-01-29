@@ -18,7 +18,7 @@ use minghu6::{
         CollKey, Heap,
     },
     hashmap,
-    test::gen_unique, algs::random_range,
+    etc::gen_unique, algs::random_range,
 };
 
 use test::Bencher;

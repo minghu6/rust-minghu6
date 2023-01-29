@@ -442,11 +442,11 @@ impl<'a, K: CollKey + 'a, V: 'a> Dictionary<K, V> for Treap<K, V> {
         self.basic_modify(key, value)
     }
 
-    fn lookup(&self, income_key: &K) -> Option<&V> {
+    fn get(&self, income_key: &K) -> Option<&V> {
         self.basic_lookup(income_key)
     }
 
-    fn lookup_mut(&mut self, income_key: &K) -> Option<&mut V> {
+    fn get_mut(&mut self, income_key: &K) -> Option<&mut V> {
         self.basic_lookup_mut(income_key)
     }
 
@@ -505,28 +505,19 @@ mod test {
     use rand::{prelude::SliceRandom, random, thread_rng};
 
     use super::Treap;
-    use crate::{
-        collections::{
+    use crate::collections::{
             bt::{
                 bst::{BSTNode, BST, ROTATE_NUM},
-                BTNode, BT,
+                BTNode, BT, test_dict,
             },
+            heap::test_heap,
             Dictionary, Heap,
-        },
-        test::{
-            dict::{DictProvider, GetKey},
-            heap::HeapProvider,
-            Provider, *,
-        },
-    };
+        };
 
 
     #[test]
     pub(crate) fn test_treap_randomdata() {
-        let provider = InodeProvider {};
-
-        (&provider as &dyn DictProvider<u32, Inode>)
-            .test_dict(|| box Treap::new());
+        test_dict!(Treap::new());
     }
 
 
@@ -589,17 +580,17 @@ mod test {
         treap.echo_stdout();
 
         assert!(treap.remove(&40).is_some());
-        assert!(treap.lookup(&40).is_none());
+        assert!(treap.get(&40).is_none());
         treap.self_validate().unwrap();
 
         assert!(treap.remove(&6).is_some());
-        assert!(treap.lookup(&6).is_none());
+        assert!(treap.get(&6).is_none());
         treap.self_validate().unwrap();
 
         treap.echo_stdout();
 
         assert!(treap.remove(&18).is_some());
-        assert!(treap.lookup(&18).is_none());
+        assert!(treap.get(&18).is_none());
         treap.self_validate().unwrap();
 
         treap.echo_stdout();
@@ -618,7 +609,7 @@ mod test {
         assert!(treap.remove(&40).is_some());
         assert!(treap.remove(&6).is_some());
         assert!(treap.remove(&18).is_some());
-        assert!(treap.lookup(&18).is_none());
+        assert!(treap.get(&18).is_none());
 
         treap.self_validate().unwrap();
 
@@ -626,70 +617,9 @@ mod test {
     }
 
 
-    /// Debug Treap
-    ///
-    #[ignore = "Only used for debug"]
-    #[test]
-    fn hack_treap() {
-        for _ in 0..20 {
-            let batch_num = 14;
-            let mut collected_elems = vec![];
-            let mut keys = vec![];
-            let provider = InodeProvider {};
-            let dict = &mut Treap::new() as &mut dyn Dictionary<u32, Inode>;
-            let m = 100;
-
-            // Create
-            let mut i = 0;
-            while i < batch_num {
-                let e = provider.get_one();
-                let k = e.get_key() % m;
-                if keys.contains(&k) {
-                    continue;
-                }
-
-                keys.push(k.clone());
-                collected_elems.push(e.clone());
-
-                println!("insert {}: {:02?}", i, k);
-                assert!(dict.insert(k, e));
-                assert!(dict.lookup(&keys.last().unwrap()).is_some());
-
-                dict.self_validate().unwrap();
-
-                i += 1;
-            }
-
-            // let mut dict_debug = dict.clone();
-
-            collected_elems.shuffle(&mut thread_rng());
-
-            // Remove-> Verify
-            for i in 0..batch_num {
-                let e = &collected_elems[i];
-                let k = &(e.get_key() % m);
-
-                println!("remove: {}", k);
-
-                assert!(dict.remove(k).is_some());
-                assert!(!dict.lookup(k).is_some());
-
-                match dict.self_validate() {
-                    Ok(_) => (),
-                    Err(err) => {
-                        panic!("{}", err)
-                    }
-                }
-            }
-        }
-    }
-
-
     #[test]
     fn test_treap_heap() {
-        let provider = UZProvider {};
-        (&provider as &dyn HeapProvider<usize>)
-            .test_heap(false, || box Treap::new());
+        test_heap!(Treap::new(), MAX);
     }
 
 

@@ -810,14 +810,12 @@ impl<I: CollKey + Hash + Clone, T: CollKey> AdvHeap<I, T> for FibHeap<I, T> {
 
 #[cfg(test)]
 mod tests {
-    use super::FibHeap;
+    use super::{ FibHeap, super::* };
     use crate::{
         algs::random,
-        test::{
-            heap::{AdvHeapProvider, HeapProvider},
-            normalize, UZProvider,
-        },
+        etc::normalize
     };
+
 
     #[ignore = "for debug"]
     #[test]
@@ -894,13 +892,8 @@ mod tests {
 
     #[test]
     fn test_fibheap_randomdata() {
-        let provider = UZProvider {};
-
-        (&provider as &dyn HeapProvider<usize>)
-            .test_heap(true, || box FibHeap::new());
-
-        (&provider as &dyn AdvHeapProvider<usize>)
-            .test_advheap(true, || box FibHeap::new());
+        test_heap!(FibHeap::new(), MAX);
+        test_heap_update!(FibHeap::new(), MAX);
     }
 
     #[test]

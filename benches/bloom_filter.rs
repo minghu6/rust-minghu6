@@ -4,7 +4,7 @@
 use bit_vec::BitVec;
 
 use minghu6::collections::bloom_filter::{ BytesBloomFilter, FastBloomFilter, BloomFilter };
-use minghu6::test::spm::{  gen_random_text };
+use minghu6::algs::spm::gen_random_text;
 
 
 extern crate test;

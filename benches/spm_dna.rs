@@ -1,13 +1,15 @@
 #![feature(test)]
 #![allow(dead_code)]
 
-use minghu6::algs::spm::ac::TrieTree;
-use minghu6::algs::spm::b5s::{B5SSpacePattern, B5STimePattern};
-use minghu6::algs::spm::bm::{BMPattern, SimplifiedBMPattern};
-use minghu6::algs::spm::horspool::HorspoolPattern;
-use minghu6::algs::spm::kmp::{ComputeNext, KMPPattern};
-use minghu6::algs::spm::sunday::SundayPattern;
-use minghu6::test::spm::{brute_force_match, gen_dna_pattern, gen_random_dna_text};
+use minghu6::algs::spm::{
+    ac::TrieTree,
+    b5s::{B5SSpacePattern, B5STimePattern},
+    bm::{BMPattern, SimplifiedBMPattern},
+    brute_force_match, gen_dna_pattern, gen_random_dna_text,
+    horspool::HorspoolPattern,
+    kmp::{ComputeNext, KMPPattern},
+    sunday::SundayPattern,
+};
 
 extern crate test;
 
@@ -63,7 +65,8 @@ fn kmp_dna_spm(b: &mut Bencher) {
         let tested_texts = gen_tested_text();
         let tested_patterns = gen_tested_pattern();
         for pattern in &tested_patterns {
-            let kmppat = KMPPattern::new(pattern.as_str(), ComputeNext::Improved);
+            let kmppat =
+                KMPPattern::new(pattern.as_str(), ComputeNext::Improved);
             for text in &tested_texts {
                 kmppat.find_all(text.as_str());
             }

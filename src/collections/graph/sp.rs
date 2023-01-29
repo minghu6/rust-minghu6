@@ -569,10 +569,9 @@ mod tests {
     use crate::{
         collections::graph::{
             sp::{SPDijkstra, SPJohnson, SPFA},
-            Graph,
+            Graph, batch_graph, GraphGenOptions
         },
         min, same,
-        test::graph::{batch_graph, GraphGenOptions},
     };
 
 

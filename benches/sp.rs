@@ -5,9 +5,8 @@ use lazy_static::lazy_static;
 use minghu6::{
     collections::graph::{
         sp::{sp_fa, sp_fa_early_termination, SPFA, SPDijkstra},
-        Graph,
+        Graph, batch_graph, GraphGenOptions
     },
-    test::graph::{batch_graph, GraphGenOptions},
 };
 use test::Bencher;
 

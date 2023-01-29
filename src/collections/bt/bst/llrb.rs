@@ -1723,11 +1723,11 @@ impl<'a, K: CollKey + 'a, V: 'a> Dictionary<K, V> for LLRB<K, V> {
         self.basic_modify(key, value)
     }
 
-    fn lookup(&self, income_key: &K) -> Option<&V> {
+    fn get(&self, income_key: &K) -> Option<&V> {
         self.basic_lookup(income_key)
     }
 
-    fn lookup_mut(&mut self, income_key: &K) -> Option<&mut V> {
+    fn get_mut(&mut self, income_key: &K) -> Option<&mut V> {
         self.basic_lookup_mut(income_key)
     }
 
@@ -1805,94 +1805,26 @@ impl<'a, K: CollKey + 'a, V: 'a> BST<'a, K, V> for LLRB<K, V> {
 
 #[cfg(test)]
 mod test {
-
-
     use itertools::Itertools;
     use rand::{prelude::SliceRandom, thread_rng};
 
     use super::LLRB;
-    use crate::{
-        collections::{
+    use crate::collections::{
             bt::{
                 bst::{BSTNode, BST, ROTATE_NUM},
-                BTNode, BT,
+                BTNode, BT, test_dict
             },
             Dictionary,
-        },
-        test::{
-            dict::{DictProvider, GetKey},
-            *,
-        },
-    };
+        };
 
 
     #[test]
     pub(crate) fn test_llrb_randomdata() {
-        let provider = InodeProvider {};
-
-        (&provider as &dyn DictProvider<u32, Inode>)
-            .test_dict(|| box LLRB::new());
+        test_dict!(LLRB::new());
 
         println!("LLRB rotate numer: {}", unsafe { ROTATE_NUM })
     }
 
-    ///
-    /// Debug RB entry
-    ///
-    #[ignore = "Only used for debug"]
-    #[test]
-    fn hack_llrb() {
-        for _ in 0..20 {
-            let batch_num = 7;
-            let mut collected_elems = vec![];
-            let mut keys = vec![];
-            let provider = InodeProvider {};
-            let mut dict = LLRB::new();
-            let m = 100;
-
-            // Create
-            let mut i = 0;
-            while i < batch_num {
-                let e = provider.get_one();
-                let k = e.get_key() % m;
-                if keys.contains(&k) {
-                    continue;
-                }
-
-                keys.push(k.clone());
-                collected_elems.push(e.clone());
-
-                println!("insert {}: {:02?}", i, k);
-                assert!(dict.insert(k, e));
-                assert!(dict.lookup(&keys.last().unwrap()).is_some());
-
-                dict.self_validate().unwrap();
-
-                i += 1;
-            }
-
-            collected_elems.shuffle(&mut thread_rng());
-
-            // Remove-> Verify
-            for i in 0..batch_num {
-                let e = &collected_elems[i];
-                let k = &(e.get_key() % m);
-
-                println!("remove: {}", k);
-
-                assert!(dict.remove(k).is_some());
-                assert!(!dict.lookup(k).is_some());
-
-                match dict.self_validate() {
-                    Ok(_) => (),
-                    Err(err) => {
-                        panic!("{}", err)
-                    }
-
-                }
-            }
-        }
-    }
 
     #[test]
     fn test_llrb_fixeddata_case_0() {
@@ -1944,37 +1876,6 @@ mod test {
 
 
         llrb.echo_stdout();
-    }
-
-    #[test]
-    fn test_llrb_bench() {
-        let mut llrb = LLRB::<u32, ()>::new();
-        let dict = &mut llrb as &mut dyn Dictionary<u32, ()>;
-        let provider = InodeProvider {};
-        let batch_num = 10;
-
-        let mut rng = thread_rng();
-        let batch = provider.prepare_batch(batch_num);
-        let mut keys = batch.iter().map(|(k, _)| k.clone()).collect_vec();
-
-        for (k, _v) in batch.into_iter() {
-            let k = k % 100;
-
-            println!("insert: {}", k);
-
-            dict.insert(k, ());
-        }
-        keys.shuffle(&mut rng);
-
-        for k in keys.iter() {
-            let k = k % 100;
-
-            println!("remove: {}", k);
-            dict.remove(&k);
-        }
-
-        // provider.bench_dict_remove(dict, &keys);
-
     }
 
 }

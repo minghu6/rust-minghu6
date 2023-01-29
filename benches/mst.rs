@@ -4,7 +4,7 @@
 extern crate test;
 
 use minghu6::{
-    collections::graph::{mst::*, Graph}, test::graph::GraphGenOptions,
+    collections::graph::{mst::*, Graph, GraphGenOptions},
 };
 use rand::random;
 use test::Bencher;

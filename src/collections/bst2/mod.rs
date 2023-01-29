@@ -1,6 +1,7 @@
 pub mod avl;
 pub mod rb;
 pub mod lsg;
+pub mod sg;
 
 
 use crate::collections::aux::*;
@@ -403,6 +404,8 @@ macro_rules! bst_flatten {
         let mut stack = vec![];  // paths
         let mut nodes = vec![];
 
+        debug_assert!(x.is_some());
+
         'outter: loop {
             while left!(x).is_some() {
                 stack.push(x.clone());
@@ -607,6 +610,7 @@ macro_rules! impl_rotate_cleanup {
 macro_rules! impl_balance_validation {
     ($name:ident -> $fn:item) => {
         impl<K, V> $name<K, V> {
+            #[allow(unused)]
             $fn
         }
     };
@@ -735,13 +739,23 @@ macro_rules! impl_tree_debug {
 macro_rules! impl_tree {
     (
         $(#[$attr:meta])*
-        $treename:ident { $(
-            $(#[$field_attr:meta])*
-            $name: ident : $ty: ty)*
+        $treename:ident {
+            $(
+                $(#[$field_attr:meta])*
+                $name: ident : $ty: ty
+            ),*
         }
     ) =>
     {
-        def_tree!($(#[$attr])* $treename { $(#[$field_attr])* $($name : $ty)* });
+        def_tree!(
+            $(#[$attr])*
+            $treename {
+                $(
+                    $(#[$field_attr])*
+                    $name : $ty
+                ),*
+            }
+        );
         impl_tree_debug!($treename);
 
         impl<K: Ord, V> $treename<K, V> {
@@ -792,6 +806,15 @@ macro_rules! impl_node_ {
             $(
                 $name: $ty
             ),*
+        }
+
+        #[allow(unused)]
+        impl<K, V> Node_<K, V> {
+            fn into_value(mut self) -> V {
+                let oldval = self.val;
+                self.val = std::ptr::null_mut();
+                unboxptr!(oldval)
+            }
         }
 
         impl<K: std::fmt::Debug, V: std::fmt::Debug> std::fmt::Debug for Node_<K, V> {

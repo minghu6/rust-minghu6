@@ -1,9 +1,9 @@
 #![feature(test)]
 #![allow(dead_code)]
 
-use minghu6::{
-    algs::spm::{b5s::B5STimePattern, bm::BMPattern, sunday::SundayPattern},
-    test::spm::{gen_random_dna_text, gen_square_periodic_dna_pattern},
+use minghu6::algs::spm::{
+    b5s::B5STimePattern, bm::BMPattern, gen_random_dna_text,
+    gen_square_periodic_dna_pattern, sunday::SundayPattern,
 };
 
 extern crate test;
