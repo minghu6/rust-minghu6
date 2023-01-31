@@ -30,7 +30,7 @@ macro_rules! unboxptr {
 
 
 macro_rules! node {
-    (BST { $key:expr, $val:expr, $($attr:ident : $attr_val:expr),* }) => {
+    (BST { $key:expr, $val:expr $(,$attr:ident : $attr_val:expr)* }) => {
         Node(Some(std::rc::Rc::new(std::cell::RefCell::new(Node_ {
             left: Node::none(),
             right: Node::none(),
@@ -134,13 +134,25 @@ macro_rules! def_attr_macro {
 }
 
 
+////////////////////////////////////////
+//// Etc.
+
+/// Hack method convert self to self_mut
+macro_rules! mut_self {
+    ($self: ident) => {
+         unsafe { &mut *($self as *const Self as *mut Self) }
+    };
+}
+
+
+
 pub(crate) use node;
 pub(crate) use attr;
 pub(crate) use boxptr;
 pub(crate) use unboxptr;
 pub(crate) use unwrap_into;
 pub(crate) use def_attr_macro;
-
+pub(crate) use mut_self;
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Structure

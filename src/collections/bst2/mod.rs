@@ -2,6 +2,7 @@ pub mod avl;
 pub mod rb;
 pub mod lsg;
 pub mod sg;
+pub mod splay;
 
 
 use crate::collections::aux::*;
@@ -74,17 +75,42 @@ macro_rules! conn_right {
 }
 
 
+macro_rules! disconn {
+    ($paren:expr, $child: expr) => {
+        {
+            let child = $child.clone();
+            let paren = $paren.clone();
+
+            if child.is_some() && paren.is_some() {
+                let dir = index_of_child!(paren, child);
+
+                if dir.is_left() {
+                    left!(paren, Node::none());
+                }
+                else {
+                    right!(paren, Node::none());
+                }
+
+                paren!(child, WeakNode::none());
+            }
+        }
+    };
+}
+
+
 macro_rules! index_of_child {
     ($paren:expr, $child:expr) => {{
         let paren = &$paren;
         let child = &$child;
+
+        debug_assert!(child.is_some());
 
         if left!(paren).rc_eq(child) {
             Left
         } else if right!(paren).rc_eq(child) {
             Right
         } else {
-            unreachable!()
+            unreachable!("index of child failed")
         }
     }};
 }
@@ -255,7 +281,6 @@ macro_rules! bst_insert {
                 }
             }
         }
-
 
         if y.is_none() {
             $tree.root = z;
@@ -558,14 +583,14 @@ macro_rules! double_rotate {
 
 /// (x: Node) for Node
 macro_rules! impl_flatten_cleanup {
-    ($fn:item ) => {
+    ($fn:item) => {
         impl<K, V> Node<K, V> {
             #[inline]
             $fn
         }
     };
     () => {
-        impl<K, V> $name<K, V> {
+        impl<K, V> Node<K, V> {
             #[inline]
             fn flatten_cleanup(&self) {}
         }
@@ -608,6 +633,13 @@ macro_rules! impl_rotate_cleanup {
 
 
 macro_rules! impl_balance_validation {
+    ($name:ident -> empty) => {
+        impl<K, V> $name<K, V> {
+            /// Validate BST balance factor
+            #[allow(unused)]
+            fn balance_validation(&self) {}
+        }
+    };
     ($name:ident -> $fn:item) => {
         impl<K, V> $name<K, V> {
             #[allow(unused)]
@@ -623,7 +655,7 @@ macro_rules! impl_balance_validation {
                 }
             }
         }
-    }
+    };
 }
 
 
@@ -1079,6 +1111,7 @@ use child;
 use conn_child;
 use conn_left;
 use conn_right;
+use disconn;
 use index_of_child;
 #[allow(unused)]
 use sib;

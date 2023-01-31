@@ -147,3 +147,4 @@ bench_dict_get!(V2, SG, bst2::sg::SG::new(0.7));
 bench_dict_get!(V2, LSG, bst2::lsg::LSG::new(0.7));
 bench_dict_get!(V2, AVL, bst2::avl::AVL::new());
 // bench_dict_get!(V2, RB, bst2::rb::RB::new());
+bench_dict_get!(V2, Splay, bst2::splay::Splay::new());

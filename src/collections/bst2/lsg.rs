@@ -33,12 +33,7 @@ impl_build_cleanup!(
         self.update_size()
     }
 );
-impl_balance_validation!(LSG ->
-    #[cfg(test)]
-    fn balance_validation(&mut self) {
-        self.root.validate_balance(self.alpha);
-    }
-);
+impl_balance_validation!(LSG -> empty);
 
 
 impl<K: Ord, V> LSG <K, V> {
@@ -113,6 +108,7 @@ impl<K: Ord, V> LSG <K, V> {
 
             if self.cnt as f32 * self.alpha <= self.max_cnt as f32 {
                 self.root = self.rebuild_at(self.root.clone());
+                self.max_cnt = self.cnt;
             }
 
             Some(popped)
@@ -120,43 +116,39 @@ impl<K: Ord, V> LSG <K, V> {
     }
 
 
-    /// Bottom up fixing
     fn insert_retracing(&mut self, ent: Node<K, V>)
     {
         let mut p = ent;
+        let mut pp = paren!(p).upgrade();
 
-        while p.is_some() {
-            p.update_size();
+        while pp.is_some() {
+            pp.update_size();
 
-            let pp = paren!(p).upgrade();
-            let p_dir = if pp.is_some() {
-                Some(index_of_child!(pp, p))
-            }
-            else {
-                None
-            };
+            let p_dir = index_of_child!(pp, p);
+            let sib = child!(pp, p_dir.rev());
 
-            if p.is_unbalanced(self.alpha) {
+            let size_max = std::cmp::max(sib.size(), p.size());
+
+            if size_max as f32 / pp.size() as f32 > self.alpha {
                 p = self.rebuild_at(p);
 
                 if pp.is_none() {
                     self.root = p;
-                    break;
                 }
                 else {
-                    if p_dir.unwrap().is_left() {
+                    if p_dir.is_left() {
                         conn_left!(pp, p);
                     }
                     else {
                         conn_right!(pp, p);
                     }
-
-                    pp.update_size();
-                    break;
                 }
+
+                break;
             }
 
             p = pp;
+            pp = paren!(p).upgrade();
         }
 
     }
@@ -202,15 +194,9 @@ impl<K, V> Node<K, V> {
         }
     }
 
-    fn is_unbalanced(&self, alpha: f32) -> bool {
-        let left_cover = left!(self).size() as f32 / self.size() as f32;
-        let right_cover = right!(self).size() as f32 / self.size() as f32;
-
-        left_cover > alpha || right_cover > alpha
-    }
-
     /// Loosely alpha-height balanced
     #[cfg(test)]
+    #[allow(unused)]
     fn validate_balance(&self, _alpha: f32) {
         // if self.is_some() {
         //     assert!(self.is_unbalanced(alpha));

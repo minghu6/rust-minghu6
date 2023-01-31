@@ -18,19 +18,9 @@ impl_tree!(
     }
 );
 impl_node!();
-impl_node_!({ size: usize });
-impl_flatten_cleanup!(
-    fn flatten_cleanup(&self) {
-        if self.is_some() {
-            size!(self, 1)
-        }
-    }
-);
-impl_build_cleanup!(
-    fn build_cleanup(&self) {
-        self.update_size()
-    }
-);
+impl_node_!({});
+impl_flatten_cleanup!();
+impl_build_cleanup!();
 impl_balance_validation!(
     SG ->
     fn balance_validation(&self) {}
@@ -56,7 +46,7 @@ impl<K: Ord, V> SG <K, V> {
 
     pub fn insert(&mut self, k: K, v: V) -> Option<V>
     {
-        let z = node!( BST { k, v, size: 1 });
+        let z = node!( BST { k, v });
 
         let popped = bst_insert!(self, z.clone());
 
@@ -86,6 +76,7 @@ impl<K: Ord, V> SG <K, V> {
             if self.cnt as f32 * self.alpha <= self.max_cnt as f32 {
                 if self.root.is_some() {
                     self.root = self.rebuild_at(self.root.clone());
+                    self.max_cnt = self.cnt;
                 }
             }
 
@@ -98,39 +89,40 @@ impl<K: Ord, V> SG <K, V> {
     fn insert_retracing(&mut self, ent: Node<K, V>)
     {
         let mut p = ent;
+        let mut size_self = 1;
 
-        while p.is_some() {
-            p.update_size();
+        let mut pp = paren!(p).upgrade();
 
-            let pp = paren!(p).upgrade();
-            let p_dir = if pp.is_some() {
-                Some(index_of_child!(pp, p))
-            }
-            else {
-                None
-            };
+        while pp.is_some() {
+            let p_dir = index_of_child!(pp, p);
 
-            if p.is_unbalanced(self.alpha) {
+            let sib = child!(pp, p_dir.rev());
+            let size_sib = sib.size();
+
+            let size_max = max(size_self, size_sib);
+
+            size_self += size_sib + 1;
+
+            if size_max as f32 / size_self as f32 > self.alpha {
                 p = self.rebuild_at(p);
 
                 if pp.is_none() {
                     self.root = p;
-                    break;
                 }
                 else {
-                    if p_dir.unwrap().is_left() {
+                    if p_dir.is_left() {
                         conn_left!(pp, p);
                     }
                     else {
                         conn_right!(pp, p);
                     }
-
-                    pp.update_size();
-                    break;
                 }
+
+                break;
             }
 
             p = pp;
+            pp = paren!(p).upgrade();
         }
 
     }
@@ -145,29 +137,13 @@ impl<K: Ord, V> SG <K, V> {
 
 
 impl<K, V> Node<K, V> {
-    fn update_size(&self) {
-        if self.is_some() {
-            size!(
-                self,
-                1 + left!(self).size() + right!(self).size()
-            );
-        }
-    }
-
     fn size(&self) -> usize {
         if self.is_some() {
-            size!(self)
+            1 + left!(self).size() + right!(self).size()
         }
         else {
             0
         }
-    }
-
-    fn is_unbalanced(&self, alpha: f32) -> bool {
-        let left_cover = left!(self).size() as f32 / self.size() as f32;
-        let right_cover = right!(self).size() as f32 / self.size() as f32;
-
-        left_cover > alpha || right_cover > alpha
     }
 
     #[allow(unused)]
@@ -182,9 +158,8 @@ impl<K: Debug, V> Debug for Node<K, V> {
         if self.is_some() {
             write!(
                 f,
-                "{:?}(sz: {})",
+                "{:?}",
                 key!(self),
-                size!(self),
             )
         }
         else {
@@ -192,6 +167,7 @@ impl<K: Debug, V> Debug for Node<K, V> {
         }
     }
 }
+
 
 
 #[cfg(test)]

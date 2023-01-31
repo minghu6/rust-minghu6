@@ -63,8 +63,9 @@ bench_dict_insert!(V1, SPLAY, splay::Splay::new());
 bench_dict_insert!(V1, LSG, lsg::LSG::new());
 bench_dict_insert!(V1, LSG_06, lsg::LSG::with_alpha(0.6));
 
-
-bench_dict_insert!(V2, SG, bst2::sg::SG::new(0.7));
-bench_dict_insert!(V2, LSG, bst2::lsg::LSG::new(0.7));
+// Too Slow
+// bench_dict_insert!(V2, SG, bst2::sg::SG::new(0.7));
+// bench_dict_insert!(V2, LSG, bst2::lsg::LSG::new(0.7));
 bench_dict_insert!(V2, AVL, bst2::avl::AVL::new());
 bench_dict_insert!(V2, RB, bst2::rb::RB::new());
+bench_dict_insert!(V2, Splay, bst2::splay::Splay::new());

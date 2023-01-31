@@ -21,6 +21,7 @@
 #![feature(iter_from_generator)]
 #![feature(generic_associated_types)]
 #![feature(trace_macros)]
+#![feature(result_option_inspect)]
 
 
 use proc_macros::{
