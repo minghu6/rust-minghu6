@@ -33,7 +33,7 @@ lazy_static! {
 
         let mut aux = vec![];
 
-        let group = 100;
+        let group = 200;
 
         // pad 25% of batch
         for _ in 0..BATCH_NUM / group {
@@ -76,17 +76,16 @@ lazy_static! {
 
         let mut q = vec![];
 
-        for i in 0..BATCH_NUM * 20 {
-            // let i = (rand::random::<u32>() % aux.len() as u32) as u64;
-            // q.push(i);
-            if i % 2 == 0 {
-                let i = (rand::random::<u32>() % aux.len() as u32) as u64;
-                q.push(i);
-            }
-            else {
-                let i = rand::random::<u64>();
-                q.push(i);
-            }
+        for _i in 0..BATCH_NUM * 20 {
+            q.push((rand::random::<u32>() % aux.len() as u32) as u64);
+            // if i % 2 == 0 {
+            //     let i = (rand::random::<u32>() % aux.len() as u32) as u64;
+            //     q.push(i);
+            // }
+            // else {
+            //     let i = rand::random::<u64>();
+            //     q.push(i);
+            // }
         }
 
         (seq, q)
@@ -148,3 +147,5 @@ bench_dict_get!(V2, LSG, bst2::lsg::LSG::new(0.7));
 bench_dict_get!(V2, AVL, bst2::avl::AVL::new());
 // bench_dict_get!(V2, RB, bst2::rb::RB::new());
 bench_dict_get!(V2, Splay, bst2::splay::Splay::new());
+bench_dict_get!(V2, Treap, bst2::treap::Treap::new());
+bench_dict_get!(V2, TreapImproved, bst2::treap::Treap::new().improve_search());

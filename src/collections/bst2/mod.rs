@@ -3,6 +3,7 @@ pub mod rb;
 pub mod lsg;
 pub mod sg;
 pub mod splay;
+pub mod treap;
 
 
 use crate::collections::aux::*;
@@ -12,7 +13,7 @@ use crate::collections::aux::*;
 ////////////////////////////////////////////////////////////////////////////////
 //// Attr Access
 
-def_attr_macro!(left, right,paren, height, color, size, deleted);
+def_attr_macro!(left, right, paren, height, color, size, deleted);
 def_attr_macro!(ptr | key, val);
 
 
@@ -374,15 +375,9 @@ macro_rules! bst_delete {
         let tree = &mut *$tree;
         let z = $z.clone();
 
-        let retracing_entry;
-
         if left!(z).is_none() {
-            retracing_entry = paren!(z).upgrade();
-
             subtree_shift!(tree, z, right!(z));
         } else if right!(z).is_none() {
-            retracing_entry = paren!(z).upgrade();
-
             subtree_shift!(tree, z, left!(z));
         } else {
             /* case-1       case-2
@@ -399,25 +394,14 @@ macro_rules! bst_delete {
 
             let y = bst_successor!(z);
 
-            if right!(z).rc_eq(&y) {
-                // just ok
-                retracing_entry = y.clone();
-            } else {
-                debug_assert!(y.is_some());
-                retracing_entry = paren!(y).upgrade();
-
-                // replace y with y.right
+            if !right!(z).rc_eq(&y) {
                 subtree_shift!(tree, y, right!(y));
-
-                // connect z.right to y.right
                 conn_right!(y, right!(z));
             }
 
             subtree_shift!(tree, z, y);
             conn_left!(y, left!(z));
         }
-
-        retracing_entry
     }};
 }
 
@@ -573,6 +557,24 @@ macro_rules! double_rotate {
 }
 
 
+
+
+
+/// Used in red-balck tree serials
+///
+/// Trciky method
+macro_rules! fake_swap {
+    ($x:expr, $y:expr) => {
+        {
+            let x = $x.clone();
+            let y = $y.clone();
+
+            swap!(node| x, y, key);
+            swap!(node| x, y, val);
+        }
+    };
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 //// Helper Method
 
@@ -649,6 +651,7 @@ macro_rules! impl_balance_validation {
     ($name:ident) => {
         impl<K, V> $name<K, V> {
             /// Validate BST balance factor
+            #[cfg(test)]
             fn balance_validation(&self) {
                 if self.root.is_some() {
                     self.root.balance_validation()
@@ -1069,6 +1072,8 @@ macro_rules! test_dict {
                 assert_eq!(dict.get(&k), Some(&newv));
             }
 
+            dict.balance_validation();
+
             /* Verify Remove */
 
             use rand::{prelude::SliceRandom, thread_rng};
@@ -1092,7 +1097,7 @@ macro_rules! test_dict {
                     "[dict remove] Assure get None"
                 );
 
-                // println!("[dict remove]: {}", i);
+                // println!("[dict remove]: {i:03}: {k}");
 
                 // sample to save time
                 if i % 10 == 0 {
@@ -1119,6 +1124,8 @@ use subtree_shift;
 
 use rotate;
 use double_rotate;
+
+use fake_swap;
 
 use bst_delete;
 use bst_insert;

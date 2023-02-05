@@ -68,7 +68,7 @@ macro_rules! unwrap_into {
 
 macro_rules! attr {
     ($node:expr, $attr:ident) => {{
-        /* to pass runtime borrow check  */
+        /* to pass through runtime borrow check  */
         if let Some(_unr) = $node.clone().0 {
             let _bor = _unr.as_ref().borrow();
             let _attr = _bor.$attr.clone();
@@ -145,6 +145,21 @@ macro_rules! mut_self {
 }
 
 
+macro_rules! swap {
+    (node | $x:expr, $y:expr, $attr:ident) => {
+        {
+            let x = $x.clone();
+            let y = $y.clone();
+
+            let x_attr = attr!(x, $attr);
+            let y_attr = attr!(y, $attr);
+
+            attr!(x, $attr, y_attr);
+            attr!(y, $attr, x_attr);
+        }
+    };
+}
+
 
 pub(crate) use node;
 pub(crate) use attr;
@@ -153,6 +168,7 @@ pub(crate) use unboxptr;
 pub(crate) use unwrap_into;
 pub(crate) use def_attr_macro;
 pub(crate) use mut_self;
+pub(crate) use swap;
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Structure

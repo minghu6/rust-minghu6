@@ -71,7 +71,8 @@ bench_dict_remove!(V1, SPLAY, splay::Splay::new());
 
 bench_dict_remove!(V2, AVL, bst2::avl::AVL::new());
 bench_dict_remove!(V2, Splay, bst2::splay::Splay::new());
-
+bench_dict_remove!(V2, Treap, bst2::treap::Treap::new());
+// bench_dict_remove!(V2, TreapImproved, bst2::treap::Treap::new().improve_search());
 // /// Too Slow
 // bench_dict_remove!(V2, LSG, bst2::lsg::LSG::new(0.7));
 // bench_dict_remove!(V2, SG, bst2::sg::SG::new(0.7));

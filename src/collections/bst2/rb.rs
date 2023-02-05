@@ -8,10 +8,24 @@ impl_node!();
 impl_node_!({ color: Color });
 impl_tree!(RB {});
 
-impl_rotate_cleanup!(RB);
+impl_rotate_cleanup!(RB ->
+    fn rotate_cleanup(&self, x: Node<K, V>, z: Node<K, V>) {
+        /* swap color */
+        if x.is_some() && z.is_some() {
+            swap!(node | x, z, color);
+        }
+        else {
+            debug_assert!(x.is_black() && z.is_black());
+        }
+    }
+);
 impl_balance_validation!(RB ->
     #[cfg(test)]
-    fn balance_validation(&mut self) {
+    fn balance_validation(&mut self)
+    where K: Debug
+    {
+        debug_assert!(self.root.is_black(), "[validate] root should be black");
+
         self.root.validate_rb_rule();
         self.root.validate_black_balance();
     }
@@ -45,7 +59,7 @@ impl<K: Ord, V> RB <K, V> {
 
         let popped = bst_insert!(self, z.clone());
 
-        self.insert_retracing(z);
+        self.fix_red_violation(z);
 
         popped
     }
@@ -55,76 +69,42 @@ impl<K: Ord, V> RB <K, V> {
     where K: Borrow<Q> + Debug, Q: Ord + ?Sized, V: Debug
     {
 
-        let z = bst_search!(self.root, k);
+        let mut z = bst_search!(self.root, k);
 
         if z.is_none() {
             None
         }
         else {
-            /* 被删除的不能是黑节点 */
-
-            let retracing_entry;
-            let origin_color;
-
-            if left!(z).is_none() {
-                retracing_entry = right!(z);
-                origin_color = z.color();
-
-                subtree_shift!(self, z, right!(z));
+            if left!(z).is_some() && right!(z).is_some() {
+                let successor = bst_minimum!(right!(z));
+                fake_swap!(z, successor);
+                z = successor;
             }
-            else if right!(z).is_none() {
-                retracing_entry = left!(z);
-                origin_color = z.color();
 
-                subtree_shift!(self, z, left!(z));
-            }
-            else {
-                /* 这里从颜色关系上假设z没有被删除，被删除得是y (y.color = z.color) */
+            let p = paren!(z).upgrade();
+            let z_dir = if p.is_some() { Some(index_of_child!(p, z)) } else { None };
 
-                /* case-1       case-2
+            let child = child!(z, if left!(z).is_none() { Right } else { Left });
+            subtree_shift!(self, z, child);
 
-                     z            z
-                      \            \
-                       y            z.right
-                                   /
-                                  / (left-most)
-                                 y
-                                  \
-                                  y.right
-                */
-
-                let y = bst_successor!(z);
-                origin_color = y.color();
-                retracing_entry = right!(y);
-
-                if !right!(z).rc_eq(&y) {
-                    // replace y with y.right
-                    subtree_shift!(self, y, right!(y));
-
-                    // connect z.right to y.right
-                    conn_right!(y, right!(z));
+            if z.is_black() {
+                if child.is_red() {
+                    color!(child, Black);
                 }
-
-                subtree_shift!(self, z, y);
-                conn_left!(y, left!(z));
-
-                // 保持替换前原来的颜色
-                color!(y, z.color());
+                else if let Some(z_dir) = z_dir {
+                    self.fix_double_black(z_dir, p);
+                }
             }
 
-            if origin_color.is_black() {
-                self.remove_retracing(retracing_entry);
-            }
-
-            Some(unboxptr!(unwrap_into!(z).val))
+            Some(unwrap_into!(z).into_value())
         }
     }
 
 
-    fn insert_retracing(&mut self, ent: Node<K, V>)
+    fn fix_red_violation(&mut self, ent: Node<K, V>)
     {
         let mut i = ent;
-        let mut p = paren!(i).upgrade();
+        let p = paren!(i).upgrade();
 
         if p.is_black() { return }
 
@@ -133,7 +113,7 @@ impl<K: Ord, V> RB <K, V> {
         /* Both p and pp is RED */
 
         let pp = paren!(p).upgrade();
-        debug_assert!(pp.is_some(), "color red p shouldnt be root");
+        debug_assert!(pp.is_some(), "[insert] color red p shouldnt be root");
 
         let red_dir = index_of_child!(p, i);
         let p_dir = index_of_child!(pp, p);
@@ -146,20 +126,14 @@ impl<K: Ord, V> RB <K, V> {
         if psib.is_black() {
             if p_dir == red_dir {
                 /* case-3 */
-
-                p = rotate!(self, pp, psib_dir);
+                rotate!(self, pp, psib_dir);
             }
             else {
                 /* case-2 */
-
-                p = double_rotate!(self, pp, psib_dir);
+                double_rotate!(self, pp, psib_dir);
             }
-
-            p.color_flip();
-            pp.color_flip();
         }
         else {  // psib is red
-
             p.color_flip();
             pp.color_flip();
             psib.color_flip();
@@ -169,54 +143,63 @@ impl<K: Ord, V> RB <K, V> {
             }
 
             i = pp;
-            self.insert_retracing(i);
+            self.fix_red_violation(i);
 
         }
     }
 
+    /// Refer to my blog (BST(2) - RB(0) - 原始红黑树)
+    fn fix_double_black(&mut self, x_dir: Dir, p: Node<K, V>) {
+        debug_assert!(p.is_some());
 
-    fn remove_retracing(&mut self, ent: Node<K, V>) {
-        // unimplemented!()
-        let mut x = ent;
+        let sib_dir = x_dir.rev();
+        let mut sib = child!(p, sib_dir);
+        let mut sib_c = child!(sib, x_dir);
+        let mut sib_d = child!(sib, sib_dir);
 
-        while !paren!(x).is_none() && x.is_black() {
-            let mut p = paren!(x).upgrade();
-            let x_dir = index_of_child!(p, x);
-            let sib_dir = x_dir.rev();
+        /* case-5 */
+        if sib.is_red() {
+            rotate!(self, p, x_dir);
 
-            let mut s = child!(p, sib_dir);
+            sib = sib_c;
+            sib_c = child!(sib, x_dir);
+            sib_d = child!(sib, sib_dir);
+        }
 
-            if s.is_red() {
-                s.color_flip();
-                p.color_flip();
+        debug_assert!(sib.is_black());
 
-                p = rotate!(self, p, x_dir);
-                s = child!(p, sib_dir);
-            }
+        macro_rules! case_3 {
+            (p=$p:ident, x_dir=$x_dir:ident, sib_d=$sib_d:ident) => {
+                rotate!(self, $p, $x_dir);
+                $sib_d.color_flip();
+            };
+        }
 
-            if left!(s).is_black() && right!(s).is_black() {
-                color!(s, Red);
-                x = paren!(x).upgrade();
-            }
-            else {
-                if child!(s, sib_dir).is_black() {
-                    child!(s, x_dir).color_flip();
-                    s.color_flip();
+        /* case-3 */
+        if sib_d.is_red() {
+            case_3!(p=p, x_dir=x_dir, sib_d=sib_d);
+        }
+        /* case-4 */
+        else if sib_c.is_red() {
+            rotate!(self, sib, sib_dir);
+            case_3!(p=p, x_dir=x_dir, sib_d=sib);
+        }
+        /* case-2 */
+        else if p.is_red() {
+            swap!(node | p, sib, color);
+        }
+        /* case-1 */
+        else {
+            sib.color_flip();
 
-                    rotate!(self, s, x_dir);
-                    s = child!(s, x_dir);
-                }
-
-                color!(s, p.color());
-                color!(p, Black);
-                color!(right!(s), Black);
-                rotate!(self, p, x_dir);
-                x = self.root.clone();
+            let pp = paren!(p).upgrade();
+            if pp.is_some() {
+                self.fix_double_black(index_of_child!(pp, p), pp);
             }
         }
 
-        color!(x, Black);
     }
+
 
 
 }
@@ -265,7 +248,7 @@ impl<K, V> Node<K, V> {
         }
 
         if self.is_red() {
-            assert!(
+            debug_assert!(
                 paren!(self).upgrade().is_black(),
                 "RED VIOLATION (this red paren is root?: {})",
                 paren!(paren!(self).upgrade()).is_none()
@@ -279,7 +262,9 @@ impl<K, V> Node<K, V> {
     /// 应该给每个节点校验，但是存储黑高是一个问题，单独搞一个数据结构又太费
     /// 于是多次总体校验的方式
     #[cfg(test)]
-    fn validate_black_balance(&self) {
+    fn validate_black_balance(&self)
+    where K: Debug
+    {
         if self.is_none() {
             return;
         }
@@ -291,6 +276,7 @@ impl<K, V> Node<K, V> {
             .leafs()
             .into_iter()
             .map(|x| x.black_depth_to(self))
+            // .inspect(|x| print!("{x}, "))
             .tuples()
             .all(|(a, b)| a == b);
 
@@ -313,8 +299,11 @@ impl<K, V> Node<K, V> {
         depth
     }
 
+    /// store paren for nil leaf
     #[cfg(test)]
-    fn leafs(&self) -> Vec<Self> {
+    fn leafs(&self) -> Vec<Self>
+    where K: Debug
+    {
         let mut leafs = vec![];
 
         if self.is_none() {
@@ -327,9 +316,9 @@ impl<K, V> Node<K, V> {
             let left = left!(x);
             let right = right!(x);
 
-            if left.is_none() && right.is_none() {
-                leafs.push(x);
-                continue;
+            // 省略掉本质一样的叶子
+            if left.is_none() || right.is_none() {
+                leafs.push(x.clone());
             }
 
             if left.is_some() {
@@ -340,6 +329,8 @@ impl<K, V> Node<K, V> {
                 q.push_back(right!(x));
             }
         }
+
+        // println!("Leafs: {leafs:?}");
 
         leafs
     }
@@ -365,7 +356,7 @@ mod tests {
 
     /// 这组小数据很有测试价值，能测试单旋和双旋
     #[test]
-    fn test_rb2_case_1() {
+    fn test_bst2_rb_case_1() {
         let mut dict = RB::<u16, ()>::new();
 
         dict.insert(52, ());
@@ -385,10 +376,34 @@ mod tests {
 
         // dict.debug_print();
         dict.balance_validation();
+
+        dict.remove(&24);
+        assert!(dict.get(&24).is_none());
+        dict.balance_validation();
+
+        dict.remove(&47);
+        assert!(dict.get(&47).is_none());
+        dict.balance_validation();
+
+        dict.remove(&52);
+        assert!(dict.get(&52).is_none());
+        dict.balance_validation();
+
+        dict.remove(&3);
+        assert!(dict.get(&3).is_none());
+        dict.balance_validation();
+
+        assert!(dict.get(&35).is_some());
+        // dict.remove(&35);
+        // assert!(dict.get(&35).is_none());
+        // dict.balance_validation();
+
+        dict.debug_print();
+
     }
 
     #[test]
-    fn test_rb2_random() {
+    fn test_bst2_rb_random() {
         test_dict!(RB::new());
     }
 }

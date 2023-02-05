@@ -69,3 +69,5 @@ bench_dict_insert!(V1, LSG_06, lsg::LSG::with_alpha(0.6));
 bench_dict_insert!(V2, AVL, bst2::avl::AVL::new());
 bench_dict_insert!(V2, RB, bst2::rb::RB::new());
 bench_dict_insert!(V2, Splay, bst2::splay::Splay::new());
+bench_dict_insert!(V2, Treap, bst2::treap::Treap::new());
+// bench_dict_insert!(V2, TreapImproved, bst2::treap::Treap::new().improve_search());

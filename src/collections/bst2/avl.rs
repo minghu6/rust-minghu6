@@ -59,7 +59,49 @@ impl<K: Ord, V> AVL<K, V> {
             None
         }
         else {
-            let retracing_entry = bst_delete!(self, z);
+            let retracing_entry;
+
+            if left!(z).is_none() {
+                retracing_entry = paren!(z).upgrade();
+                subtree_shift!(self, z, right!(z));
+            }
+            else if right!(z).is_none() {
+                retracing_entry = paren!(z).upgrade();
+                subtree_shift!(self, z, left!(z));
+            }
+            else {
+                /* case-1       case-2
+
+                     z            z
+                      \            \
+                       y            z.right
+                                   /
+                                  / (left-most)
+                                 y
+                                  \
+                                  y.right
+                */
+
+                let y = bst_successor!(z);
+
+                if right!(z).rc_eq(&y) {
+                    // just ok
+                    retracing_entry = y.clone();
+                } else {
+                    debug_assert!(y.is_some());
+                    retracing_entry = paren!(y).upgrade();
+
+                    // replace y with y.right
+                    subtree_shift!(self, y, right!(y));
+
+                    // connect z.right to y.right
+                    conn_right!(y, right!(z));
+                }
+
+                subtree_shift!(self, z, y);
+                conn_left!(y, left!(z));
+            }
+
             self.retracing(retracing_entry);
 
             Some(unwrap_into!(z).into_value())
@@ -233,7 +275,7 @@ mod tests {
 
     /// 这组小数据很有测试价值，能测试单旋和双旋
     #[test]
-    fn test_avl2_case_1() {
+    fn test_bst2_avl_case_1() {
         let mut dict = AVL::<u16, ()>::new();
 
         dict.insert(52, ());
@@ -253,7 +295,7 @@ mod tests {
     }
 
     #[test]
-    fn test_avl2_random() {
+    fn test_bst2_avl_random() {
         test_dict!(AVL::new());
     }
 }

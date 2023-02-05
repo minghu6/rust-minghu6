@@ -234,7 +234,7 @@ mod tests {
 
     /// 这组小数据很有测试价值，能测试单旋和双旋
     #[test]
-    fn test_lsg2_case_1() {
+    fn test_bst2_lsg_case_1() {
         let mut dict = LSG::<i32, ()>::new(0.7);
 
         dict.insert(52, ());
@@ -257,7 +257,7 @@ mod tests {
 
 
     #[test]
-    fn test_lsg2_random() {
+    fn test_bst2_lsg_random() {
         test_dict!(LSG::new(0.6));
     }
 

@@ -178,7 +178,7 @@ mod tests {
 
     /// 这组小数据很有测试价值，能测试单旋和双旋
     #[test]
-    fn test_sg2_case_1() {
+    fn test_bst2_sg_case_1() {
         let mut dict = SG::<i32, ()>::new(0.7);
 
         dict.insert(52, ());
@@ -201,7 +201,7 @@ mod tests {
 
 
     #[test]
-    fn test_sg2_random() {
+    fn test_bst2_sg_random() {
         test_dict!(SG::new(0.6));
     }
 
