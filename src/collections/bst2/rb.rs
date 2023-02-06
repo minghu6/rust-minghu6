@@ -197,10 +197,7 @@ impl<K: Ord, V> RB <K, V> {
                 self.fix_double_black(index_of_child!(pp, p), pp);
             }
         }
-
     }
-
-
 
 }
 
