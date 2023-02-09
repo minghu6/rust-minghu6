@@ -136,12 +136,7 @@ impl<K: Ord, V> LSG <K, V> {
                     self.root = p;
                 }
                 else {
-                    if p_dir.is_left() {
-                        conn_left!(pp, p);
-                    }
-                    else {
-                        conn_right!(pp, p);
-                    }
+                    conn_child!(pp, p, p_dir);
                 }
 
                 break;

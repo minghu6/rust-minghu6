@@ -110,7 +110,7 @@ impl<K: Ord, V> AVL<K, V> {
 
 
     ////////////////////////////////////////////////////////////////////////////
-    /// Helper Method
+    //// Helper Method
 
     /// Simplified version of retracing
     #[allow(unused)]

@@ -1,5 +1,6 @@
 pub mod avl;
 pub mod rb;
+pub mod aa;
 pub mod lsg;
 pub mod sg;
 pub mod splay;
@@ -45,14 +46,20 @@ macro_rules! sib {
 
 
 macro_rules! conn_child {
-    ($paren:expr, $child: expr, $dir:ident) => {{
+    ($paren:expr, $child: expr, $dir:expr) => {{
         let child = $child.clone();
         let paren = $paren.clone();
+        let dir = $dir;
 
         debug_assert!(!child.rc_eq(&paren));
 
         if paren.is_some() {
-            attr!(paren, $dir, child.clone());
+            if dir.is_left() {
+                attr!(paren, left, child.clone());
+            }
+            else {
+                attr!(paren, right, child.clone());
+            }
 
             if child.is_some() {
                 paren!(child, paren.downgrade());
@@ -64,14 +71,14 @@ macro_rules! conn_child {
 
 macro_rules! conn_left {
     ($paren:expr, $child: expr) => {
-        conn_child!($paren, $child, left)
+        conn_child!($paren, $child, Left)
     };
 }
 
 
 macro_rules! conn_right {
     ($paren:expr, $child: expr) => {
-        conn_child!($paren, $child, right)
+        conn_child!($paren, $child, Right)
     };
 }
 
@@ -133,10 +140,7 @@ macro_rules! subtree_shift {
         } else {
             let paren = paren!(u).upgrade();
 
-            match index_of_child!(paren, u) {
-                Left => conn_left!(paren, v),
-                Right => conn_right!(paren, v),
-            }
+            conn_child!(paren, v, index_of_child!(paren, u));
         }
     }};
 }
@@ -505,24 +509,12 @@ macro_rules! rotate {
         let x = $x.clone();
         let rotation = $rotation;
 
-        let z;
-        let t23;
+        let z = child!(x, rotation.rev());
+        let t23 = child!(z, rotation);
 
-        if rotation.is_left() {
-            z = right!(x);
-            t23 = left!(z);
-
-            conn_right!(x, t23);
-            subtree_shift!(tree, x, z);
-            conn_left!(z, x);
-        } else {
-            z = left!(x);
-            t23 = right!(z);
-
-            conn_left!(x, t23);
-            subtree_shift!(tree, x, z);
-            conn_right!(z, x);
-        };
+        conn_child!(x, t23, rotation.rev());
+        subtree_shift!(tree, x, z);
+        conn_child!(z, x, rotation);
 
         tree.rotate_cleanup(x, z.clone());
 

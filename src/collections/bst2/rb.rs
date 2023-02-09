@@ -1,12 +1,17 @@
+//! Red-black tree && Left-learning Red-black tree (estimated)
+
 use std::{borrow::Borrow, fmt::Debug};
 
 use super::*;
 
 
-
 impl_node!();
 impl_node_!({ color: Color });
+
+
 impl_tree!(RB {});
+// impl_tree!(LLRB {});
+
 
 impl_rotate_cleanup!(RB ->
     fn rotate_cleanup(&self, x: Node<K, V>, z: Node<K, V>) {
@@ -30,6 +35,67 @@ impl_balance_validation!(RB ->
         self.root.validate_black_balance();
     }
 );
+
+
+// impl_rotate_cleanup!(LLRB ->
+//     #[allow(unused)]
+//     fn rotate_cleanup(&self, x: Node<K, V>, z: Node<K, V>) {
+//         /* swap color */
+//         if x.is_some() && z.is_some() {
+//             swap!(node | x, z, color);
+//         }
+//         else {
+//             debug_assert!(x.is_black() && z.is_black());
+//         }
+//     }
+// );
+// impl_balance_validation!(LLRB ->
+//     #[cfg(test)]
+//     fn balance_validation(&mut self)
+//     where K: Debug
+//     {
+//         debug_assert!(self.root.is_black(), "[validate] root should be black");
+
+//         self.root.validate_rb_rule();
+//         self.root.validate_black_balance();
+//     }
+// );
+
+
+// impl<K: Ord, V> LLRB <K, V> {
+
+//     ////////////////////////////////////////////////////////////////////////////
+//     /// Public API
+
+//     pub fn new() -> Self {
+//         Self {
+//             root: Node::none()
+//         }
+//     }
+
+
+//     pub fn insert(&mut self, k: K, v: V) -> Option<V>
+//     {
+//         let color;
+
+//         if self.root.is_none() {
+//             color = Black;
+//         }
+//         else {
+//             color = Red;
+//         }
+
+//         let z = node!( BST { k, v, color: color });
+
+//         let popped = bst_insert!(self, z.clone());
+
+//         self.fix_red_violation(z);
+
+//         popped
+//     }
+
+// }
+
 
 
 impl<K: Ord, V> RB <K, V> {
@@ -270,7 +336,7 @@ impl<K, V> Node<K, V> {
 
         let is_black_blance =
         self
-            .leafs()
+            .leaves()
             .into_iter()
             .map(|x| x.black_depth_to(self))
             // .inspect(|x| print!("{x}, "))
@@ -298,13 +364,13 @@ impl<K, V> Node<K, V> {
 
     /// store paren for nil leaf
     #[cfg(test)]
-    fn leafs(&self) -> Vec<Self>
+    fn leaves(&self) -> Vec<Self>
     where K: Debug
     {
-        let mut leafs = vec![];
+        let mut leaves = vec![];
 
         if self.is_none() {
-            return leafs;
+            return leaves;
         }
 
         let mut q = crate::vecdeq![self.clone()];
@@ -313,9 +379,9 @@ impl<K, V> Node<K, V> {
             let left = left!(x);
             let right = right!(x);
 
-            // 省略掉本质一样的叶子
+            // 两片本质一样的叶子只保留其中一页
             if left.is_none() || right.is_none() {
-                leafs.push(x.clone());
+                leaves.push(x.clone());
             }
 
             if left.is_some() {
@@ -327,9 +393,7 @@ impl<K, V> Node<K, V> {
             }
         }
 
-        // println!("Leafs: {leafs:?}");
-
-        leafs
+        leaves
     }
 
 }
@@ -395,7 +459,7 @@ mod tests {
         // assert!(dict.get(&35).is_none());
         // dict.balance_validation();
 
-        dict.debug_print();
+        // dict.debug_print();
 
     }
 
