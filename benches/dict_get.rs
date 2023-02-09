@@ -150,3 +150,4 @@ bench_dict_get!(V2, Splay, bst2::splay::Splay::new());
 bench_dict_get!(V2, Treap, bst2::treap::Treap::new());
 bench_dict_get!(V2, TreapImproved, bst2::treap::Treap::new().improve_search());
 bench_dict_get!(V2, RB, bst2::rb::RB::new());
+bench_dict_get!(V2, AA, bst2::aa::AA::new());

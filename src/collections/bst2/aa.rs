@@ -1,6 +1,6 @@
 //! AA tree
 
-use std::{borrow::Borrow, fmt::Debug, cmp::Ordering::*};
+use std::{borrow::Borrow, fmt::Debug, cmp::Ordering::*, ptr::null_mut};
 
 use super::*;
 
@@ -13,7 +13,7 @@ impl_tree!(AA {});
 impl_rotate_cleanup!(AA);
 impl_balance_validation!(AA ->
     #[cfg(test)]
-    fn validate_balance(&self) {
+    fn balance_validation(&self) {
         self.root.validate_balance();
     }
 );
@@ -42,28 +42,42 @@ impl<K: Ord, V> AA <K, V> {
         }
     }
 
-
     pub fn insert(&mut self, k: K, v: V) -> Option<V>
     {
-        // let z = node!( BST { k, v, height: 1 });
+        let (root, popped) = self.insert_at(
+            self.root.clone(),
+            k,
+            v
+        );
 
-        // let popped = bst_insert!(self, z.clone());
+        self.root = root;
 
-        // // self.insert_retracing(z);
-        // self.retracing(z);
+        popped
+    }
 
-        // popped
-        todo!()
+    pub fn remove<Q>(&mut self, k: &Q) -> Option<V>
+    where K: Borrow<Q> + Debug, Q: Ord + ?Sized, V: Debug
+    {
+        let (root, popped) = self.remove_at(self.root.clone(), k);
+
+        self.root = root;
+
+        popped.map(|(k_ptr, v_ptr)| {
+            unboxptr!(k_ptr);
+            unboxptr!(v_ptr)
+        })
     }
 
 
     ////////////////////////////////////////////////////////////////////////////
     //// Helper Method
 
-    fn insert_at(&mut self, t: Node<K, V>, k: K, v: V) -> (Node<K, V>, Option<V>) {
+    fn insert_at(&mut self, mut t: Node<K, V>, k: K, v: V) -> (Node<K, V>, Option<V>) {
         if t.is_none() {
             return (node!(BST { k, v, lv: 1 }), None);
         }
+
+        let popped;
 
         match k.cmp(key!(t)) {
             Equal => {  // replace node
@@ -73,22 +87,159 @@ impl<K: Ord, V> AA <K, V> {
                 return (t, Some(unboxptr!(old_valptr)));
             }
             Less => {
-                conn_left!(t, self.insert_at(left!(t), k, v).0);
+                let (left, popped_) = self.insert_at(left!(t), k, v);
+
+                conn_left!(t, left);
+                popped = popped_;
             }
             Greater => {
-                conn_right!(t, self.insert_at(right!(t), k, v).0);
+                let (right, popped_) = self.insert_at(right!(t), k, v);
+
+                conn_right!(t, right);
+                popped = popped_;
             }
         }
 
-        (t, None)
+        t = self.skew(t);
+        t = self.split(t);
+
+        (t, popped)
     }
 
 
-    /// （确保）右旋
-    fn skew(&mut self, t: Node<K, V>) -> Node<K, V> {
+    fn remove_at<Q>(&mut self, mut t: Node<K, V>, k: &Q)
+    -> (Node<K, V>, Option<(*mut K, *mut V)>)
+    where K: Borrow<Q> + Debug, Q: Ord + ?Sized, V: Debug
+    {
+        if t.is_none() {
+            return (t, None);
+        }
 
-        todo!()
+        let popped =
+
+        match k.cmp(key!(t).borrow()) {
+            Less => {
+                let (left, popped_)
+                    = self.remove_at(left!(t), k);
+                conn_left!(t, left);
+                popped_
+            }
+            Greater => {
+                let (right, popped_)
+                    = self.remove_at(right!(t), k);
+                conn_right!(t, right);
+                popped_
+            }
+            Equal => {
+
+                if left!(t).is_none() && right!(t).is_none() {
+                    // t.0.as_ref(). inspect(
+                    //     |t|
+                    //     println!("strong rc cnt: {}", &std::rc::Rc::strong_count(t))
+                    // );
+
+                    let old_keyptr = attr!(t, key);
+                    let old_valptr = attr!(t, val);
+
+                    attr!(t, key, null_mut());
+                    attr!(t, val, null_mut());
+
+                    return (
+                        Node::none(),
+                        Some((
+                            old_keyptr,
+                            old_valptr
+                        ))
+                    );
+                }
+
+                let nil_dir = if left!(t).is_none() { Left } else { Right };
+                let l = if nil_dir.is_left()
+                    { bst_successor!(t) } else { bst_predecessor!(t) };
+
+                let (child, l_entry)
+                    = self.remove_at(child!(t, nil_dir.rev()), key!(l).borrow());
+
+                conn_child!(t, child, nil_dir.rev());
+
+                let old_keyptr = attr!(t, key);
+                let old_valptr = attr!(t, val);
+
+                let (k, v) = l_entry.unwrap();
+                attr!(t, key, k);
+                attr!(t, val, v);
+
+                Some((old_keyptr, old_valptr))
+            }
+        };
+
+        if left!(t).lv() + 1 < t.lv() || right!(t).lv() + 1 < t.lv() {
+            /* Decrease lv */
+
+            let left = left!(t);
+            let right = right!(t);
+
+            let lv = std::cmp::min(left.lv(), right.lv()) + 1;
+
+            if lv < t.lv() {
+                lv!(t, lv);
+
+                if lv < right.lv() {
+                    lv!(right, lv);
+                }
+            }
+
+            /* Tripple skew */
+
+            t = self.skew(t);
+
+            // Warnning: right(t) changes after this
+            self.skew(right!(t));
+
+            if right!(t).is_some() && right!(right!(t)).is_some() {
+                self.skew(right!(right!(t)));
+            }
+
+            /* Double split */
+
+            t = self.split(t);
+
+            self.split(right!(t));
+        }
+
+        (t, popped)
     }
+
+
+    /// （确保）右旋，等级不变
+    fn skew(&mut self, mut t: Node<K, V>) -> Node<K, V> {
+        debug_assert!(t.is_some());
+
+        if left!(t).lv() == t.lv() {
+            debug_assert!(left!(t).is_some());
+
+            t = rotate!(self, t, Right)
+        }
+
+        t
+    }
+
+
+    /// (确保)左旋，新节点等级上升 1
+    fn split(&mut self, mut t: Node<K, V>) -> Node<K, V> {
+        debug_assert!(t.is_some());
+
+        let right = right!(t);
+
+        if right.is_some() && right!(right).lv() == t.lv() {
+            t = rotate!(self, t, Left);
+
+            lv!(t, lv!(t) + 1);  // t == right
+        }
+
+        t
+    }
+
 
 }
 
@@ -134,8 +285,8 @@ impl<K, V> Node<K, V> {
 
         // Invariant-4.: x.right.child.lv < x.lv
         if right.is_some() {
-            assert!(left!(right).lv() < 1);
-            assert!(right!(right).lv() < 1);
+            assert!(left!(right).lv() < lv!(self));
+            assert!(right!(right).lv() < lv!(self));
         }
 
         // Invariant-5.: if x.lv > 1 then x.children.len == 2
@@ -148,4 +299,66 @@ impl<K, V> Node<K, V> {
 
     }
 
+}
+
+
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    /// 这组小数据很有测试价值，能测试单旋和双旋
+    #[test]
+    fn test_bst2_aa_case_1() {
+        let mut dict = AA::<u16, ()>::new();
+
+        dict.insert(52, ());
+        assert!(dict.get(&52).is_some());
+
+        dict.insert(47, ());
+        assert!(dict.get(&47).is_some());
+
+        dict.insert(3, ());
+        assert!(dict.get(&3).is_some());
+
+        dict.insert(35, ());
+        assert!(dict.get(&35).is_some());
+
+        dict.insert(24, ());
+        assert!(dict.get(&24).is_some());
+
+        dict.balance_validation();
+
+        // dict.debug_print();
+
+        dict.remove(&24);
+        assert!(dict.get(&24).is_none());
+        dict.balance_validation();
+
+        dict.remove(&47);
+        assert!(dict.get(&47).is_none());
+        dict.balance_validation();
+
+        dict.remove(&52);
+        assert!(dict.get(&52).is_none());
+        dict.balance_validation();
+
+        dict.remove(&3);
+        assert!(dict.get(&3).is_none());
+        dict.balance_validation();
+
+        assert!(dict.get(&35).is_some());
+        dict.remove(&35);
+        assert!(dict.get(&35).is_none());
+        dict.balance_validation();
+
+        // dict.debug_print();
+
+    }
+
+    #[test]
+    fn test_bst2_aa_random() {
+        test_dict!(AA::new());
+    }
 }

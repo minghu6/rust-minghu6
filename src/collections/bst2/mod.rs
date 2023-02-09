@@ -200,7 +200,6 @@ macro_rules! bst_successor {
 
 
 /// Return predecessor-node or none-node
-#[allow(unused)]
 macro_rules! bst_predecessor {
     ($x: expr) => {{
         let mut x = $x.clone();
@@ -214,7 +213,7 @@ macro_rules! bst_predecessor {
             let mut y = paren!(x).upgrade();
 
             while y.is_some() && x.rc_eq(&left!(y)) {
-                x = y;
+                x = y.clone();
                 y = paren!(y).upgrade();
             }
 
@@ -485,8 +484,8 @@ macro_rules! bst_build {
 
 /// Simple Rotation (return new root)
 /// ```no_run
-///             left rotate
-///    x        =========>          z
+///            left rotate
+///    x       =========>           z
 ///  /  \                          / \
 /// t1   z                        x   t4
 /// |   / \                      / \   |
@@ -838,9 +837,19 @@ macro_rules! impl_node_ {
         #[allow(unused)]
         impl<K, V> Node_<K, V> {
             fn into_value(mut self) -> V {
+                self.into_key_val().1
+            }
+
+            fn into_key_val(mut self) -> (K, V) {
+                let oldkey = self.key;
+                self.key = std::ptr::null_mut();
+                let k = unboxptr!(oldkey);
+
                 let oldval = self.val;
                 self.val = std::ptr::null_mut();
-                unboxptr!(oldval)
+                let v = unboxptr!(oldval);
+
+                (k, v)
             }
         }
 
@@ -1055,13 +1064,22 @@ macro_rules! test_dict {
 
             for (i, (k, v)) in elems.clone().into_iter().enumerate() {
                 assert_eq!(dict.get(&k), Some(&v));
+                // println!("{i}. update: ");
 
                 let newv = k + 500;
 
-                assert_eq!(dict.insert(k, newv), Some(v));
+                assert_eq!(
+                    dict.insert(k, newv),
+                    Some(v),
+                    "[dict update] update get incorrect popped"
+                );
                 elems[i] = (k, newv);
 
-                assert_eq!(dict.get(&k), Some(&newv));
+                assert_eq!(
+                    dict.get(&k),
+                    Some(&newv),
+                    "[dict update] update failed"
+                );
             }
 
             dict.balance_validation();
@@ -1073,6 +1091,8 @@ macro_rules! test_dict {
             elems.shuffle(&mut thread_rng());
 
             for (i, (k, v)) in elems.into_iter().enumerate() {
+                // println!("[dict remove]: {i:03}: {k}");
+
                 assert_eq!(
                     dict.get(&k),
                     Some(&v),
@@ -1088,8 +1108,6 @@ macro_rules! test_dict {
                     None,
                     "[dict remove] Assure get None"
                 );
-
-                // println!("[dict remove]: {i:03}: {k}");
 
                 // sample to save time
                 if i % 10 == 0 {
