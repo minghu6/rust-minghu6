@@ -1,4 +1,6 @@
-//! Binary Search Tree (BST)
+//! Binary Search Tree (BST), 实际上BST远不是B树，是我搞错了。
+//!
+//! 但这个“历史”问题由于BST实现了共同的接口，改动需要一点儿麻烦事儿，因此我暂时也不想改
 
 
 pub mod avl;

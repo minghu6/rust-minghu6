@@ -4,7 +4,7 @@ use rand::random;
 
 use super::{*, super::aux::mut_self};
 
-def_attr_macro!(w);
+def_attr_macro!(clone| w);
 
 
 impl_node!();
@@ -69,6 +69,7 @@ impl<K: Ord, V> Treap <K, V> {
     }
 
     pub fn insert(&mut self, k: K, v: V) -> Option<V>
+    where V: Default
     {
         let z = node!( BST { k, v, w: random() });
 

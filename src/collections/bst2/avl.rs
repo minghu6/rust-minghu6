@@ -37,6 +37,7 @@ impl<K: Ord, V> AVL<K, V> {
 
 
     pub fn insert(&mut self, k: K, v: V) -> Option<V>
+    where V: Default
     {
         let z = node!( BST { k, v, height: 1 });
 

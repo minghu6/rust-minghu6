@@ -15,6 +15,115 @@ use crate::etc::StrJoin;
 ////////////////////////////////////////
 //// Node wrapper
 
+/// Define node wrapper
+macro_rules! impl_node {
+    () => {
+        struct Node<K, V>(
+            Option<std::rc::Rc<std::cell::RefCell<Node_<K, V>>>>,
+        );
+
+        /// Used for reverse reference to avoid circular-reference
+        ///
+        /// So we can easy auto drop
+        struct WeakNode<K, V>(
+            Option<std::rc::Weak<std::cell::RefCell<Node_<K, V>>>>,
+        );
+
+        #[allow(unused)]
+        impl<K, V> Node<K, V> {
+            fn downgrade(&self) -> WeakNode<K, V> {
+                WeakNode(
+                    self.0.clone().map(|ref rc| std::rc::Rc::downgrade(rc)),
+                )
+            }
+
+            fn as_ptr(&self) -> *mut Node_<K, V> {
+                match self.0 {
+                    Some(ref rc) => rc.as_ptr(),
+                    None => std::ptr::null_mut(),
+                }
+            }
+
+            fn none() -> Self {
+                Self(None)
+            }
+
+            fn is_some(&self) -> bool {
+                self.0.is_some()
+            }
+
+            fn is_none(&self) -> bool {
+                self.0.is_none()
+            }
+
+            fn rc_eq(&self, other: &Self) -> bool {
+                match self.0 {
+                    Some(ref rc1) => {
+                        if let Some(ref rc2) = other.0 {
+                            std::rc::Rc::ptr_eq(rc1, rc2)
+                        } else {
+                            false
+                        }
+                    }
+                    None => other.is_none(),
+                }
+            }
+        }
+
+
+        impl<K, V> Default for Node<K, V> {
+            fn default() -> Self {
+                Self::none()
+            }
+        }
+
+
+        impl<K, V> Clone for Node<K, V> {
+            fn clone(&self) -> Self {
+                Self(self.0.clone())
+            }
+        }
+
+
+        impl<K, V> PartialEq for Node<K, V> {
+            fn eq(&self, other: &Self) -> bool {
+                self.rc_eq(other)
+            }
+        }
+
+
+        impl<K, V> Eq for Node<K, V> {}
+
+        #[allow(unused)]
+        impl<K, V> WeakNode<K, V> {
+            fn upgrade(&self) -> Node<K, V> {
+                Node(self.0.clone().map(|weak| {
+                    if let Some(strong) = weak.upgrade() {
+                        strong
+                    } else {
+                        unreachable!("weak node upgrade failed")
+                    }
+                }))
+            }
+
+            fn none() -> Self {
+                Self(None)
+            }
+
+            fn is_none(&self) -> bool {
+                self.0.is_none()
+            }
+        }
+
+
+        impl<K, V> Clone for WeakNode<K, V> {
+            fn clone(&self) -> Self {
+                Self(self.0.clone())
+            }
+        }
+    };
+}
+
 macro_rules! boxptr {
     ($v:expr) => {
         Box::into_raw(Box::new($v))
@@ -22,6 +131,7 @@ macro_rules! boxptr {
 }
 
 
+#[allow(unused)]
 macro_rules! unboxptr {
     ($ptr:expr) => {
         unsafe { *Box::from_raw($ptr) }
@@ -36,8 +146,8 @@ macro_rules! node {
             right: Node::none(),
             paren: WeakNode::none(),
 
-            key: boxptr!($key),
-            val: boxptr!($val),
+            key: $key,
+            val: $val,
 
             $(
                 $attr: $attr_val
@@ -67,8 +177,29 @@ macro_rules! unwrap_into {
 //// Attr macros
 
 macro_rules! attr {
-    ($node:expr, $attr:ident) => {{
-        /* to pass through runtime borrow check  */
+    (ref_mut | $node:expr, $attr:ident, $ty:ty) => {{
+        if let Some(_unr) = $node.clone().0 {
+            let _bor = _unr.as_ref().borrow();
+            let _attr = (&_bor.$attr) as *const $ty as *mut $ty;
+            drop(_bor);
+            unsafe { &mut *_attr }
+        }
+        else {
+            panic!("Access {} on None", stringify!($attr));
+        }
+    }};
+    (ref | $node:expr, $attr:ident, $ty:ty) => {{
+        if let Some(_unr) = $node.clone().0 {
+            let _bor = _unr.as_ref().borrow();
+            let _attr = (&_bor.$attr) as *const $ty;
+            drop(_bor);
+            unsafe { &*_attr }
+        }
+        else {
+            panic!("Access {} on None", stringify!($attr));
+        }
+    }};
+    (clone | $node:expr, $attr:ident) => {{
         if let Some(_unr) = $node.clone().0 {
             let _bor = _unr.as_ref().borrow();
             let _attr = _bor.$attr.clone();
@@ -91,26 +222,11 @@ macro_rules! attr {
 
 
 macro_rules! def_attr_macro {
-    ($($name:ident),+) => {
+    (ref | $(($name:ident,$ty:ty)),+) => {
         $(
             macro_rules! $name {
                 ($node:expr) => {
-                    attr!($$node, $name)
-                };
-                ($node:expr, $val:expr) => {
-                    attr!($$node, $name, $$val)
-                };
-            }
-            #[allow(unused)]
-            pub(crate) use $name;
-
-        )+
-    };
-    (ptr | $($name:ident),+) => {
-        $(
-            macro_rules! $name {
-                ($node:expr) => {
-                    unsafe { &* attr!($$node, $name) }
+                    attr!(ref | $$node, $name, $ty)
                 };
                 ($node:expr, $val:expr) => {
                     attr!($$node, $name, $$val)
@@ -123,7 +239,7 @@ macro_rules! def_attr_macro {
                 #[allow(unused)]
                 macro_rules! name_mut {
                     ($node:expr) => {
-                        unsafe { &mut * attr!($$node, $name) }
+                        attr!(ref_mut | $$node, $name, $ty)
                     };
                 }
                 #[allow(unused)]
@@ -131,6 +247,21 @@ macro_rules! def_attr_macro {
             });
         )+
     };
+    (clone | $($name:ident),+) => {
+        $(
+            macro_rules! $name {
+                ($node:expr) => {
+                    attr!(clone | $$node, $name)
+                };
+                ($node:expr, $val:expr) => {
+                    attr!($$node, $name, $$val)
+                };
+            }
+            #[allow(unused)]
+            pub(crate) use $name;
+
+        )+
+    }
 }
 
 
@@ -146,24 +277,25 @@ macro_rules! mut_self {
 
 
 macro_rules! swap {
-    (node | $x:expr, $y:expr, $attr:ident) => {
+    (node | $x:expr, $y:expr, $attr:ident, $ty:ty) => {
         {
             let x = $x.clone();
             let y = $y.clone();
 
-            let x_attr = attr!(x, $attr);
-            let y_attr = attr!(y, $attr);
+            let x_attr = attr!(ref_mut| x, $attr, $ty);
+            let y_attr = attr!(ref_mut| y, $attr, $ty);
 
-            attr!(x, $attr, y_attr);
-            attr!(y, $attr, x_attr);
+            std::mem::swap(x_attr, y_attr);
         }
     };
 }
 
 
+pub(crate) use impl_node;
 pub(crate) use node;
 pub(crate) use attr;
 pub(crate) use boxptr;
+#[allow(unused)]
 pub(crate) use unboxptr;
 pub(crate) use unwrap_into;
 pub(crate) use def_attr_macro;

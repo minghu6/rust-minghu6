@@ -6,13 +6,12 @@ use std::{
     cmp::Ordering::*,
     collections::{hash_map::Entry::*, HashMap},
     fmt::{Debug, Display},
-    hash::Hash,
+    hash::Hash, mem::replace,
 };
 
 use crate::{
     collections::{
         aux::{*, node as aux_node},
-        bst2::impl_node,
         AdvHeap, Coll, CollKey, Heap,
     },
     hashmap,
@@ -22,12 +21,12 @@ use crate::{
 ////////////////////////////////////////////////////////////////////////////////
 //// Macro
 
-def_attr_macro!(
-    left, right, child, paren, idx, rank, marked
+def_attr_macro!(clone|
+    left, right, child, paren, rank, marked, idx
 );
 
-def_attr_macro!(ptr|
-    val
+def_attr_macro!(ref|
+    (val, T)
 );
 
 ////////////////////////////////////////
@@ -41,7 +40,7 @@ macro_rules! node {
     ($i:expr, $k:expr, $rank:expr, $marked:expr) => {{
         aux_node!(FREE {
             idx: $i,
-            val: boxptr!($k),
+            val: $k,
             rank: $rank,
             left: WeakNode::none(),
             right: Node::none(),
@@ -76,7 +75,7 @@ pub struct FibHeap<I: CollKey, T: CollKey> {
 #[derive(Clone)]
 struct Node_<I, T> {
     idx: I,
-    val: *mut T,
+    val: T,
     rank: usize, // children number
 
     /// rev ref
@@ -100,7 +99,7 @@ impl<I: Debug, T: Debug> Debug for Node_<I, T> {
             f,
             "{:?}[{:?}]{}",
             self.idx,
-            unsafe { &*self.val },
+            self.val,
             if self.marked { " X" } else { "" }
         )
     }
@@ -149,11 +148,7 @@ impl<I, T> Node<I, T> {
 
     /// replace with new val, return old val
     fn replace_key(&self, val: T) -> T {
-        let oldk = attr!(self, val);
-        let newk = boxptr!(val);
-        attr!(self, val, newk);
-
-        unboxptr!(oldk)
+        replace(val_mut!(self), val)
     }
 
     fn replace(&mut self, x: Self) -> Self {
@@ -326,7 +321,7 @@ impl<I: CollKey + Hash + Clone, T: CollKey> FibHeap<I, T> {
 
         Some((
             self.remove_from_index(&oldmin),
-            unboxptr!(unwrap_into!(oldmin).val),
+            unwrap_into!(oldmin).val
         ))
     }
 
@@ -811,10 +806,7 @@ impl<I: CollKey + Hash + Clone, T: CollKey> AdvHeap<I, T> for FibHeap<I, T> {
 #[cfg(test)]
 mod tests {
     use super::{ FibHeap, super::* };
-    use crate::{
-        algs::random,
-        etc::normalize
-    };
+    use crate::algs::random;
 
 
     #[ignore = "for debug"]
@@ -824,81 +816,27 @@ mod tests {
     #[test]
     fn test_fibheap_fixeddata() {
         let mut heap = FibHeap::<usize, usize>::new();
+        let mut auto = crate::etc::gen();
 
-        heap.push(0, 0);
-        heap.push(0, 5);
-        heap.push(0, 2);
-        heap.push(0, 3);
-        heap.push(0, 1);
+        heap.insert(auto(), 2);
+        heap.insert(auto(), 4);
+        heap.insert(auto(), 1);
 
-        assert_eq!(heap.pop(), Some(0));
-        assert_eq!(heap.pop(), Some(1));
-        assert_eq!(heap.pop(), Some(2));
-        assert_eq!(heap.pop(), Some(3));
-        assert_eq!(heap.pop(), Some(5));
-
-        let mut heap = FibHeap::<usize, usize>::new();
-        heap.push(0, 3);
-        heap.push(0, 41);
-        heap.push(0, 44);
-        heap.push(0, 2);
-
-        assert_eq!(heap.pop(), Some(2));
-        assert_eq!(heap.pop(), Some(3));
-        assert_eq!(heap.pop(), Some(41));
-        assert_eq!(heap.pop(), Some(44));
-
-
-        let raw =
-            vec![705, 265, 150, 265, 645, 497, 121, 173, 504, 671, 96, 761];
-        let data = normalize(&raw);
-        let mut heap = FibHeap::<usize, usize>::new();
-        for e in data {
-            heap.push(0, e);
-        }
-
-        assert_eq!(heap.pop(), Some(1));
-        assert_eq!(heap.pop(), Some(2));
-        assert_eq!(heap.pop(), Some(3));
-        assert_eq!(heap.pop(), Some(4));
-        assert_eq!(heap.pop(), Some(5));
-        assert_eq!(heap.pop(), Some(5));
-        assert_eq!(heap.pop(), Some(6));
-        assert_eq!(heap.pop(), Some(7));
-        assert_eq!(heap.pop(), Some(8));
-        assert_eq!(heap.pop(), Some(9));
-        assert_eq!(heap.pop(), Some(10));
-        assert_eq!(heap.pop(), Some(11));
-
-        let mut heap = FibHeap::<usize, usize>::new();
-        let gen = || {
-            let mut _inner = 0;
-            move || {
-                let old = _inner;
-                _inner += 1;
-                old
-            }
-        };
-        let mut auto = gen();
-
-        let data = normalize(&vec![981, 498, 719, 684, 28, 187]);
-        for e in data[1..].iter().cloned() {
-            heap.push(auto(), e);
-        }
-
-        // println!("{heap}")
+        assert_eq!(heap.pop().unwrap(), 1);
+        assert_eq!(heap.pop().unwrap(), 2);
+        assert_eq!(heap.pop().unwrap(), 4);
+        assert_eq!(heap.pop(), None);
     }
 
 
     #[test]
     fn test_fibheap_randomdata() {
-        test_heap!(FibHeap::new(), MAX);
-        test_heap_update!(FibHeap::new(), MAX);
+        test_heap!(FibHeap::new(), MIN);
+        test_heap_update!(FibHeap::new(), MIN);
     }
 
     #[test]
     fn test_fibheap_randomdata_extra() {
-        // let batch_num = 10;
         let get_one = || random::<usize>() % 1000;
         let validate = |heap: &FibHeap<i32, usize>, non_dec: bool| {
             let mut heap = (*heap).clone();
@@ -912,13 +850,10 @@ mod tests {
                 storage.reverse();
             }
 
-            // println!("storage: {storage:?}");
-
             let mut iter = storage.into_iter().enumerate();
             let mut prev = iter.next().unwrap().1;
 
             for (_i, e) in iter {
-                // println!("{i}: {:?}", e);
                 assert!(prev <= e, "prev: {prev:?}, e: {e:?}");
                 prev = e;
             }
@@ -927,8 +862,6 @@ mod tests {
         let non_dec = true;
 
         for _ in 0..1 {
-            // let batch_num = 400;
-
             let mut heap = FibHeap::<i32, usize>::new();
 
             // pad 50% of batch

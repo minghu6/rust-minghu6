@@ -17,7 +17,7 @@ impl_rotate_cleanup!(RB ->
     fn rotate_cleanup(&self, x: Node<K, V>, z: Node<K, V>) {
         /* swap color */
         if x.is_some() && z.is_some() {
-            swap!(node | x, z, color);
+            swap!(node | x, z, color, Color);
         }
         else {
             debug_assert!(x.is_black() && z.is_black());
@@ -111,6 +111,7 @@ impl<K: Ord, V> RB <K, V> {
 
 
     pub fn insert(&mut self, k: K, v: V) -> Option<V>
+    where V: Default
     {
         let color;
 
@@ -252,7 +253,7 @@ impl<K: Ord, V> RB <K, V> {
         }
         /* case-2 */
         else if p.is_red() {
-            swap!(node | p, sib, color);
+            swap!(node | p, sib, color, Color);
         }
         /* case-1 */
         else {

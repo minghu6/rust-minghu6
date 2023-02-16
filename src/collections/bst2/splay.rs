@@ -55,8 +55,6 @@ impl<K: Ord, V> Splay <K, V> {
 
     pub fn insert(&mut self, k: K, v: V) -> Option<V>
     {
-        let z = node!( BST { k, v });
-
         /* modify a little bst_insert */
 
         use std::cmp::Ordering::*;
@@ -67,7 +65,7 @@ impl<K: Ord, V> Splay <K, V> {
         while !x.is_none() {
             y = x.clone();
 
-            match key!(z).cmp(key!(x)) {
+            match k.cmp(key!(x)) {
                 Less => {
                     x = left!(x);
                 }
@@ -81,21 +79,24 @@ impl<K: Ord, V> Splay <K, V> {
         }
 
         let mut popped = None;
-        let mut splay_at = z.clone();
+        let splay_at;
 
         if y.is_none() {
-            self.root = z;
+            splay_at = node!( BST { k, v });
+            self.root = splay_at.clone();
         } else {
-            match key!(z).cmp(key!(y)) {
+            match k.cmp(key!(y)) {
                 Less => {
-                    conn_left!(y, z);
+                    splay_at = node!( BST { k, v });
+                    conn_left!(y, splay_at);
                 }
                 Equal => {
-                    popped = Some(y.replace_val(z));
+                    popped = Some(replace_val!(y, v));
                     splay_at = y;
                 },
                 Greater => {
-                    conn_right!(y, z);
+                    splay_at = node!( BST { k, v });
+                    conn_right!(y, splay_at);
                 }
             }
         }
@@ -121,13 +122,6 @@ impl<K: Ord, V> Splay <K, V> {
 
             self.join((s_left, l));
 
-            // s.0.as_ref().inspect(|c| {
-            //     let cnt = std::rc::Rc::strong_count(&c);
-            //     if cnt == 2 {
-            //         debug_assert!(self.root.rc_eq(&s));
-            //     }
-            //     println!("^^^ remove z(s): {}, s == root?: {}\n", cnt, self.root.rc_eq(&s))
-            // });
             Some(unwrap_into!(s).into_value())
         }
     }

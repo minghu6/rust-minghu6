@@ -14,9 +14,23 @@ use crate::collections::aux::*;
 ////////////////////////////////////////////////////////////////////////////////
 //// Attr Access
 
-def_attr_macro!(left, right, paren, height, color, size, deleted);
-def_attr_macro!(ptr | key, val);
+def_attr_macro!(clone| left, right, paren, height, color, size, deleted);
+def_attr_macro!(ref| (key, K), (val, V));
 
+
+////////////////////////////////////////////////////////////////////////////////
+//// Node Operation
+
+/// Move val from x to self, return old val of self
+///
+/// replace val of x with null_mut
+macro_rules! replace_val {
+    ($it: expr, $x: expr) => {
+        {
+            std::mem::replace(val_mut!($it), $x)
+        }
+    };
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Basic Operation
@@ -294,7 +308,7 @@ macro_rules! bst_insert {
                     conn_left!(y, z);
                 }
                 Equal => {
-                    let val_y = y.replace_val(z);
+                    let val_y = replace_val!(y, replace_val!(z, Default::default()));
 
                     return if deleted!(y) {
                         // restore deleted node
@@ -349,7 +363,9 @@ macro_rules! bst_insert {
                     conn_left!(y, z);
                 }
                 Equal => {
-                    return Some(y.replace_val(z))
+                    return Some(
+                        replace_val!(y, replace_val!(z, Default::default()))
+                    )
                 },
                 Greater => {
                     conn_right!(y, z);
@@ -369,10 +385,7 @@ macro_rules! bst_delete {
 
         deleted!(z, true);
 
-        let oldvptr = attr!(z, val);
-        attr!(z, val, std::ptr::null_mut());
-
-        unboxptr!(oldvptr)
+        replace_val!(z, Default::default())
     }};
     ($tree: expr, $z: expr) => {{
         let tree = &mut *$tree;
@@ -560,8 +573,8 @@ macro_rules! fake_swap {
             let x = $x.clone();
             let y = $y.clone();
 
-            swap!(node| x, y, key);
-            swap!(node| x, y, val);
+            std::mem::swap(key_mut!(x), key_mut!(y));
+            std::mem::swap(val_mut!(x), val_mut!(y));
         }
     };
 }
@@ -825,8 +838,8 @@ macro_rules! impl_node_ {
             right: Node<K, V>,
             paren: WeakNode<K, V>,
 
-            key: *mut K,
-            val: *mut V,
+            key: K,
+            val: V,
 
             /* extra attr */
             $(
@@ -841,158 +854,18 @@ macro_rules! impl_node_ {
             }
 
             fn into_key_val(mut self) -> (K, V) {
-                let oldkey = self.key;
-                self.key = std::ptr::null_mut();
-                let k = unboxptr!(oldkey);
-
-                let oldval = self.val;
-                self.val = std::ptr::null_mut();
-                let v = unboxptr!(oldval);
-
-                (k, v)
+                (self.key, self.val)
             }
         }
 
         impl<K: std::fmt::Debug, V: std::fmt::Debug> std::fmt::Debug for Node_<K, V> {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(f, "{:?}: {:?}", self.key, unsafe { &*self.val })
-            }
-        }
-
-        impl<K, V> Drop for Node_<K, V> {
-            fn drop(&mut self) {
-                if !self.key.is_null() {
-                    unboxptr!(self.key);
-                }
-
-                if !self.val.is_null() {
-                    unboxptr!(self.val);
-                }
+                write!(f, "{:?}: {:?}", self.key, self.val)
             }
         }
     };
 }
 
-
-/// Define node wrapper
-macro_rules! impl_node {
-    () => {
-        struct Node<K, V>(
-            Option<std::rc::Rc<std::cell::RefCell<Node_<K, V>>>>,
-        );
-
-        /// Used for reverse reference to avoid circular-reference
-        ///
-        /// So we can easy auto drop
-        struct WeakNode<K, V>(
-            Option<std::rc::Weak<std::cell::RefCell<Node_<K, V>>>>,
-        );
-
-        #[allow(unused)]
-        impl<K, V> Node<K, V> {
-            fn downgrade(&self) -> WeakNode<K, V> {
-                WeakNode(
-                    self.0.clone().map(|ref rc| std::rc::Rc::downgrade(rc)),
-                )
-            }
-
-            fn as_ptr(&self) -> *mut Node_<K, V> {
-                match self.0 {
-                    Some(ref rc) => rc.as_ptr(),
-                    None => std::ptr::null_mut(),
-                }
-            }
-
-            fn none() -> Self {
-                Self(None)
-            }
-
-            fn is_some(&self) -> bool {
-                self.0.is_some()
-            }
-
-            fn is_none(&self) -> bool {
-                self.0.is_none()
-            }
-
-            /// Move val from x to self, return old val of self
-            ///
-            /// replace val of x with null_mut
-            fn replace_val(&mut self, x: Node<K, V>) -> V {
-                let oldvptr = attr!(self, val);
-                attr!(self, val, attr!(x, val));
-
-                attr!(x, val, std::ptr::null_mut());
-                unboxptr!(oldvptr)
-            }
-
-            fn rc_eq(&self, other: &Self) -> bool {
-                match self.0 {
-                    Some(ref rc1) => {
-                        if let Some(ref rc2) = other.0 {
-                            std::rc::Rc::ptr_eq(rc1, rc2)
-                        } else {
-                            false
-                        }
-                    }
-                    None => other.is_none(),
-                }
-            }
-        }
-
-
-        impl<K, V> Default for Node<K, V> {
-            fn default() -> Self {
-                Self::none()
-            }
-        }
-
-
-        impl<K, V> Clone for Node<K, V> {
-            fn clone(&self) -> Self {
-                Self(self.0.clone())
-            }
-        }
-
-
-        impl<K, V> PartialEq for Node<K, V> {
-            fn eq(&self, other: &Self) -> bool {
-                self.rc_eq(other)
-            }
-        }
-
-
-        impl<K, V> Eq for Node<K, V> {}
-
-        #[allow(unused)]
-        impl<K, V> WeakNode<K, V> {
-            fn upgrade(&self) -> Node<K, V> {
-                Node(self.0.clone().map(|weak| {
-                    if let Some(strong) = weak.upgrade() {
-                        strong
-                    } else {
-                        unreachable!("weak node upgrade failed")
-                    }
-                }))
-            }
-
-            fn none() -> Self {
-                Self(None)
-            }
-
-            fn is_none(&self) -> bool {
-                self.0.is_none()
-            }
-        }
-
-
-        impl<K, V> Clone for WeakNode<K, V> {
-            fn clone(&self) -> Self {
-                Self(self.0.clone())
-            }
-        }
-    };
-}
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1122,6 +995,7 @@ macro_rules! test_dict {
 ////////////////////////////////////////////////////////////////////////////////
 //// ReExport Declarative Macro
 
+use replace_val;
 use child;
 use conn_child;
 use conn_left;
@@ -1154,7 +1028,6 @@ use impl_rotate_cleanup;
 use impl_build_cleanup;
 use impl_flatten_cleanup;
 
-pub(super) use impl_node;
 use impl_node_;
 use def_tree;
 use impl_tree_debug;

@@ -82,6 +82,7 @@ impl<K: Ord, V> LSG <K, V> {
 
 
     pub fn insert(&mut self, k: K, v: V) -> Option<V>
+    where V: Default
     {
         let z = node!( BST { k, v, size: 1, deleted: false });
 
@@ -94,7 +95,7 @@ impl<K: Ord, V> LSG <K, V> {
 
 
     pub fn remove<Q>(&mut self, k: &Q) -> Option<V>
-    where K: Borrow<Q> + Debug, Q: Ord + ?Sized, V: Debug
+    where K: Borrow<Q> + Debug, Q: Ord + ?Sized, V: Debug + Default
     {
 
         let z = bst_search!(lazy | self.root, k);

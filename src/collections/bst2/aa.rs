@@ -1,10 +1,10 @@
 //! AA tree
 
-use std::{borrow::Borrow, fmt::Debug, cmp::Ordering::*, ptr::null_mut};
+use std::{borrow::Borrow, fmt::Debug, cmp::Ordering::*, mem::swap};
 
 use super::*;
 
-def_attr_macro!(lv);
+def_attr_macro!(clone | lv);
 
 impl_node!();
 impl_node_!({ lv: usize });
@@ -62,10 +62,7 @@ impl<K: Ord, V> AA <K, V> {
 
         self.root = root;
 
-        popped.map(|(k_ptr, v_ptr)| {
-            unboxptr!(k_ptr);
-            unboxptr!(v_ptr)
-        })
+        popped.map(|it| unwrap_into!(it).into_value())
     }
 
 
@@ -81,10 +78,7 @@ impl<K: Ord, V> AA <K, V> {
 
         match k.cmp(key!(t)) {
             Equal => {  // replace node
-                let old_valptr = attr!(t, val);
-                attr!(t, val, boxptr!(v));
-
-                return (t, Some(unboxptr!(old_valptr)));
+                return (t.clone(), Some(replace_val!(t, v)));
             }
             Less => {
                 let (left, popped_) = self.insert_at(left!(t), k, v);
@@ -108,7 +102,7 @@ impl<K: Ord, V> AA <K, V> {
 
 
     fn remove_at<Q>(&mut self, mut t: Node<K, V>, k: &Q)
-    -> (Node<K, V>, Option<(*mut K, *mut V)>)
+    -> (Node<K, V>, Option<Node<K, V>>)
     where K: Borrow<Q> + Debug, Q: Ord + ?Sized, V: Debug
     {
         if t.is_none() {
@@ -133,23 +127,9 @@ impl<K: Ord, V> AA <K, V> {
             Equal => {
 
                 if left!(t).is_none() && right!(t).is_none() {
-                    // t.0.as_ref(). inspect(
-                    //     |t|
-                    //     println!("strong rc cnt: {}", &std::rc::Rc::strong_count(t))
-                    // );
-
-                    let old_keyptr = attr!(t, key);
-                    let old_valptr = attr!(t, val);
-
-                    attr!(t, key, null_mut());
-                    attr!(t, val, null_mut());
-
                     return (
                         Node::none(),
-                        Some((
-                            old_keyptr,
-                            old_valptr
-                        ))
+                        Some(t)
                     );
                 }
 
@@ -162,14 +142,12 @@ impl<K: Ord, V> AA <K, V> {
 
                 conn_child!(t, child, nil_dir.rev());
 
-                let old_keyptr = attr!(t, key);
-                let old_valptr = attr!(t, val);
+                let scapegoat = l_entry.unwrap();
 
-                let (k, v) = l_entry.unwrap();
-                attr!(t, key, k);
-                attr!(t, val, v);
+                swap(val_mut!(scapegoat), val_mut!(t));
+                swap(key_mut!(scapegoat), key_mut!(t));
 
-                Some((old_keyptr, old_valptr))
+                Some(scapegoat)
             }
         };
 

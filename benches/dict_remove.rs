@@ -63,6 +63,8 @@ bench_dict_remove!(_0_, HASH_MAP, std::collections::HashMap::new());
 
 bench_dict_remove!(V1, AVL, avl::AVL::new());
 // bench_dict_remove!(V1, RAW, rawst::RawST::new());
+bench_dict_remove!(V1, RB, rb::RB::new());
+bench_dict_remove!(V1, LLRB, llrb::LLRB::new());
 bench_dict_remove!(V1, AA, aa::AA::new());
 bench_dict_remove!(V1, TREAP, treap::Treap::new());
 bench_dict_remove!(V1, SPLAY, splay::Splay::new());
@@ -70,7 +72,7 @@ bench_dict_remove!(V1, SPLAY, splay::Splay::new());
 // bench_dict_remove!(V1, LSG_06, lsg::LSG::with_alpha(0.6));
 
 bench_dict_remove!(V2, AVL, bst2::avl::AVL::new());
-bench_dict_remove!(V2, Splay, bst2::splay::Splay::new());
+// bench_dict_remove!(V2, Splay, bst2::splay::Splay::new());
 bench_dict_remove!(V2, Treap, bst2::treap::Treap::new());
 // bench_dict_remove!(V2, TreapImproved, bst2::treap::Treap::new().improve_search());
 // /// Too Slow

@@ -109,10 +109,10 @@ macro_rules! bench_dict_get {
                 for flag in seq.iter() {
                     match flag {
                         Insert(k, v) => {
-                            dict.$i(k, v);
+                            dict.$i(*k, *v);
                         },
                         Remove(k) => {
-                            dict.$d(&k);
+                            dict.$d(k);
                         }
                     }
                 }
