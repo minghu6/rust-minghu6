@@ -9,7 +9,7 @@ def_tree!(Splay {});
 impl_tree_debug!(Splay);
 
 impl_rotate_cleanup!(Splay);
-impl_balance_validation!(Splay -> empty);
+impl_validate!(Splay -> empty);
 
 
 

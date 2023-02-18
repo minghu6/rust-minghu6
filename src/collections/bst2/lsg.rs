@@ -33,7 +33,7 @@ impl_build_cleanup!(
         self.update_size()
     }
 );
-impl_balance_validation!(LSG -> empty);
+impl_validate!(LSG -> empty);
 
 
 impl<K: Ord, V> LSG <K, V> {

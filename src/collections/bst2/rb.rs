@@ -24,9 +24,9 @@ impl_rotate_cleanup!(RB ->
         }
     }
 );
-impl_balance_validation!(RB ->
+impl_validate!(RB ->
     #[cfg(test)]
-    fn balance_validation(&mut self)
+    fn validate(&mut self)
     where K: Debug
     {
         debug_assert!(self.root.is_black(), "[validate] root should be black");
@@ -49,9 +49,9 @@ impl_balance_validation!(RB ->
 //         }
 //     }
 // );
-// impl_balance_validation!(LLRB ->
+// impl_validate!(LLRB ->
 //     #[cfg(test)]
-//     fn balance_validation(&mut self)
+//     fn validate(&mut self)
 //     where K: Debug
 //     {
 //         debug_assert!(self.root.is_black(), "[validate] root should be black");
@@ -437,28 +437,28 @@ mod tests {
         assert!(dict.get(&24).is_some());
 
         // dict.debug_print();
-        dict.balance_validation();
+        dict.validate();
 
         dict.remove(&24);
         assert!(dict.get(&24).is_none());
-        dict.balance_validation();
+        dict.validate();
 
         dict.remove(&47);
         assert!(dict.get(&47).is_none());
-        dict.balance_validation();
+        dict.validate();
 
         dict.remove(&52);
         assert!(dict.get(&52).is_none());
-        dict.balance_validation();
+        dict.validate();
 
         dict.remove(&3);
         assert!(dict.get(&3).is_none());
-        dict.balance_validation();
+        dict.validate();
 
         assert!(dict.get(&35).is_some());
         // dict.remove(&35);
         // assert!(dict.get(&35).is_none());
-        // dict.balance_validation();
+        // dict.validate();
 
         // dict.debug_print();
 

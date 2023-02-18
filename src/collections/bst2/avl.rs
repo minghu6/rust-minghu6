@@ -15,9 +15,9 @@ impl_rotate_cleanup!(AVL ->
         z.update_height();
     }
 );
-impl_balance_validation!(AVL ->
+impl_validate!(AVL ->
     #[cfg(test)]
-    fn balance_validation(&mut self) {
+    fn validate(&mut self) {
         self.root.recalc_height();
         self.root.validate_bf();
     }

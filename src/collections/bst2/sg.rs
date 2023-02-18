@@ -21,9 +21,9 @@ impl_node!();
 impl_node_!({});
 impl_flatten_cleanup!();
 impl_build_cleanup!();
-impl_balance_validation!(
+impl_validate!(
     SG ->
-    fn balance_validation(&self) {}
+    fn validate(&self) {}
 );
 
 

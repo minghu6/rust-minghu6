@@ -11,9 +11,9 @@ impl_node_!({ lv: usize });
 
 impl_tree!(AA {});
 impl_rotate_cleanup!(AA);
-impl_balance_validation!(AA ->
+impl_validate!(AA ->
     #[cfg(test)]
-    fn balance_validation(&self) {
+    fn validate(&self) {
         self.root.validate_balance();
     }
 );
@@ -306,30 +306,30 @@ mod tests {
         dict.insert(24, ());
         assert!(dict.get(&24).is_some());
 
-        dict.balance_validation();
+        dict.validate();
 
         // dict.debug_print();
 
         dict.remove(&24);
         assert!(dict.get(&24).is_none());
-        dict.balance_validation();
+        dict.validate();
 
         dict.remove(&47);
         assert!(dict.get(&47).is_none());
-        dict.balance_validation();
+        dict.validate();
 
         dict.remove(&52);
         assert!(dict.get(&52).is_none());
-        dict.balance_validation();
+        dict.validate();
 
         dict.remove(&3);
         assert!(dict.get(&3).is_none());
-        dict.balance_validation();
+        dict.validate();
 
         assert!(dict.get(&35).is_some());
         dict.remove(&35);
         assert!(dict.get(&35).is_none());
-        dict.balance_validation();
+        dict.validate();
 
         // dict.debug_print();
 

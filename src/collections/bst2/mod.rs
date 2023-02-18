@@ -638,12 +638,12 @@ macro_rules! impl_rotate_cleanup {
 }
 
 
-macro_rules! impl_balance_validation {
+macro_rules! impl_validate {
     ($name:ident -> empty) => {
         impl<K, V> $name<K, V> {
             /// Validate BST balance factor
             #[allow(unused)]
-            fn balance_validation(&self) {}
+            fn validate(&self) {}
         }
     };
     ($name:ident -> $fn:item) => {
@@ -656,9 +656,9 @@ macro_rules! impl_balance_validation {
         impl<K, V> $name<K, V> {
             /// Validate BST balance factor
             #[cfg(test)]
-            fn balance_validation(&self) {
+            fn validate(&self) {
                 if self.root.is_some() {
-                    self.root.balance_validation()
+                    self.root.validate()
                 }
             }
         }
@@ -926,12 +926,12 @@ macro_rules! test_dict {
                 );
 
                 if i % 20 == 0 {
-                    dict.balance_validation();
+                    dict.validate();
                 }
                 // println!("{i}. insert: ");
             }
 
-            dict.balance_validation();
+            dict.validate();
 
             /* Verify Update */
 
@@ -955,7 +955,7 @@ macro_rules! test_dict {
                 );
             }
 
-            dict.balance_validation();
+            dict.validate();
 
             /* Verify Remove */
 
@@ -984,7 +984,7 @@ macro_rules! test_dict {
 
                 // sample to save time
                 if i % 10 == 0 {
-                    dict.balance_validation();
+                    dict.validate();
                 }
             }
         }
@@ -1023,7 +1023,7 @@ use bst_successor;
 use bst_flatten;
 use bst_build;
 
-use impl_balance_validation;
+use impl_validate;
 use impl_rotate_cleanup;
 use impl_build_cleanup;
 use impl_flatten_cleanup;

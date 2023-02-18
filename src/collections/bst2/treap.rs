@@ -13,7 +13,7 @@ def_tree!(Treap { improve_search: bool });
 impl_tree_debug!(Treap);
 
 impl_rotate_cleanup!(Treap);
-impl_balance_validation!(Treap);
+impl_validate!(Treap);
 
 
 
@@ -187,18 +187,18 @@ impl<K: Ord, V> Treap <K, V> {
 impl<K, V> Node<K, V> {
     /// Validate MaxHeap
     #[cfg(test)]
-    fn balance_validation(&self) {
+    fn validate(&self) {
         let left = left!(self);
         let right = right!(self);
 
         if left.is_some() {
             debug_assert!(w!(self) >= w!(left));
-            left.balance_validation();
+            left.validate();
         }
 
         if right.is_some() {
             debug_assert!(w!(self) >= w!(right));
-            right.balance_validation();
+            right.validate();
         }
     }
 }
@@ -239,7 +239,7 @@ mod tests {
         dict.insert(24, ());
         assert!(dict.get(&24).is_some());
 
-        dict.balance_validation();
+        dict.validate();
     }
 
     #[test]
