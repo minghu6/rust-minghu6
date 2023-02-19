@@ -5,11 +5,86 @@ use super::aux::*;
 pub mod bt;
 
 
-////////////////////////////////////////////////////////////////////////////////
-//// Macros
+def_attr_macro!(clone|
+    paren
+);
+def_attr_macro!(ref|
+    (children, Vec<Node<K, V>>)
+);
 
-////////////////////////////////////////
-//// Node Operations
+
+
+/// key-idx
+macro_rules! right {
+    ($x:expr, $idx:expr) => {
+        &children!($x)[$idx+1]
+    };
+}
+
+
+/// key-idx
+#[allow(unused)]
+macro_rules! left {
+    ($x:expr, $idx:expr) => {
+        &children!($x)[$idx]
+    };
+}
+
+
+macro_rules! last_child {
+    ($x:expr) => {
+        children!($x).last().unwrap()
+    };
+}
+
+
+macro_rules! first_child {
+    ($x:expr) => {
+        children!($x).first().unwrap()
+    };
+}
+
+
+macro_rules! children_revref {
+    ($x:expr) => {
+        {
+            let x = &$x;
+            let children = children_mut!(x);
+
+            if children[0].is_some() {
+                for child in children {
+                    paren!(child, x.downgrade());
+                }
+            }
+        }
+    };
+}
+
+
+/// O(logM)
+macro_rules! index_of_child {
+    ($p: expr, $child: expr) => {{
+        let p = &$p;
+        let child = &$child;
+
+        debug_assert!(child.is_some());
+
+        // if let Some(idx) = children!(p).iter().position(|x| x.rc_eq(child)) {
+        //     idx
+        // }
+        // else {
+        //     unreachable!("There are no matched child");
+        // }
+        match entries!(p).binary_search(child.last_entry()) {
+            Ok(oldidx) => {
+                unreachable!("Dup key on {oldidx}");
+            },
+            Err(inseridx) => {
+                inseridx
+            },
+        }
+    }};
+}
 
 
 macro_rules! impl_tree {
@@ -33,35 +108,6 @@ macro_rules! impl_tree {
             }
         );
         impl_tree_debug!($treename);
-
-        impl<K: Ord, V> $treename<K, V> {
-            // pub fn get<Q>(&self, k: &Q) -> Option<&V>
-            // where K: std::borrow::Borrow<Q>, Q: Ord + ?Sized
-            // {
-            //     let x = bst_search!(self.root, k);
-
-            //     if x.is_some() {
-            //         Some(val!(x))
-            //     }
-            //     else {
-            //         None
-            //     }
-            // }
-
-            // pub fn get_mut<Q>(&mut self, k: &Q) -> Option<&mut V>
-            // where K: std::borrow::Borrow<Q>, Q: Ord + ?Sized
-            // {
-            //     let x = bst_search!(self.root, k);
-
-            //     if x.is_some() {
-            //         Some(val_mut!(x))
-            //     }
-            //     else {
-            //         None
-            //     }
-            // }
-        }
-
     };
 }
 
@@ -78,7 +124,7 @@ macro_rules! def_tree {
         $(#[$attr])*
         #[derive(Debug)]
         #[allow(unused)]
-        pub struct $treename<K, V> {
+        pub struct $treename<K, V, const M: usize> {
             root: Node<K, V>,
 
             /* extra attr */
@@ -93,7 +139,7 @@ macro_rules! def_tree {
 
 macro_rules! impl_tree_debug {
     ($treename:ident) => {
-        impl<K: Ord, V> $treename<K, V> {
+        impl<K: Ord, V, const M: usize> $treename<K, V, M> {
             pub fn debug_write<W: std::fmt::Write>(
                 &self,
                 f: &mut W
@@ -111,7 +157,7 @@ macro_rules! impl_tree_debug {
                     return Ok(());
                 }
 
-                let mut this_q = crate::vecdeq![self.root.clone()];
+                let mut this_q = crate::vecdeq![vec![self.root.clone()]];
                 let mut lv = 1;
 
                 while !this_q.is_empty() {
@@ -121,36 +167,20 @@ macro_rules! impl_tree_debug {
 
                     let mut nxt_q = crate::vecdeq![];
 
-                    while let Some(x) = this_q.pop_front() {
-                        // if left!(x).is_none() && right!(x).is_none() {
-                        //     write!(f, "{x:?}")?;
-                        // }
-                        // else {
-                        //     write!(f, "{x:?} | L-> ")?;
+                    while let Some(children) = this_q.pop_front() {
+                        for (i, x) in children.iter().enumerate() {
+                            let p = paren!(x).upgrade();
 
-                        //     let left = left!(x);
-                        //     if left.is_some() {
-                        //         write!(f, "{left:?}")?;
-                        //         nxt_q.push_back(left);
-                        //     }
-                        //     else {
-                        //         write!(f, "nil")?;
-                        //     }
+                            if x.is_some() && children!(x)[0].is_some() {
+                                nxt_q.push_back(children!(x).clone());
+                            }
 
-                        //     write!(f, "; R-> ")?;
-
-                        //     let right = right!(x);
-                        //     if right.is_some() {
-                        //         write!(f, "{right:?}")?;
-                        //         nxt_q.push_back(right);
-                        //     }
-                        //     else {
-                        //         write!(f, "nil")?;
-                        //     }
-                        // }
+                            writeln!(f, "({i:02}): {x:?} (p: {p:?})")?;
+                        }
 
                         writeln!(f)?;
                     }
+
 
                     this_q = nxt_q;
                     lv += 1;
@@ -175,6 +205,13 @@ macro_rules! impl_tree_debug {
 }
 
 
+#[allow(unused)]
+use left;
+use right;
+use last_child;
+use first_child;
+use children_revref;
+use index_of_child;
 use impl_tree;
 use def_tree;
 use impl_tree_debug;
@@ -182,14 +219,14 @@ use impl_tree_debug;
 
 
 
-pub fn ordered_insert<T: Ord>(vec: &mut Vec<T>, x: T) -> Option<T> {
-    match vec.binary_search(&x) {
-        Ok(oldidx) => {
-            Some(replace(&mut vec[oldidx], x))
-        },
-        Err(inseridx) => {
-            vec.insert(inseridx, x);
-            None
-        },
-    }
-}
+// pub fn ordered_insert<T: Ord>(vec: &mut Vec<T>, x: T) -> Option<T> {
+//     match vec.binary_search(&x) {
+//         Ok(oldidx) => {
+//             Some(replace(&mut vec[oldidx], x))
+//         },
+//         Err(inseridx) => {
+//             vec.insert(inseridx, x);
+//             None
+//         },
+//     }
+// }

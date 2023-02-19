@@ -936,5 +936,8 @@ mod tests {
 
         let _v2 = [1,2,3].into_iter().min().unwrap();
 
+        let mut v = vecdeq![1, 2, 3];
+        v.pop_back();
+        println!("{v:?}");
     }
 }
