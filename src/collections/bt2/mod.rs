@@ -61,7 +61,7 @@ macro_rules! children_revref {
 }
 
 
-/// O(logM)
+/// O(logM) search by key
 macro_rules! index_of_child {
     ($p: expr, $child: expr) => {{
         let p = &$p;
@@ -82,6 +82,24 @@ macro_rules! index_of_child {
             Err(inseridx) => {
                 inseridx
             },
+        }
+    }};
+}
+
+
+/// O(M)
+macro_rules! index_of_child_by_rc {
+    ($p: expr, $child: expr) => {{
+        let p = &$p;
+        let child = &$child;
+
+        debug_assert!(child.is_some());
+
+        if let Some(idx) = children!(p).iter().position(|x| x.rc_eq(child)) {
+            idx
+        }
+        else {
+            unreachable!("There are no matched child");
         }
     }};
 }
@@ -212,6 +230,7 @@ use last_child;
 use first_child;
 use children_revref;
 use index_of_child;
+use index_of_child_by_rc;
 use impl_tree;
 use def_tree;
 use impl_tree_debug;

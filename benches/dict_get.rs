@@ -6,6 +6,7 @@ use lazy_static::lazy_static;
 use minghu6::collections::{
     bt::bst::*,
     bst2,
+    bt2,
     Dictionary,
 };
 
@@ -151,3 +152,12 @@ bench_dict_get!(V2, Treap, bst2::treap::Treap::new());
 bench_dict_get!(V2, TreapImproved, bst2::treap::Treap::new().improve_search());
 bench_dict_get!(V2, RB, bst2::rb::RB::new());
 bench_dict_get!(V2, AA, bst2::aa::AA::new());
+
+bench_dict_get!(_0__5, B, bt2::bt::BT::<u64, u64, 5>::new());
+bench_dict_get!(_0__11, B, bt2::bt::BT::<u64, u64, 11>::new());
+bench_dict_get!(_0__30, B, bt2::bt::BT::<u64, u64, 30>::new());
+bench_dict_get!(_0__50, B, bt2::bt::BT::<u64, u64, 50>::new());
+bench_dict_get!(_0__100, B, bt2::bt::BT::<u64, u64, 100>::new());
+bench_dict_get!(_0__200, B, bt2::bt::BT::<u64, u64, 200>::new());
+bench_dict_get!(_0__250, B, bt2::bt::BT::<u64, u64, 250>::new());
+bench_dict_get!(_0__300, B, bt2::bt::BT::<u64, u64, 300>::new());

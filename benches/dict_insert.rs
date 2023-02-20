@@ -6,6 +6,7 @@ use minghu6::{
     collections::{
         bt::bst::*,
         bst2,
+        bt2,
         Dictionary
     }
 };
@@ -68,7 +69,15 @@ bench_dict_insert!(V1, LSG_06, lsg::LSG::with_alpha(0.6));
 // bench_dict_insert!(V2, LSG, bst2::lsg::LSG::new(0.7));
 bench_dict_insert!(V2, AVL, bst2::avl::AVL::new());
 bench_dict_insert!(V2, RB, bst2::rb::RB::new());
-bench_dict_insert!(V2, Splay, bst2::splay::Splay::new());
+// bench_dict_insert!(V2, Splay, bst2::splay::Splay::new());
 bench_dict_insert!(V2, Treap, bst2::treap::Treap::new());
 // bench_dict_insert!(V2, TreapImproved, bst2::treap::Treap::new().improve_search());
 bench_dict_insert!(V2, AA, bst2::aa::AA::new());
+
+
+bench_dict_insert!(_0__60, B, bt2::bt::BT::<u64, u64, 60>::new());
+bench_dict_insert!(_0__90, B, bt2::bt::BT::<u64, u64, 90>::new());
+bench_dict_insert!(_0__100, B, bt2::bt::BT::<u64, u64, 100>::new());
+bench_dict_insert!(_0__200, B, bt2::bt::BT::<u64, u64, 200>::new());
+bench_dict_insert!(_0__250, B, bt2::bt::BT::<u64, u64, 250>::new());
+bench_dict_insert!(_0__300, B, bt2::bt::BT::<u64, u64, 300>::new());

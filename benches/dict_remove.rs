@@ -6,7 +6,7 @@ use test::Bencher;
 use lazy_static::lazy_static;
 use rand::{prelude::SliceRandom, thread_rng};
 
-use minghu6::collections::{bt::bst::*, Dictionary, bst2};
+use minghu6::collections::{bt::bst::*, Dictionary, bst2, bt2};
 
 
 mod dict_common;
@@ -80,3 +80,9 @@ bench_dict_remove!(V2, Treap, bst2::treap::Treap::new());
 // bench_dict_remove!(V2, SG, bst2::sg::SG::new(0.7));
 bench_dict_remove!(V2, RB, bst2::rb::RB::new());
 bench_dict_remove!(V2, AA, bst2::aa::AA::new());
+bench_dict_remove!(_0__11, B, bt2::bt::BT::<u64, u64, 11>::new());
+bench_dict_remove!(_0__20, B, bt2::bt::BT::<u64, u64, 20>::new());
+bench_dict_remove!(_0__40, B, bt2::bt::BT::<u64, u64, 40>::new());
+bench_dict_remove!(_0__60, B, bt2::bt::BT::<u64, u64, 60>::new());
+bench_dict_remove!(_0__90, B, bt2::bt::BT::<u64, u64, 90>::new());
+bench_dict_remove!(_0__100, B, bt2::bt::BT::<u64, u64, 100>::new());
