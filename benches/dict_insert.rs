@@ -31,10 +31,10 @@ macro_rules! bench_dict_insert {
         bench_dict_insert!($v, $name, $dict, i: insert);
     };
     ($v:ident, $name: ident, $dict: expr, i: $i:ident) => {
-        concat_idents::concat_idents! (bench_name = bench_dict_insert_, $v, _, $name {
+        paste::paste!(
             #[allow(non_snake_case)]
             #[bench]
-            fn bench_name (b: &mut Bencher) {
+            fn [<bench_dict_insert_ $v _ $name>] (b: &mut Bencher) {
                 b.iter(|| {
                     let mut dict = $dict;
 
@@ -43,7 +43,7 @@ macro_rules! bench_dict_insert {
                     }
                 });
             }
-        });
+        );
    };
 }
 

@@ -3,62 +3,8 @@ use std::mem::replace;
 use super::aux::*;
 
 pub mod bt;
+pub mod bpt;
 
-
-def_attr_macro!(clone|
-    paren
-);
-def_attr_macro!(ref|
-    (children, Vec<Node<K, V>>)
-);
-
-
-
-/// key-idx
-macro_rules! right {
-    ($x:expr, $idx:expr) => {
-        &children!($x)[$idx+1]
-    };
-}
-
-
-/// key-idx
-#[allow(unused)]
-macro_rules! left {
-    ($x:expr, $idx:expr) => {
-        &children!($x)[$idx]
-    };
-}
-
-
-macro_rules! last_child {
-    ($x:expr) => {
-        children!($x).last().unwrap()
-    };
-}
-
-
-macro_rules! first_child {
-    ($x:expr) => {
-        children!($x).first().unwrap()
-    };
-}
-
-
-macro_rules! children_revref {
-    ($x:expr) => {
-        {
-            let x = &$x;
-            let children = children_mut!(x);
-
-            if children[0].is_some() {
-                for child in children {
-                    paren!(child, x.downgrade());
-                }
-            }
-        }
-    };
-}
 
 
 /// O(logM) search by key
@@ -69,12 +15,6 @@ macro_rules! index_of_child {
 
         debug_assert!(child.is_some());
 
-        // if let Some(idx) = children!(p).iter().position(|x| x.rc_eq(child)) {
-        //     idx
-        // }
-        // else {
-        //     unreachable!("There are no matched child");
-        // }
         match entries!(p).binary_search(child.last_entry()) {
             Ok(oldidx) => {
                 unreachable!("Dup key on {oldidx}");
@@ -223,12 +163,6 @@ macro_rules! impl_tree_debug {
 }
 
 
-#[allow(unused)]
-use left;
-use right;
-use last_child;
-use first_child;
-use children_revref;
 use index_of_child;
 use index_of_child_by_rc;
 use impl_tree;

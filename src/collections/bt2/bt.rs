@@ -7,8 +7,12 @@ use m6coll::KVEntry;
 
 use super::{ *, node as aux_node, super::bst2::{ Left, Right } };
 
+def_attr_macro!(clone|
+    paren
+);
 def_attr_macro!(ref|
-    (entries, Vec<KVEntry<K, V>>)
+    (entries, Vec<KVEntry<K, V>>),
+    (children, Vec<Node<K, V>>)
 );
 
 impl_node!();
@@ -48,6 +52,44 @@ macro_rules! node {
 macro_rules! key {
     ($x:expr, $idx:expr) => {
         &entries!($x)[$idx].0
+    };
+}
+
+
+/// key-idx
+macro_rules! right {
+    ($x:expr, $idx:expr) => {
+        &children!($x)[$idx+1]
+    };
+}
+
+
+macro_rules! last_child {
+    ($x:expr) => {
+        children!($x).last().unwrap()
+    };
+}
+
+
+macro_rules! first_child {
+    ($x:expr) => {
+        children!($x).first().unwrap()
+    };
+}
+
+
+macro_rules! children_revref {
+    ($x:expr) => {
+        {
+            let x = &$x;
+            let children = children_mut!(x);
+
+            if children[0].is_some() {
+                for child in children {
+                    paren!(child, x.downgrade());
+                }
+            }
+        }
     };
 }
 

@@ -99,10 +99,10 @@ macro_rules! bench_dict_get {
         bench_dict_get!($v, $name, $dict, i: insert, d: remove, q: get);
     };
     ($v:ident, $name: ident, $dict: expr, i: $i:ident, d: $d:ident, q: $q:ident) => {
-        concat_idents::concat_idents! (bench_name = bench_dict_get_, $v, _, $name {
+        paste::paste! (
             #[allow(non_snake_case)]
             #[bench]
-            fn bench_name (b: &mut Bencher) {
+            fn [<bench_dict_get_ $v _ $name>] (b: &mut Bencher) {
                 let mut dict = $dict;
 
                 let (seq, q) = &*PREPEND_RES;
@@ -124,7 +124,7 @@ macro_rules! bench_dict_get {
                     }
                 })
             }
-        });
+        );
     };
 }
 

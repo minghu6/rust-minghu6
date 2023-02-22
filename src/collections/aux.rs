@@ -113,6 +113,14 @@ macro_rules! impl_node {
             fn is_none(&self) -> bool {
                 self.0.is_none()
             }
+
+            fn is_some(&self) -> bool {
+                self.0.is_some()
+            }
+
+            fn replace(&mut self, oth: Self) {
+                self.0 = oth.0;
+            }
         }
 
 
@@ -210,6 +218,22 @@ macro_rules! attr {
             panic!("Access {} on None", stringify!($attr));
         }
     }};
+    (self | $node:expr) => {{
+        if let Some(_unr) = $node.clone().0 {
+            unsafe { &* _unr.as_ref().as_ptr() }
+        }
+        else {
+            panic!("Call {} on None", stringify!($attr));
+        }
+    }};
+    (self_mut | $node:expr) => {{
+        if let Some(_unr) = $node.clone().0 {
+            unsafe { &mut * _unr.as_ref().as_ptr() }
+        }
+        else {
+            panic!("Call {} on None", stringify!($attr));
+        }
+    }};
     ($node:expr, $attr:ident, $val:expr) => {{
         if let Some(bor) = $node.clone().0 {
             bor.as_ref().borrow_mut().$attr = $val
@@ -235,16 +259,16 @@ macro_rules! def_attr_macro {
             #[allow(unused)]
             pub(crate) use $name;
 
-            concat_idents::concat_idents! (name_mut = $name, _mut {
+            paste::paste!(
                 #[allow(unused)]
-                macro_rules! name_mut {
+                macro_rules! [<$name _mut>] {
                     ($node:expr) => {
                         attr!(ref_mut | $$node, $name, $ty)
                     };
                 }
                 #[allow(unused)]
-                pub(crate) use name_mut;
-            });
+                pub(crate) use [<$name _mut>];
+            );
         )+
     };
     (clone | $($name:ident),+) => {

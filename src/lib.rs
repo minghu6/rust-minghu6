@@ -15,7 +15,6 @@
 #![feature(const_option_ext)]
 #![feature(int_log)]
 #![feature(macro_metavar_expr)]
-#![feature(concat_idents)]
 #![feature(rustc_private)]
 #![feature(type_alias_impl_trait)]
 #![feature(iter_from_generator)]

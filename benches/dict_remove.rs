@@ -37,10 +37,10 @@ macro_rules! bench_dict_remove {
         bench_dict_remove!($v, $name, $dict, i: insert, r: remove);
     };
     ($v:ident, $name:ident, $dict:expr, i: $i:ident, r: $r:ident) => {
-        concat_idents::concat_idents! (bench_name = bench_dict_remove_, $v, _, $name {
+        paste::paste!(
             #[allow(non_snake_case)]
             #[bench]
-            fn bench_name (b: &mut Bencher) {
+            fn [<bench_dict_remove_ $v _ $name>] (b: &mut Bencher) {
                 let mut dict = $dict;
 
                 b.iter(|| {
@@ -53,7 +53,7 @@ macro_rules! bench_dict_remove {
                     }
                 });
             }
-        });
+        );
    };
 }
 
