@@ -911,12 +911,12 @@ macro_rules! test_dict {
 
         for _ in 0..20 {
             let mut dict = $dict;
-            let mut elems = $crate::collections::bst2::gen_data!(get_one, 10, 100);
+            let mut elems = $crate::collections::bst2::gen_data!(get_one, 20, 50);
 
             /* Verify Create */
 
             for (i, (k, v)) in elems.iter().cloned().enumerate() {
-                // println!("{i}. insert: k:{k}");
+                // println!("{i:03}. insert: k:{k:05}");
 
                 assert!(
                     dict.insert(k, v).is_none(),
@@ -949,11 +949,11 @@ macro_rules! test_dict {
                 );
                 elems[i] = (k, newv);
 
-                // assert_eq!(
-                //     dict.get(&k),
-                //     Some(&newv),
-                //     "[dict update] update failed"
-                // );
+                assert_eq!(
+                    dict.get(&k),
+                    Some(&newv),
+                    "[dict update] update failed"
+                );
             }
 
             dict.validate();
@@ -965,7 +965,7 @@ macro_rules! test_dict {
             elems.shuffle(&mut thread_rng());
 
             for (i, (k, v)) in elems.into_iter().enumerate() {
-                // println!("[dict remove]: {i:03}: {k}");
+                // println!("[dict remove]: {i:03}: {k:05}");
 
                 assert_eq!(
                     dict.get(&k),

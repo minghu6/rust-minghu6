@@ -32,7 +32,8 @@ impl_tree!(
 
 macro_rules! node {
     (kv| $k:expr, $v:expr) => {{
-        let mut entries = Vec::with_capacity(M-1);
+        // overflow is M
+        let mut entries = Vec::with_capacity(M);
         entries.push(KVEntry($k, $v));
 
         let children = vec![Node::none() ; 2];
@@ -56,14 +57,6 @@ macro_rules! key {
 }
 
 
-/// key-idx
-macro_rules! right {
-    ($x:expr, $idx:expr) => {
-        &children!($x)[$idx+1]
-    };
-}
-
-
 macro_rules! last_child {
     ($x:expr) => {
         children!($x).last().unwrap()
@@ -75,6 +68,26 @@ macro_rules! first_child {
     ($x:expr) => {
         children!($x).first().unwrap()
     };
+}
+
+
+/// O(logM) search by key
+macro_rules! index_of_child {
+    ($p: expr, $child: expr) => {{
+        let p = &$p;
+        let child = &$child;
+
+        debug_assert!(child.is_some());
+
+        match entries!(p).binary_search(child.last_entry()) {
+            Ok(oldidx) => {
+                unreachable!("Dup key on {oldidx}");
+            },
+            Err(inseridx) => {
+                inseridx
+            },
+        }
+    }};
 }
 
 
@@ -241,8 +254,8 @@ impl<K: Ord, V, const M: usize> BT<K, V, M> {
     }
 
     pub fn insert(&mut self, k: K, v: V) -> Option<V> {
-        let mut y = Node::none();
-        let mut x = self.root.clone();
+        let mut y = &Node::none();
+        let mut x = &self.root;
         let mut idx = 0;
 
         while x.is_some() {
@@ -256,7 +269,7 @@ impl<K: Ord, V, const M: usize> BT<K, V, M> {
                     idx = idx_;
 
                     y = x;
-                    x = children!(y)[idx].clone();
+                    x = &children!(y)[idx];
                 },
             }
         }
@@ -277,7 +290,7 @@ impl<K: Ord, V, const M: usize> BT<K, V, M> {
             children_mut!(y).push(Node::none());
 
             if entries!(y).len() == M {
-                self.promote(y);
+                self.promote(y.clone());
             }
         }
 
@@ -330,14 +343,6 @@ impl<K: Ord, V, const M: usize> BT<K, V, M> {
     ////////////////////////////////////////////////////////////////////////////
     //// Assistant Method
 
-    const fn entries_low_bound() -> usize {
-        M.div_ceil(2) - 1
-    }
-
-    const fn entries_high_bound() -> usize {
-        M
-    }
-
     /// 漂亮的尾递归
     fn promote(&mut self, x: Node<K, V>) {
         debug_assert_eq!(entries!(x).len(), Self::entries_high_bound());
@@ -386,7 +391,7 @@ impl<K: Ord, V, const M: usize> BT<K, V, M> {
 
     fn unpromote(&mut self, mut x: Node<K, V>)
     {
-        // Exclude leaf node and root node
+        // Exclude leaf node
         debug_assert!(
             children!(x)[0].is_none()
             || entries!(x).len() == Self::entries_low_bound() - 1
@@ -407,9 +412,8 @@ impl<K: Ord, V, const M: usize> BT<K, V, M> {
             x = p;
 
             if paren!(x).is_none() {
+                // pop new level
                 if entries!(x).is_empty() {
-                    /* pop new level */
-
                     debug_assert!(children!(x)[0].is_some());
                     debug_assert_eq!(children!(x).len(), 1);
 
@@ -430,7 +434,7 @@ impl<K: Ord, V, const M: usize> BT<K, V, M> {
     fn try_rebalance_node(&mut self, x: &Node<K, V>)
     -> std::result::Result<(), (Node<K, V>, usize)>
     {
-        debug_assert!(!paren!(x).is_none());
+        debug_assert!(paren!(x).is_some());
 
         let p = paren!(x).upgrade();
         let idx = index_of_child_by_rc!(p, x);
@@ -460,97 +464,6 @@ impl<K: Ord, V, const M: usize> BT<K, V, M> {
         }
 
         Err((p, idx))
-    }
-
-
-    #[cfg(test)]
-    fn validate(&self)
-    where K: Debug
-    {
-        if self.root.is_none() {
-            return;
-        }
-
-        use std::collections::VecDeque;
-
-        use crate::vecdeq;
-
-        let mut cur_q = vecdeq![vecdeq![Node::none(), self.root.clone()]];
-
-        while !cur_q.is_empty() {
-            let mut nxt_q = vecdeq![];
-            let mut leaf_num = 0;
-            let mut internal_num = 0;
-
-            while let Some(mut group) = cur_q.pop_front() {
-                let p = group.pop_front().unwrap();
-
-                for child in group.iter() {
-                    assert!(child.is_some());
-
-                    assert_eq!(
-                        entries!(child).len() + 1, children!(child).len(),
-                        "{child:?}"
-                    );
-                    assert!(children!(child).len() <= M, "{child:?}: {}", children!(child).len());
-                    assert!(entries!(child).len() < Self::entries_high_bound());
-
-                    // Exclude leaf
-                    if children!(child)[0].is_none() {
-                        assert!(entries!(child).len() > 0);
-                        leaf_num += 1;
-                    }
-                    else {
-                        // Exclude the root (which is always one when it's internal node)
-                        if !paren!(child).is_none() {
-                            assert!(entries!(child).len() >= Self::entries_low_bound());
-                        }
-                        else {
-                            assert!(children!(child).len() >= 2);
-                        }
-
-                        internal_num += 1;
-
-                        let mut nxt_children = VecDeque::from(
-                            children!(child).clone()
-                        );
-                        nxt_children.push_front(child.clone());
-
-                        nxt_q.push_back(nxt_children);
-                    }
-                }
-
-                // All leaves are in same level
-                assert!(
-                    leaf_num == 0 || internal_num == 0,
-                    "leaf: {leaf_num}, internal: {internal_num}"
-                );
-
-                // Ordered
-                if p.is_some() {
-                    let last_child = group.pop_back().unwrap();
-
-                    for (i, child) in group.iter().enumerate() {
-                        assert!(entries!(child).is_sorted());
-
-                        let child_max_key = &child.last_entry().0;
-                        let branch_key = key!(p, i);
-
-                        assert!(
-                            child_max_key < branch_key,
-                            "child: {child_max_key:?}, branch:{branch_key:?}"
-                        );
-                    }
-
-                    assert!(key!(last_child, 0) > &p.last_entry().0);
-                }
-
-            }
-
-            cur_q = nxt_q;
-        }
-
-
     }
 
 }
@@ -599,7 +512,7 @@ impl<K, V> Node<K, V> {
     {
         debug_assert!(self.is_some());
 
-        let rh = right!(self, idx);
+        let rh = &children!(self)[idx+1];
 
         if rh.is_some() {
             rh.minimum()
@@ -654,24 +567,164 @@ mod tests {
 
     use crate::collections::bst2::test_dict;
 
-    use super::*;
+    use super::{ *, super::tests::* };
 
-    macro_rules! dict_insert {
-        ($dict:ident, $num:expr) => {
-            $dict.insert($num, $num);
-            assert!($dict.get(&$num).is_some());
-            $dict.validate();
-        };
+    impl<K: Ord, V, const M: usize> BT<K, V, M> {
+        ////////////////////////////////////////////////////////////////////////////
+        //// Test Method
+
+        #[cfg(test)]
+        fn debug_write<W: std::fmt::Write>(
+            &self,
+            f: &mut W
+        ) -> std::fmt::Result
+        where K: std::fmt::Debug, V: std::fmt::Debug
+        {
+            /* print header */
+
+            writeln!(f, "{self:?}")?;
+
+
+            /* print body */
+
+            if self.root.is_none() {
+                return Ok(());
+            }
+
+            let mut this_q = crate::vecdeq![vec![self.root.clone()]];
+            let mut lv = 1;
+
+            while !this_q.is_empty() {
+                writeln!(f)?;
+                writeln!(f, "############ Level: {lv} #############")?;
+                writeln!(f)?;
+
+                let mut nxt_q = crate::vecdeq![];
+
+                while let Some(children) = this_q.pop_front() {
+                    for (i, x) in children.iter().enumerate() {
+                        let p = paren!(x).upgrade();
+
+                        if x.is_some() && children!(x)[0].is_some() {
+                            nxt_q.push_back(children!(x).clone());
+                        }
+
+                        writeln!(f, "({i:02}): {x:?} (p: {p:?})")?;
+                    }
+
+                    writeln!(f)?;
+                }
+
+
+                this_q = nxt_q;
+                lv += 1;
+            }
+
+            writeln!(f, "------------- end --------------\n")?;
+
+            Ok(())
+        }
+
+        #[cfg(test)]
+        fn debug_print(&self) where K: std::fmt::Debug, V: std::fmt::Debug
+        {
+            let mut cache = String::new();
+
+            self.debug_write(&mut cache).unwrap();
+
+            println!("{cache}")
+        }
+
+        #[cfg(test)]
+        fn validate(&self)
+        where K: Debug
+        {
+            if self.root.is_none() {
+                return;
+            }
+
+            use std::collections::VecDeque;
+
+            use crate::vecdeq;
+
+            let mut cur_q = vecdeq![vecdeq![Node::none(), self.root.clone()]];
+
+            while !cur_q.is_empty() {
+                let mut nxt_q = vecdeq![];
+                let mut leaf_num = 0;
+                let mut internal_num = 0;
+
+                while let Some(mut group) = cur_q.pop_front() {
+                    let p = group.pop_front().unwrap();
+
+                    for child in group.iter() {
+                        assert!(child.is_some());
+
+                        assert_eq!(
+                            entries!(child).len() + 1, children!(child).len(),
+                            "{child:?}"
+                        );
+                        assert!(children!(child).len() <= M, "{child:?}: {}", children!(child).len());
+                        assert!(entries!(child).len() < Self::entries_high_bound());
+
+                        // Exclude leaf
+                        if children!(child)[0].is_none() {
+                            assert!(entries!(child).len() > 0);
+                            leaf_num += 1;
+                        }
+                        else {
+                            // Exclude the root (which is always one when it's internal node)
+                            if paren!(child).is_some() {
+                                assert!(entries!(child).len() >= Self::entries_low_bound());
+                            }
+                            else {
+                                assert!(children!(child).len() >= 2);
+                            }
+
+                            internal_num += 1;
+
+                            let mut nxt_children = VecDeque::from(
+                                children!(child).clone()
+                            );
+                            nxt_children.push_front(child.clone());
+
+                            nxt_q.push_back(nxt_children);
+                        }
+                    }
+
+                    // All leaves are in same level
+                    assert!(
+                        leaf_num == 0 || internal_num == 0,
+                        "leaf: {leaf_num}, internal: {internal_num}"
+                    );
+
+                    // Ordered
+                    if p.is_some() {
+                        let last_child = group.pop_back().unwrap();
+
+                        for (i, child) in group.iter().enumerate() {
+                            assert!(entries!(child).is_sorted());
+
+                            let child_max_key = &child.last_entry().0;
+                            let branch_key = key!(p, i);
+
+                            assert!(
+                                child_max_key < branch_key,
+                                "child: {child_max_key:?}, branch:{branch_key:?}"
+                            );
+                        }
+
+                        assert!(key!(last_child, 0) > &p.last_entry().0);
+                    }
+
+                }
+
+                cur_q = nxt_q;
+            }
+
+
+        }
     }
-
-    macro_rules! dict_remove {
-        ($dict:ident, $num:expr) => {
-            assert_eq!($dict.remove(&$num), Some($num));
-            assert!($dict.get(&$num).is_none());
-            $dict.validate();
-        };
-    }
-
 
     #[test]
     fn test_bt2_bt_case_1() {

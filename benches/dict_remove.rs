@@ -67,7 +67,7 @@ bench_dict_remove!(V1, RB, rb::RB::new());
 bench_dict_remove!(V1, LLRB, llrb::LLRB::new());
 bench_dict_remove!(V1, AA, aa::AA::new());
 bench_dict_remove!(V1, TREAP, treap::Treap::new());
-bench_dict_remove!(V1, SPLAY, splay::Splay::new());
+// bench_dict_remove!(V1, SPLAY, splay::Splay::new());
 // bench_dict_remove!(V1, LSG, lsg::LSG::new());
 // bench_dict_remove!(V1, LSG_06, lsg::LSG::with_alpha(0.6));
 
@@ -82,7 +82,15 @@ bench_dict_remove!(V2, RB, bst2::rb::RB::new());
 bench_dict_remove!(V2, AA, bst2::aa::AA::new());
 bench_dict_remove!(_0__11, B, bt2::bt::BT::<u64, u64, 11>::new());
 bench_dict_remove!(_0__20, B, bt2::bt::BT::<u64, u64, 20>::new());
-bench_dict_remove!(_0__40, B, bt2::bt::BT::<u64, u64, 40>::new());
 bench_dict_remove!(_0__60, B, bt2::bt::BT::<u64, u64, 60>::new());
-bench_dict_remove!(_0__90, B, bt2::bt::BT::<u64, u64, 90>::new());
 bench_dict_remove!(_0__100, B, bt2::bt::BT::<u64, u64, 100>::new());
+bench_dict_remove!(_0__300, B, bt2::bt::BT::<u64, u64, 300>::new());
+bench_dict_remove!(_0__500, B, bt2::bt::BT::<u64, u64, 500>::new());
+
+bench_dict_remove!(_0__11, BP, bt2::bpt::BPT::<u64, u64, 11>::new());
+bench_dict_remove!(_0__20, BP, bt2::bpt::BPT::<u64, u64, 20>::new());
+bench_dict_remove!(_0__60, BP, bt2::bpt::BPT::<u64, u64, 60>::new());
+bench_dict_remove!(_0__100, BP, bt2::bpt::BPT::<u64, u64, 100>::new());
+bench_dict_remove!(_0__300, BP, bt2::bpt::BPT::<u64, u64, 300>::new());
+bench_dict_remove!(_0__400, BP, bt2::bpt::BPT::<u64, u64, 400>::new());
+bench_dict_remove!(_0__500, BP, bt2::bpt::BPT::<u64, u64, 500>::new());

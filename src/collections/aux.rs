@@ -169,6 +169,13 @@ macro_rules! node {
             ),*
         }))))
     };
+    (FREE-ENUM $ty:ident { $($attr:ident : $attr_val:expr),* }) => {
+        Node(Some(std::rc::Rc::new(std::cell::RefCell::new(Node_::$ty {
+            $(
+                $attr: $attr_val
+            ),*
+        }))))
+    };
 }
 
 
@@ -184,6 +191,7 @@ macro_rules! unwrap_into {
 ////////////////////////////////////////
 //// Attr macros
 
+/// Evil hack for Rc<RefCell<T>>
 macro_rules! attr {
     (ref_mut | $node:expr, $attr:ident, $ty:ty) => {{
         if let Some(_unr) = $node.clone().0 {
@@ -314,6 +322,25 @@ macro_rules! swap {
     };
 }
 
+#[allow(unused)]
+macro_rules! roadmap {
+    ($($item:expr),*) => {
+        {
+            use crate::collections::aux::RoadMap;
+
+            #[allow(unused_mut)]
+            let mut _roadmap = RoadMap::empty();
+
+            $(
+                let item = $item;
+                _roadmap.push(item);
+            )*
+
+            _roadmap
+        }
+    }
+
+}
 
 pub(crate) use impl_node;
 pub(crate) use node;
@@ -325,6 +352,9 @@ pub(crate) use unwrap_into;
 pub(crate) use def_attr_macro;
 pub(crate) use mut_self;
 pub(crate) use swap;
+#[allow(unused)]
+pub(crate) use roadmap;
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Structure
@@ -403,33 +433,24 @@ impl Index<usize> for RoadMap {
 }
 
 
-
-
-#[macro_export]
-macro_rules! roadmap {
-    ($($item:expr),*) => {
-        {
-            use crate::collections::aux::RoadMap;
-
-            #[allow(unused_mut)]
-            let mut _roadmap = RoadMap::empty();
-
-            $(
-                let item = $item;
-                _roadmap.push(item);
-            )*
-
-            _roadmap
-        }
+pub fn vec_ordered_insert<T: Ord>(vec: &mut Vec<T>, x: T) -> Option<T> {
+    match vec.binary_search(&x) {
+        Ok(oldidx) => {
+            Some(std::mem::replace(&mut vec[oldidx], x))
+        },
+        Err(inseridx) => {
+            vec.insert(inseridx, x);
+            None
+        },
     }
-
 }
+
 
 
 #[cfg(test)]
 mod tests {
 
-    use crate::*;
+    use super::*;
 
     #[test]
     fn test_roadmap() {
