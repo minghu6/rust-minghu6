@@ -1,3 +1,7 @@
+use std::{cell::Cell, time::Duration};
+
+
+
 #[macro_export]
 macro_rules! elapsed {
     ($($exprs:tt)*) => {
@@ -49,13 +53,53 @@ macro_rules! bench {
             );
         }
     };
+}
 
-    // ($($exprs:tt)*) => {
-    //     {
-    //         bench!(5, $($exprs)*);
-    //     }
-    // };
 
+macro_rules! anchor {
+    ($name:ident) => {
+        #[cfg(tprofile)]
+        let $name = std::time::Instant::now();
+    };
+}
+
+
+macro_rules! stats {
+    ($label:ident, $from:ident, $end:ident) => {
+        #[cfg(tprofile)]
+        {
+            // TPROFILE_STATS.with(|map_cell| {
+
+            // });
+
+
+            let d = $end.duration_since($from);
+            let key = stringify!($label);
+
+            let mut map = TPROFILE_STATS.take();
+
+            // $crate::set!(map => key =>
+            //     $crate::get!(map => key => std::time::Duration::ZERO) + d
+            // );
+
+            map.insert(
+                key,
+                map.get(&key).cloned().unwrap_or(std::time::Duration::ZERO) + d
+            );
+
+            TPROFILE_STATS.set(map);
+        }
+    };
+}
+
+
+pub(crate) use anchor;
+pub(crate) use stats;
+
+
+thread_local! {
+    pub static TPROFILE_STATS: Cell<std::collections::HashMap<&'static str, Duration>>
+        = Cell::new(std::collections::HashMap::new());
 }
 
 

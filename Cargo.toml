@@ -4,7 +4,6 @@ version = "0.1.0"
 authors = ["minghu6 <a19678zy@163.com>"]
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 chardet = "^0.2"
@@ -21,7 +20,6 @@ serde_json = "1.0"
 archery = "0.4"
 derive-where = "1.0.0-rc.1"
 lazy_static = "1.4.0"
-m6coll = { path = "../m6coll" }
 sorted-vec = "0.7.0"
 futures = "0.3"
 walkdir = "2.3"
@@ -32,18 +30,13 @@ clap_complete = "4"
 configparser = { version = "3.0", features = ["indexmap"] }
 concat-idents = "1.0"
 paste = "1.0"
+uuid = { version = "0.8.2", features = ["v4"] }
 
+m6coll = { path = "../m6coll" }
+proc_macros = { package = "m6-proc-macros", path = "proc_macros" }
 
-[dependencies.uuid]
-version = "0.8.2"
-features = [
-    "v4"
-]
-
-
-[dependencies.proc_macros]
-package = "m6-proc-macros"
-path = "proc_macros"
+[features]
+tprofile = []
 
 [workspace]
 members = ["proc_macros", "tools/*"]
@@ -52,26 +45,32 @@ members = ["proc_macros", "tools/*"]
 [profile.bench]
 debug = true
 
-[[bin]]
-name = "srcstats"
-path = "tools/lc.rs"
+[profile.test]
+debug = true
 
-[[bin]]
-name = "lca"
-path = "tools/lca.rs"
+[profile.release]
+debug = true
 
-[[bin]]
-name = "lco"
-path = "tools/lco.rs"
+# [[bin]]
+# name = "srcstats"
+# path = "tools/lc.rs"
 
-[[bin]]
-name = "read"
-path = "tools/read.rs"
+# [[bin]]
+# name = "lca"
+# path = "tools/lca.rs"
 
-[[bin]]
-name = "pkcheat"
-path = "tools/pkcheat.rs"
+# [[bin]]
+# name = "lco"
+# path = "tools/lco.rs"
 
-[[bin]]
-name = "graph"
-path = "tools/graph.rs"
+# [[bin]]
+# name = "read"
+# path = "tools/read.rs"
+
+# [[bin]]
+# name = "pkcheat"
+# path = "tools/pkcheat.rs"
+
+# [[bin]]
+# name = "graph"
+# path = "tools/graph.rs"

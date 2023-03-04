@@ -18,6 +18,9 @@ use super::{
     node as aux_node, *,
 };
 
+use crate::etc::timeit::*;
+
+
 impl_node!();
 impl_tree!(
     /// B+ Trees
@@ -525,6 +528,10 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
         Q: Ord + ?Sized,
         V: Debug,
     {
+        anchor!(zero);
+        anchor!(zero2);
+        stats!(ob_loss, zero, zero2);
+
         let mut x = &self.root;
         let mut internal_and_idx = None;
 
@@ -542,6 +549,9 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
             }
         }
 
+        anchor!(search_internal);
+        stats!(bpt_remove_search_internal, zero, search_internal);
+
         if x.is_none() {
             return None;
         }
@@ -551,6 +561,9 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
             Ok(idx_) => idx = idx_,
             Err(_idx) => return None,
         }
+
+        anchor!(search);
+        stats!(bpt_remove_search_leaf, search_internal, search);
 
         let p = paren!(x);
 
@@ -594,18 +607,39 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
             keys_mut!(internal)[i_idx] = new_key;
         }
 
+        anchor!(update_key);
+        stats!(bpt_remove_update_key, search, update_key);
+
         let popped = entries_mut!(x).remove(idx);
 
+        anchor!(remove_entry);
+        stats!(bpt_remove_entry, update_key, remove_entry);
+
+        anchor!(remove_root_zero);
+
         if entries!(x).is_empty() {
+
             if p.is_none() {
+
                 self.root = Node::none();
+
             } else {
+                anchor!(unpromote_zero);
+
                 self.unpromote(x.clone());
+
+                anchor!(unpromote_end);
+                stats!(bpt_remove_unpromote, unpromote_zero, unpromote_end);
             }
         }
+        anchor!(remove_root_end);
+        stats!(bpt_remove_root, remove_root_zero, remove_root_end);
+        anchor!(end);
+
+        stats!(bpt_remove, zero, end);
+        stats!(bpt_remove_root_stats, remove_root_end, end);
 
         Some(popped.1)
-
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -1324,9 +1358,20 @@ mod tests {
         dict_remove!(dict, 52);
         dict_remove!(dict, 47);
         dict_remove!(dict, 3);
+
+        assert_eq!(
+            dict.select(..).cloned().collect::<Vec<_>>(),
+            [28, 30, 35]
+        );
+
         dict_remove!(dict, 35);
         dict_remove!(dict, 30);
         dict_remove!(dict, 28);
+
+        assert_eq!(
+            dict.select(..).cloned().collect::<Vec<_>>(),
+            [0u16; 0]
+        );
 
         // dict.debug_print();
     }

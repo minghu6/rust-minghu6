@@ -16,4 +16,7 @@ Cargo.lock
 .rdbgrc.breakpoints
 *.dot
 *.csv
+
 tmp
+*.data
+*.svg

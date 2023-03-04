@@ -217,139 +217,68 @@ macro_rules! push {
     };
 }
 
+macro_rules! def_coll_init {
+    (seq | $name:ident, $new:expr, $push:ident) => {
+        macro_rules! $name {
+            ( $$($value:expr),* ) => {{
+                #[allow(unused_mut)]
+                let mut _coll = $new;
 
-#[macro_export]
-macro_rules! m1 {
-    ($($k:expr => $v:expr),* $(,)?) => {
-        {
-            #[allow(unused_mut)]
-            let mut _ins = $crate::collections::easycoll::M1::new();
-            $(
-                $crate::set!(_ins => $k => $v);
-            )*
-            _ins
+                $$(
+                    _coll.$push($value);
+                )*
+
+                _coll
+            }};
         }
+        pub(crate) use $name;
     };
-}
+    (map^1 | $name:ident, $new:expr) => {
+        #[allow(unused)]
+        macro_rules! $name {
+            ( $$($k:expr => $v:expr),* $$(,)? ) => {{
+                let mut _coll = $new;
 
-#[macro_export]
-macro_rules! m2 {
-    ($($k1:expr => $k2:expr => $v:expr),* $(,)?) => {
-        {
-            #[allow(unused_mut)]
-            let mut _ins = $crate::collections::easycoll::M2::new();
-            $(
-                $crate::set!(_ins => $k1, $k2 => $v);
-            )*
-            _ins
+                $$(
+                    $crate::set!(_coll => $k => $v);
+                )*
+
+                _coll
+            }};
         }
+        #[allow(unused)]
+        pub(crate) use $name;
     };
-}
+    (map^2 | $name:ident, $new:expr) => {
+        #[allow(unused)]
+        macro_rules! $name {
+            ( $$($k1:expr => $k2:expr => $v:expr),* $$(,)? ) => {{
+                let mut _coll = $new;
 
-#[macro_export]
-macro_rules! mv {
-    ($($k1:expr => $k2:expr => $v:expr),* $(,)?) => {
-        {
-            #[allow(unused_mut)]
-            let mut _ins = $crate::collections::easycoll::MV::new();
-            $(
-                $crate::set!(_ins => $k1, $k2 => $v);
-            )*
-            _ins
+                $$(
+                    $crate::set!(_coll => $k1, $k2 => $v);
+                )*
+
+                _coll
+            }};
         }
-    };
-}
-
-
-#[macro_export]
-macro_rules! stack {
-    ( $($value:expr),* ) => {
-        {
-            let mut _stack = $crate::collections::easycoll::Stack::new();
-
-            $(
-                _stack.push($value);
-            )*
-
-            _stack
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! queue {
-    ( $($value:expr),* ) => {
-        {
-            let mut _q = $crate::collections::easycoll::Queue::new();
-
-            $(
-                _q.enq($value);
-            )*
-
-            _q
-        }
+        #[allow(unused)]
+        pub(crate) use $name;
     };
 }
 
 
-#[macro_export]
-macro_rules! vecdeq {
-    ( $($value:expr),* ) => {
-        {
-            let mut _deq = std::collections::VecDeque::new();
+def_coll_init!(seq | stack, crate::collections::easycoll::Stack::new(), push);
+def_coll_init!(seq | queue, crate::collections::easycoll::Queue::new(), enq);
+def_coll_init!(seq | vecdeq, std::collections::VecDeque::new(), push_back);
+def_coll_init!(seq | hashset, std::collections::HashSet::new(), insert);
 
-            $(
-                _deq.push_back($value);
-            )*
+def_coll_init!(map^1 | m1, crate::collections::easycoll::M1::new());
+def_coll_init!(map^1 | hashmap, std::collections::HashMap::new());
+def_coll_init!(map^1 | btreemap, std::collections::BTreeMap::new());
 
-            _deq
-        }
-    };
-}
-
-
-#[macro_export]
-macro_rules! hashset {
-    ( $($value:expr),* ) => {
-        {
-            let mut _set = std::collections::HashSet::new();
-
-            $(
-                _set.insert($value);
-            )*
-
-            _set
-        }
-    };
-}
-
-
-#[macro_export]
-macro_rules! hashmap {
-    ($($k:expr => $v:expr),* $(,)?) => {
-        {
-            let mut _ins = std::collections::HashMap::new();
-            $(
-                $crate::set!(_ins => $k => $v);
-            )*
-            _ins
-        }
-    };
-}
-
-
-#[macro_export]
-macro_rules! btreemap {
-    ($($k:expr => $v:expr),* $(,)?) => {
-        {
-            let mut _ins = std::collections::BTreeMap::new();
-            $(
-                $crate::set!(_ins => $k => $v);
-            )*
-            _ins
-        }
-    };
-}
+def_coll_init!(map^2 | m2, crate::collections::easycoll::M2::new());
+def_coll_init!(map^2 | mv, crate::collections::easycoll::MV::new());
 
 
 ////////////////////////////////////////////////////////////////////////////////

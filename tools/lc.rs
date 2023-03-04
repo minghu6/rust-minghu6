@@ -1,4 +1,3 @@
-#![feature(const_char_convert)]
 #![feature(const_option_ext)]
 #![allow(unused_imports)]
 
