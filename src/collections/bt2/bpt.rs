@@ -5,10 +5,7 @@
 use std::{
     borrow::Borrow,
     fmt::*,
-    ops::{
-        Bound::*,
-        RangeBounds,
-    }
+    ops::{Bound::*, RangeBounds},
 };
 
 use m6coll::KVEntry;
@@ -17,7 +14,6 @@ use super::{
     super::bst2::{Left, Right},
     node as aux_node, *,
 };
-
 use crate::etc::timeit::*;
 
 
@@ -25,8 +21,11 @@ impl_node!(pub);
 impl_tree!(
     /// B+ Trees
     ///
-    #[derive(Debug)]
-    BPT { cnt: usize }
+    BPT {
+        cnt: usize,
+        min_node: WeakNode<K, V>,
+        max_node: WeakNode<K, V>
+    }
 );
 
 
@@ -238,16 +237,12 @@ macro_rules! try_node_redistribution {
 
         if sib.is_leaf() && entries!(sib).len() > 1 {
             if sib_dir.is_left() {
-                entries_mut!(right).insert(
-                    0,
-                    entries_mut!(left).pop().unwrap()
-                );
+                entries_mut!(right)
+                    .insert(0, entries_mut!(left).pop().unwrap());
             }
             // sib is right
             else {
-                entries_mut!(left).push(
-                    entries_mut!(right).remove(0)
-                );
+                entries_mut!(left).push(entries_mut!(right).remove(0));
 
                 keys_mut!(p)[idx] = entries!(right)[0].0.clone();
             }
@@ -289,9 +284,9 @@ macro_rules! try_node_redistribution {
 }
 
 
-pub(super) use def_node__wn_access;
-pub(super) use def_node__heap_access;
 pub(super) use def_attr_macro_bpt;
+pub(super) use def_node__heap_access;
+pub(super) use def_node__wn_access;
 
 
 def_attr_macro_bpt!(paren, pred, succ, keys, entries, children);
@@ -329,7 +324,12 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
     pub fn new() -> Self {
         assert!(M > 2, "M should be greater than 2");
 
-        Self { root: Node::none(), cnt: 0 }
+        Self {
+            root: Node::none(),
+            cnt: 0,
+            min_node: WeakNode::none(),
+            max_node: WeakNode::none(),
+        }
     }
 
     #[inline(always)]
@@ -462,6 +462,10 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
         self.entries().map(|ent| &ent.0)
     }
 
+    pub fn values(&self) -> impl Iterator<Item = &V> {
+        self.entries().map(|ent| &ent.1)
+    }
+
     pub fn insert(&mut self, k: K, v: V) -> Option<V>
     where
         K: Clone,
@@ -473,6 +477,8 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
         /* Nil */
         if x.is_none() {
             self.root = node!(kv | k, v);
+            self.min_node = self.root.downgrade();
+            self.max_node = self.root.downgrade();
         }
         /* Leaf */
         else {
@@ -518,7 +524,7 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
                     internal_and_idx = Some((x.clone(), idx));
 
                     x = &children!(x)[idx + 1];
-                },
+                }
                 Err(idx) => {
                     x = &children!(x)[idx];
                 }
@@ -551,31 +557,31 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
             if entries!(x).len() > 1 {
                 // left first
                 if idx > 0 {
-                    new_key = entries!(x)[idx-1].0.clone();
+                    new_key = entries!(x)[idx - 1].0.clone();
+                } else {
+                    new_key = entries!(x)[idx + 1].0.clone();
                 }
-                else {
-                    new_key = entries!(x)[idx+1].0.clone();
-                }
-            }
-            else {
+            } else {
                 let x_idx = index_of_child!(p, x);
 
                 /* check remain node */
 
                 // left first
                 if x_idx > 0 && entries!(children!(p)[x_idx - 1]).len() > 1 {
-                    new_key = children!(p)[x_idx - 1].max_key().unwrap().clone();
+                    new_key =
+                        children!(p)[x_idx - 1].max_key().unwrap().clone();
                 }
                 // right sib
-                else if x_idx < children!(p).len() - 1 && entries!(children!(p)[x_idx + 1]).len() > 1 {
+                else if x_idx < children!(p).len() - 1
+                    && entries!(children!(p)[x_idx + 1]).len() > 1
+                {
                     new_key = entries!(succ!(x))[0].0.clone();
                 }
-
                 /* use default (left first)*/
                 else if x_idx > 0 {
-                    new_key = children!(p)[x_idx - 1].max_key().unwrap().clone();
-                }
-                else {
+                    new_key =
+                        children!(p)[x_idx - 1].max_key().unwrap().clone();
+                } else {
                     new_key = entries!(succ!(x))[0].0.clone();
                 }
             }
@@ -594,11 +600,10 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
         anchor!(remove_root_zero);
 
         if entries!(x).is_empty() {
-
             if p.is_none() {
-
                 self.root = Node::none();
-
+                self.min_node = WeakNode::none();
+                self.max_node = WeakNode::none();
             } else {
                 anchor!(unpromote_zero);
 
@@ -624,6 +629,33 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
     ////////////////////////////////////////////////////////////////////////////
     //// Extend Method
 
+    /// return node.v where node.k >= key
+    pub fn approximate_search<Q>(&self, key: &Q) -> Option<&V>
+    where
+        K: Borrow<Q>,
+        Q: Ord + ?Sized,
+    {
+        let x = self.root.search_to_leaf(key);
+
+        if x.is_none() {
+            return None;
+        }
+
+        Some(
+            match entries!(x).binary_search_by_key(&key, |ent| ent.0.borrow())
+            {
+                Ok(idx) => &entries!(x)[idx].1,
+                Err(idx) => {
+                    if idx == 0 {
+                        return None;
+                    } else {
+                        &entries!(x)[idx - 1].1
+                    }
+                }
+            },
+        )
+    }
+
     /// Start from 0 O(n/M) same key rank +1
     pub fn rank<Q>(&self, key: &Q) -> usize
     where
@@ -639,8 +671,7 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
         debug_assert!(x.is_some());
 
         let idx;
-        match entries!(x).binary_search_by_key(&key, |ent| ent.0.borrow())
-        {
+        match entries!(x).binary_search_by_key(&key, |ent| ent.0.borrow()) {
             Ok(idx_) => idx = idx_ + 1,
             Err(idx_) => idx = idx_,
         }
@@ -663,8 +694,7 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
         while cur.is_some() {
             if idx < entries!(cur).len() {
                 return Some(&entries!(cur)[idx]);
-            }
-            else {
+            } else {
                 idx -= entries!(cur).len();
                 cur = succ!(cur);
             }
@@ -675,18 +705,24 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
 
     #[inline]
     pub fn min_key(&self) -> Option<&K> {
-        self.min_node().min_key().map(|k| unsafe { &* (k as *const K) })
+        self.min_node
+            .upgrade()
+            .min_key()
+            .map(|k| unsafe { &*(k as *const K) })
     }
 
     #[inline]
     pub fn max_key(&self) -> Option<&K> {
-        self.max_node().max_key().map(|k| unsafe { &* (k as *const K) })
+        self.max_node
+            .upgrade()
+            .max_key()
+            .map(|k| unsafe { &*(k as *const K) })
     }
 
     pub fn key_between<Q>(&self, key: &Q) -> (Option<&K>, Option<&K>)
     where
         K: Borrow<Q>,
-        Q: Ord + ?Sized
+        Q: Ord + ?Sized,
     {
         let x = self.root.search_to_leaf(key);
 
@@ -695,25 +731,34 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
         }
 
         let idx;
-        match entries!(x).binary_search_by_key(&key, |ent| ent.0.borrow())
-        {
+        match entries!(x).binary_search_by_key(&key, |ent| ent.0.borrow()) {
             Ok(idx_) => idx = idx_,
             Err(idx_) => idx = idx_,
         };
 
         if idx > 0 {
-            (Some(&entries!(x)[idx-1].0), Some(&entries!(x)[idx].0))
-        }
-        else {
+            (Some(&entries!(x)[idx - 1].0), Some(&entries!(x)[idx].0))
+        } else {
             (None, Some(&entries!(x)[idx].0))
         }
     }
 
-    pub fn split_off<Q>(&mut self, k: &Q) -> Self
+    /// return [at, ...)
+    pub fn split_off<Q>(&mut self, at: usize) -> Self
     where
         K: Borrow<Q>,
         Q: Ord + ?Sized,
     {
+        if self.cnt == 0 || at >= self.cnt {
+            return Self::new();
+        }
+
+        /* remove need update index on internal node this implementation
+           SO WE COULDON'T STRAT FROM MAX_NODE EACH TIME
+        */
+
+        let remove_num = self.cnt - at;
+
         todo!()
     }
 
@@ -787,6 +832,10 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
                 pred!(succ!(x2), x2.clone());
             }
             succ!(x, x2.clone());
+
+            if x.rc_eq(&self.max_node.upgrade()) {
+                self.max_node = x2.downgrade();
+            }
         } else {
             debug_assert_eq!(keys!(x).len(), Self::entries_high_bound());
 
@@ -845,15 +894,17 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
 
         if let Err((p, idx)) = Self::try_rebalancing(&x) {
             if idx == 0 {
-                Self::merge_node(&p, idx);
+                self.merge_node(&p, idx);
             } else {
-                Self::merge_node(&p, idx - 1);
+                self.merge_node(&p, idx - 1);
             }
 
             x = p;
 
             if paren!(x).is_none() {
                 // pop new level
+                debug_assert!(x.is_internal());
+
                 if keys!(x).is_empty() {
                     self.root = children_mut!(x).pop().unwrap();
                     paren!(self.root, Node::none());
@@ -867,7 +918,7 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
     }
 
     /// (parent, left-idx)
-    fn merge_node(p: &Node<K, V>, idx: usize) {
+    fn merge_node(&mut self, p: &Node<K, V>, idx: usize) {
         let children = children!(p);
 
         let left = children[idx].clone();
@@ -879,6 +930,11 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
 
             // update succ
             succ!(left, succ!(right));
+
+            if right.rc_eq(&self.max_node.upgrade()) {
+                // update max_node
+                self.max_node = left.downgrade();
+            }
         }
         // for internal node
         else {
@@ -896,12 +952,12 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
 
         // remove right from p
         children_mut!(p).remove(idx + 1);
-
     }
 
     /// -> (idx, idx)
-    fn try_rebalancing(x: &Node<K, V>)
-    -> std::result::Result<(), (Node<K, V>, usize)>
+    fn try_rebalancing(
+        x: &Node<K, V>,
+    ) -> std::result::Result<(), (Node<K, V>, usize)>
     where
         K: Clone,
     {
@@ -943,6 +999,17 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
 }
 
 
+impl<K: Ord + Debug, V, const M: usize> Debug for BPT<K, V, M> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        f.debug_struct("BPT")
+            .field("root", &self.root)
+            .field("cnt", &self.cnt)
+            .field("min_node", &self.min_node.upgrade())
+            .field("max_node", &self.max_node.upgrade())
+            .finish()
+    }
+}
+
 
 impl<K, V> Node_<K, V> {
     fn is_leaf(&self) -> bool {
@@ -956,7 +1023,6 @@ impl<K, V> Node_<K, V> {
     def_node__wn_access!(both, paren);
     def_node__wn_access!(leaf, succ);
     def_node__wn_access!(leaf, pred);
-
 }
 
 
@@ -972,11 +1038,9 @@ impl<K, V> Node<K, V> {
     pub fn max_key(&self) -> Option<&K> {
         if self.is_none() {
             None
-        }
-        else if self.is_internal() {
+        } else if self.is_internal() {
             keys!(self).last()
-        }
-        else {
+        } else {
             entries!(self).last().map(|ent| &ent.0)
         }
     }
@@ -984,11 +1048,9 @@ impl<K, V> Node<K, V> {
     pub fn min_key(&self) -> Option<&K> {
         if self.is_none() {
             None
-        }
-        else if self.is_internal() {
+        } else if self.is_internal() {
             keys!(self).first()
-        }
-        else {
+        } else {
             entries!(self).first().map(|ent| &ent.0)
         }
     }
@@ -1012,7 +1074,6 @@ impl<K, V> Node<K, V> {
 
         x.clone()
     }
-
 }
 
 
@@ -1052,7 +1113,6 @@ use indexmap::IndexMap;
 #[cfg(test)]
 #[allow(unused)]
 impl<K: Ord + Debug + Clone, V, const M: usize> BPT<K, V, M> {
-
     fn search_obsoleted_key(&self) -> Vec<K> {
         let mut obsoleted = vec![];
         let mut q = crate::vecdeq![&self.root];
@@ -1081,7 +1141,8 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT<K, V, M> {
     }
 
     fn count_nodes_keys(&self) -> IndexMap<K, usize>
-    where K: std::hash::Hash
+    where
+        K: std::hash::Hash,
     {
         let mut map = IndexMap::new();
 
@@ -1130,10 +1191,7 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT<K, V, M> {
             unreachable!("There is no {k:?}")
         }
 
-        match entries!(x).binary_search_by_key(
-            &k, |ent| &ent.0
-        )
-        {
+        match entries!(x).binary_search_by_key(&k, |ent| &ent.0) {
             Ok(idx) => {
                 count += 1;
             }
@@ -1265,6 +1323,9 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT<K, V, M> {
                             }
                         }
 
+                        assert!(self.min_key() <= child.min_key());
+                        assert!(self.max_key() >= child.max_key());
+
                         leaf_num += 1;
                     } else {
                         // Exclude the root (which is always one when it's internal node)
@@ -1282,9 +1343,9 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT<K, V, M> {
                             let leaf = child.search_to_leaf(k);
 
                             if leaf.is_none()
-                                || entries!(leaf).binary_search_by_key(
-                                    &k, |ent| &ent.0
-                                ).is_err()
+                                || entries!(leaf)
+                                    .binary_search_by_key(&k, |ent| &ent.0)
+                                    .is_err()
                             {
                                 panic!("Found obsoleted key: {k:?}");
                             }
@@ -1479,19 +1540,13 @@ mod tests {
         dict_remove!(dict, 47);
         dict_remove!(dict, 3);
 
-        assert_eq!(
-            dict.select(..).cloned().collect::<Vec<_>>(),
-            [28, 30, 35]
-        );
+        assert_eq!(dict.select(..).cloned().collect::<Vec<_>>(), [28, 30, 35]);
 
         dict_remove!(dict, 35);
         dict_remove!(dict, 30);
         dict_remove!(dict, 28);
 
-        assert_eq!(
-            dict.select(..).cloned().collect::<Vec<_>>(),
-            [0u16; 0]
-        );
+        assert_eq!(dict.select(..).cloned().collect::<Vec<_>>(), [0u16; 0]);
 
         // dict.debug_print();
     }
@@ -1519,7 +1574,6 @@ mod tests {
         let group_num = 100;
 
         for _ in 0..20 {
-
             let mut range: Vec<i32> = (1..=group_num).collect();
 
             use rand::{prelude::SliceRandom, thread_rng};
@@ -1529,7 +1583,7 @@ mod tests {
             let mut dict = BPT::<i32, i32, 3>::new();
 
             for pos in range {
-                for i in pos..pos+group {
+                for i in pos..pos + group {
                     let k = pos * 100 + i;
 
                     dict.insert(k, k);
@@ -1560,7 +1614,7 @@ mod tests {
         dict_insert!(dict, 55);
         dict_insert!(dict, 51);
 
-        dict.debug_print();
+        // dict.debug_print();
 
         dict_remove!(dict, 45);
         dict_remove!(dict, 55);
@@ -1568,8 +1622,6 @@ mod tests {
         dict_remove!(dict, 25);
         dict_remove!(dict, 11);
 
-
         // dict.debug_print();
     }
-
 }

@@ -25,10 +25,10 @@ impl_node!();
 impl_tree!(
     /// B+ Trees powered by B+ tree
     ///
-    BPT2 { cnt: usize }
+    BPT2 { cnt: usize, min_node: Node<K, V> }
 );
 
-def_attr_macro_bpt!(paren, succ, keys, entries, children);
+def_attr_macro_bpt!(paren, succ, entries, children);
 
 const SUB_M: usize = 10;
 
@@ -68,7 +68,7 @@ macro_rules! max_key {
         if $x.is_leaf() {
             entries!(x).max_key().unwrap()
         } else {
-            keys!(x).max_key().unwrap()
+            children!(x).max_key().unwrap()
         }
     }};
 }
@@ -100,6 +100,7 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
         Self {
             root: Node::none(),
             cnt: 0,
+            min_node: Node::none()
         }
     }
 
@@ -163,7 +164,7 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
             }
             Excluded(_) => unimplemented!(),
             Unbounded => {
-                cur = self.min_node()
+                cur = self.min_node.clone()
             }
         }
 
@@ -218,7 +219,7 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
     //// Assistant Method
 
     fn nodes(&self) -> impl Iterator<Item = Node<K, V>> {
-        let mut cur = self.min_node();
+        let mut cur = self.min_node.clone();
 
         std::iter::from_generator(move || {
             while cur.is_some() {
@@ -229,100 +230,79 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
         })
     }
 
-    #[inline(always)]
-    fn min_node(&self) -> Node<K, V> {
-        let mut x = &self.root;
+    fn promote(&mut self, x: Node<K, V>)
+    where
+        K: Clone,
+    {
+        debug_assert!(x.is_some());
 
-        while x.is_internal() {
-            x = &children!(x).min_key().unwrap();
+        /* split node */
+
+        let lpos = M.div_floor(2);
+        let hpos = M.div_ceil(2);
+
+        let head_key;
+        let x2;
+
+        if x.is_leaf() {
+            debug_assert_eq!(entries!(x).len(), Self::entries_high_bound());
+
+            // keep key for leaf
+            let entries_x2 = entries_mut!(x).split_off(lpos);
+
+            head_key = entries_x2.min_key().unwrap();
+
+            x2 = node!(
+                basic - leaf | entries_x2,
+                succ!(x).downgrade(),
+                WeakNode::none()
+            );
+
+            succ!(x, x2.clone());
         }
+        // else {
+        //     debug_assert_eq!(keys!(x).len(), Self::entries_high_bound());
 
-        x.clone()
+        //     let keys_x2 = keys_mut!(x).split_off(hpos);
+
+        //     head_key = keys_mut!(x).pop().unwrap();
+
+        //     let children_x2 = children_mut!(x).split_off(hpos);
+
+        //     x2 = node!(
+        //         basic - internal | keys_x2,
+        //         children_x2,
+        //         WeakNode::none()
+        //     );
+
+        //     children_revref!(&x2);
+        // }
+
+
+        // let p = paren!(x);
+
+        // /* push new level */
+        // if p.is_none() {
+        //     let keys = vec![head_key];
+        //     let children = vec![x, x2];
+
+        //     self.root =
+        //         node!(basic - internal | keys, children, WeakNode::none());
+
+        //     children_revref!(&self.root);
+        // }
+        // /* insert into paren node */
+        // else {
+        //     keys_mut!(p).insert(head_key, ());
+        //     children_mut!(p).insert(x_idx + 1, x2.clone());
+
+        //     paren!(x2, p.clone());
+
+        //     if keys!(p).len() == Self::entries_high_bound() {
+        //         self.promote(p);
+        //     }
+        // }
     }
-
-    #[inline]
-    fn max_node(&self) -> Node<K, V> {
-        let mut x = &self.root;
-
-        while x.is_internal() {
-            x = &children!(x).max_key().unwrap();
-        }
-
-        x.clone()
-    }
-
-    // fn promote(&mut self, x: Node<K, V>)
-    // where
-    //     K: Clone,
-    // {
-    //     debug_assert!(x.is_some());
-
-    //     /* split node */
-
-    //     let lpos = M.div_floor(2);
-    //     let hpos = M.div_ceil(2);
-
-    //     let head_key;
-    //     let x2;
-
-    //     if x.is_leaf() {
-    //         debug_assert_eq!(entries!(x).len(), Self::entries_high_bound());
-
-    //         // keep key for leaf
-    //         let entries_x2 = entries_mut!(x).split_off(lpos);
-
-    //         head_key = entries_x2[0].0.clone();
-
-    //         x2 = node!(
-    //             basic - leaf | entries_x2,
-    //             succ!(x).downgrade(),
-    //             WeakNode::none()
-    //         );
-
-    //         succ!(x, x2.clone());
-    //     } else {
-    //         debug_assert_eq!(keys!(x).len(), Self::entries_high_bound());
-
-    //         let keys_x2 = keys_mut!(x).split_off(hpos);
-
-    //         head_key = keys_mut!(x).pop().unwrap();
-
-    //         let children_x2 = children_mut!(x).split_off(hpos);
-
-    //         x2 = node!(
-    //             basic - internal | keys_x2,
-    //             children_x2,
-    //             WeakNode::none()
-    //         );
-
-    //         children_revref!(&x2);
-    //     }
-
-
-    //     let p = paren!(x);
-
-    //     /* push new level */
-    //     if p.is_none() {
-    //         let keys = vec![head_key];
-    //         let children = vec![x, x2];
-
-    //         self.root =
-    //             node!(basic - internal | keys, children, WeakNode::none());
-
-    //         children_revref!(&self.root);
-    //     }
-    //     /* insert into paren node */
-    //     else {
-    //         keys_mut!(p).insert(head_key, ());
-    //         children_mut!(p).insert(x_idx + 1, x2.clone());
-
-    //         paren!(x2, p.clone());
-
-    //         if keys!(p).len() == Self::entries_high_bound() {
-    //             self.promote(p);
-    //         }
-    //     }
-    // }
 
 }
 
@@ -342,8 +322,7 @@ impl<K: Ord + Debug, V, const M: usize> Debug for BPT2<K, V, M> {
 
 enum Node_<K, V> {
     Internal {
-        keys: BPT<K, (), SUB_M>,
-        children: BPT<Node<K, V>, (), SUB_M>,
+        children: BPT<K, Node<K, V>, SUB_M>,
         paren: WeakNode<K, V>,
     },
     Leaf {
@@ -361,8 +340,7 @@ impl<K, V> Node_<K, V> {
         matches!(self, Leaf { .. })
     }
 
-    def_node__heap_access!(internal, keys, BPT<K, (), SUB_M>);
-    def_node__heap_access!(internal, children, BPT<Node<K, V>, (), SUB_M>);
+    def_node__heap_access!(internal, children, BPT<K, Node<K, V>, SUB_M>);
     def_node__heap_access!(leaf, entries, BPT<K, V, SUB_M>);
 
     def_node__wn_access!(both, paren);
@@ -385,11 +363,15 @@ impl<K, V> Node<K, V> {
         K: Borrow<Q> + Ord,
         Q: Ord + ?Sized,
     {
-        let mut x = self.clone();
+        let mut x = self;
 
         while x.is_internal() {
-            let rk = keys!(x).rank(k);
-            x = children!(x).nth(rk).unwrap().0.clone();
+            if let Some(x_) = children!(x).approximate_search(k) {
+                x = x_;
+            }
+            else {
+                return Node::none();
+            }
         }
 
         x.clone()
@@ -397,36 +379,34 @@ impl<K, V> Node<K, V> {
 }
 
 
-
-impl<K, V> PartialEq for Node<K, V> {
-    fn eq(&self, other: &Self) -> bool {
-        self.rc_eq(other)
-    }
-}
-
-
-impl<K, V> PartialOrd for Node<K, V> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(match (&self.0, &other.0) {
-            (Some(rc1), Some(rc2)) => {
-                (rc1.as_ptr() as usize).cmp(&(rc2.as_ptr() as usize))
-            }
-            (Some(_), None) => Greater,
-            (None, Some(_)) => Less,
-            (None, None) => Equal,
-        })
-    }
-}
+// impl<K, V> PartialEq for Node<K, V> {
+//     fn eq(&self, other: &Self) -> bool {
+//         self.rc_eq(other)
+//     }
+// }
 
 
-impl<K, V> Ord for Node<K, V> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap()
-    }
-}
+// impl<K, V> PartialOrd for Node<K, V> {
+//     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+//         Some(match (&self.0, &other.0) {
+//             (Some(rc1), Some(rc2)) => {
+//                 (rc1.as_ptr() as usize).cmp(&(rc2.as_ptr() as usize))
+//             }
+//             (Some(_), None) => Greater,
+//             (None, Some(_)) => Less,
+//             (None, None) => Equal,
+//         })
+//     }
+// }
+
+// impl<K, V> Ord for Node<K, V> {
+//     fn cmp(&self, other: &Self) -> Ordering {
+//         self.partial_cmp(other).unwrap()
+//     }
+// }
 
 
-impl<K, V> Eq for Node<K, V> {}
+// impl<K, V> Eq for Node<K, V> {}
 
 
 impl<K: Debug + Ord, V> Debug for Node<K, V> {
@@ -442,7 +422,7 @@ impl<K: Debug + Ord, V> Debug for Node<K, V> {
                 }
             }
         } else if self.is_internal() {
-            let mut peek = keys!(self).keys().peekable();
+            let mut peek = children!(self).keys().peekable();
 
             while let Some(k) = peek.next() {
                 write!(f, "{k:?}")?;
@@ -503,7 +483,7 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT2<K, V, M> {
 
                     if x.is_internal() {
                         nxt_q
-                            .push_back(children!(x).keys().cloned().collect());
+                            .push_back(children!(x).values().cloned().collect());
                         writeln!(f, "({i:02}): {x:?} (p: [{p:?}])")?;
                     } else {
                         let succ = succ!(x);
@@ -538,126 +518,126 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT2<K, V, M> {
         println!("{cache}")
     }
 
-    fn validate(&self)
-    where
-        K: Debug,
-    {
-        if self.root.is_none() {
-            return;
-        }
+    // fn validate(&self)
+    // where
+    //     K: Debug,
+    // {
+    //     if self.root.is_none() {
+    //         return;
+    //     }
 
-        use std::collections::VecDeque;
+    //     use std::collections::VecDeque;
 
-        use crate::vecdeq;
+    //     use crate::vecdeq;
 
-        let mut cur_q = vecdeq![vecdeq![Node::none(), self.root.clone()]];
+    //     let mut cur_q = vecdeq![vecdeq![Node::none(), self.root.clone()]];
 
-        while !cur_q.is_empty() {
-            let mut nxt_q = vecdeq![];
-            let mut leaf_num = 0;
-            let mut internal_num = 0;
+    //     while !cur_q.is_empty() {
+    //         let mut nxt_q = vecdeq![];
+    //         let mut leaf_num = 0;
+    //         let mut internal_num = 0;
 
-            while let Some(mut group) = cur_q.pop_front() {
-                let p = group.pop_front().unwrap();
+    //         while let Some(mut group) = cur_q.pop_front() {
+    //             let p = group.pop_front().unwrap();
 
-                for child in group.iter() {
-                    assert!(child.is_some());
+    //             for child in group.iter() {
+    //                 assert!(child.is_some());
 
-                    if child.is_internal() {
-                        assert_eq!(
-                            keys!(child).len() + 1,
-                            children!(child).len(),
-                            "{child:?}"
-                        );
-                        assert!(
-                            children!(child).len() <= M,
-                            "{child:?}: {}",
-                            children!(child).len()
-                        );
-                        assert!(
-                            keys!(child).len() < Self::entries_high_bound()
-                        );
-                    } else {
-                        assert!(
-                            entries!(child).len() < Self::entries_high_bound()
-                        );
-                    }
+    //                 if child.is_internal() {
+    //                     assert_eq!(
+    //                         keys!(child).len() + 1,
+    //                         children!(child).len(),
+    //                         "{child:?}"
+    //                     );
+    //                     assert!(
+    //                         children!(child).len() <= M,
+    //                         "{child:?}: {}",
+    //                         children!(child).len()
+    //                     );
+    //                     assert!(
+    //                         keys!(child).len() < Self::entries_high_bound()
+    //                     );
+    //                 } else {
+    //                     assert!(
+    //                         entries!(child).len() < Self::entries_high_bound()
+    //                     );
+    //                 }
 
-                    // Exclude leaf
-                    if child.is_leaf() {
-                        if p.is_some() {
-                            let (br_lf, br_it) =
-                                keys!(p).key_between(max_key!(child));
+    //                 // Exclude leaf
+    //                 if child.is_leaf() {
+    //                     if p.is_some() {
+    //                         let (br_lf, br_it) =
+    //                             keys!(p).key_between(max_key!(child));
 
-                            if let Some(br_lf) = br_lf {
-                                assert_eq!(br_lf, min_key!(&child));
-                            }
-                        }
+    //                         if let Some(br_lf) = br_lf {
+    //                             assert_eq!(br_lf, min_key!(&child));
+    //                         }
+    //                     }
 
-                        leaf_num += 1;
-                    } else {
-                        // Exclude the root (which is always one when it's internal node)
-                        if paren!(child).is_some() {
-                            assert!(
-                                keys!(child).len()
-                                    >= Self::entries_low_bound()
-                            );
-                        } else {
-                            assert!(children!(child).len() >= 2);
-                        }
+    //                     leaf_num += 1;
+    //                 } else {
+    //                     // Exclude the root (which is always one when it's internal node)
+    //                     if paren!(child).is_some() {
+    //                         assert!(
+    //                             keys!(child).len()
+    //                                 >= Self::entries_low_bound()
+    //                         );
+    //                     } else {
+    //                         assert!(children!(child).len() >= 2);
+    //                     }
 
-                        /* search obsoleted key */
-                        for k in keys!(child).keys() {
-                            let leaf = child.search_to_leaf(k);
+    //                     /* search obsoleted key */
+    //                     for k in keys!(child).keys() {
+    //                         let leaf = child.search_to_leaf(k);
 
-                            if leaf.is_none()
-                                || entries!(leaf)
-                                    .keys()
-                                    .find(|&leafk| leafk == k)
-                                    .is_none()
-                            {
-                                panic!("Found obsoleted key: {k:?}");
-                            }
-                        }
+    //                         if leaf.is_none()
+    //                             || entries!(leaf)
+    //                                 .keys()
+    //                                 .find(|&leafk| leafk == k)
+    //                                 .is_none()
+    //                         {
+    //                             panic!("Found obsoleted key: {k:?}");
+    //                         }
+    //                     }
 
-                        internal_num += 1;
+    //                     internal_num += 1;
 
-                        let mut nxt_children = VecDeque::from_iter(
-                            children!(child).keys().cloned(),
-                        );
-                        nxt_children.push_front(child.clone());
+    //                     let mut nxt_children = VecDeque::from_iter(
+    //                         children!(child).values().cloned(),
+    //                     );
+    //                     nxt_children.push_front(child.clone());
 
-                        nxt_q.push_back(nxt_children);
-                    }
-                }
+    //                     nxt_q.push_back(nxt_children);
+    //                 }
+    //             }
 
-                // All leaves are in same level
-                assert!(
-                    leaf_num == 0 || internal_num == 0,
-                    "leaf: {leaf_num}, internal: {internal_num}"
-                );
+    //             // All leaves are in same level
+    //             assert!(
+    //                 leaf_num == 0 || internal_num == 0,
+    //                 "leaf: {leaf_num}, internal: {internal_num}"
+    //             );
 
-                // Ordered
-                if p.is_some() {
-                    let last_child = group.pop_back().unwrap();
+    //             // Ordered
+    //             if p.is_some() {
+    //                 let last_child = group.pop_back().unwrap();
 
-                    for (i, child) in group.iter().enumerate() {
-                        let child_max_key = max_key!(&child);
-                        let (br_lf, br_rh) =
-                            keys!(p).key_between(child_max_key);
+    //                 for (i, child) in group.iter().enumerate() {
+    //                     let child_max_key = max_key!(&child);
+    //                     let (br_lf, br_rh) =
+    //                         keys!(p).key_between(child_max_key);
 
-                        assert!(child_max_key < br_rh.unwrap(),);
+    //                     assert!(child_max_key < br_rh.unwrap(),);
 
-                        if i > 0 {
-                            assert!(br_lf.unwrap() <= min_key!(&child));
-                        }
-                    }
+    //                     if i > 0 {
+    //                         assert!(br_lf.unwrap() <= min_key!(&child));
+    //                     }
+    //                 }
 
-                    assert!(max_key!(&p) <= min_key!(&last_child));
-                }
-            }
+    //                 assert!(max_key!(&p) <= min_key!(&last_child));
+    //             }
+    //         }
 
-            cur_q = nxt_q;
-        }
-    }
+    //         cur_q = nxt_q;
+    //     }
+    // }
 }
