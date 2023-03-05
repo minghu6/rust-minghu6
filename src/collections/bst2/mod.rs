@@ -222,7 +222,7 @@ macro_rules! bst_predecessor {
         if left!(x).is_some() {
             bst_maximum!(left!(x))
         }
-        /* paren: left-most-up, right */
+        /* paren: towards left-most-up, right */
         else {
             let mut y = paren!(x).upgrade();
 

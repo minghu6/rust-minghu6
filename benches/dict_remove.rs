@@ -17,7 +17,7 @@ lazy_static! {
     static ref INSERT_DATA: Vec<(u64, u64)> = {
         let get_one = || rand::random::<u64>();
 
-        gen_data!(get_one, 50, 2_000)
+        gen_data!(get_one, 50, 1_000)
     };
     static ref KEYS: Vec<u64> = {
         let mut keys = vec![];
@@ -81,19 +81,19 @@ bench_dict_remove!(V2, Treap, bst2::treap::Treap::new());
 // bench_dict_remove!(V2, SG, bst2::sg::SG::new(0.7));
 bench_dict_remove!(V2, RB, bst2::rb::RB::new());
 bench_dict_remove!(V2, AA, bst2::aa::AA::new());
-bench_dict_remove!(_0__11, B, bt2::bt::BT::<u64, u64, 11>::new());
-bench_dict_remove!(_0__20, B, bt2::bt::BT::<u64, u64, 20>::new());
+// bench_dict_remove!(_0__11, B, bt2::bt::BT::<u64, u64, 11>::new());
+// bench_dict_remove!(_0__20, B, bt2::bt::BT::<u64, u64, 20>::new());
 bench_dict_remove!(_0__60, B, bt2::bt::BT::<u64, u64, 60>::new());
 bench_dict_remove!(_0__100, B, bt2::bt::BT::<u64, u64, 100>::new());
 bench_dict_remove!(_0__300, B, bt2::bt::BT::<u64, u64, 300>::new());
 bench_dict_remove!(_0__500, B, bt2::bt::BT::<u64, u64, 500>::new());
 
-bench_dict_remove!(_0__11, BP, bt2::bpt::BPT::<u64, u64, 11>::new());
-bench_dict_remove!(_0__20, BP, bt2::bpt::BPT::<u64, u64, 20>::new());
+// bench_dict_remove!(_0__11, BP, bt2::bpt::BPT::<u64, u64, 11>::new());
+// bench_dict_remove!(_0__20, BP, bt2::bpt::BPT::<u64, u64, 20>::new());
 bench_dict_remove!(_0__60, BP, bt2::bpt::BPT::<u64, u64, 60>::new());
 bench_dict_remove!(_0__100, BP, bt2::bpt::BPT::<u64, u64, 100>::new());
 bench_dict_remove!(_0__300, BP, bt2::bpt::BPT::<u64, u64, 300>::new());
-bench_dict_remove!(_0__400, BP, bt2::bpt::BPT::<u64, u64, 400>::new());
+// bench_dict_remove!(_0__400, BP, bt2::bpt::BPT::<u64, u64, 400>::new());
 bench_dict_remove!(_0__500, BP, bt2::bpt::BPT::<u64, u64, 500>::new());
 
 

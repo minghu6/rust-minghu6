@@ -4,7 +4,7 @@ use super::aux::*;
 
 pub mod bt;
 pub mod bpt;
-
+pub mod bpt2;
 
 
 /// O(M)
@@ -37,7 +37,6 @@ macro_rules! impl_tree {
     ) =>
     {
         $(#[$attr])*
-        #[derive(Debug)]
         #[allow(unused)]
         pub struct $treename<K, V, const M: usize> {
             root: Node<K, V>,

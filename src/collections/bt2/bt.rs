@@ -23,6 +23,7 @@ impl_tree!(
     ///
     /// Recommend: maybe 60, 90, 250
     /// (Rust use M=12 (B=6, M=2B-1+1) maybe increase it in the futer)
+    #[derive(Debug)]
     BT {}
 );
 

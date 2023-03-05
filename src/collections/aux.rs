@@ -18,7 +18,10 @@ use crate::etc::StrJoin;
 /// Define node wrapper
 macro_rules! impl_node {
     () => {
-        struct Node<K, V>(
+        impl_node!(pub(self));
+    };
+    ($vis:vis) => {
+        $vis struct Node<K, V>(
             Option<std::rc::Rc<std::cell::RefCell<Node_<K, V>>>>,
         );
 
@@ -84,15 +87,6 @@ macro_rules! impl_node {
             }
         }
 
-
-        impl<K, V> PartialEq for Node<K, V> {
-            fn eq(&self, other: &Self) -> bool {
-                self.rc_eq(other)
-            }
-        }
-
-
-        impl<K, V> Eq for Node<K, V> {}
 
         #[allow(unused)]
         impl<K, V> WeakNode<K, V> {

@@ -17,7 +17,6 @@ use minghu6::{
         },
         CollKey, Heap,
     },
-    hashmap,
     etc::gen_unique, algs::random_range,
 };
 
