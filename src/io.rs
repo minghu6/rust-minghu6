@@ -4,7 +4,7 @@ use std::io::{
     Error
 };
 
-use crate::etc::TrimInPlace;
+use common::TrimInPlace;
 
 
 #[macro_export]

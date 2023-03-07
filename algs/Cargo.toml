@@ -1,0 +1,17 @@
+[package]
+name = "m6-algs"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+m6entry = { path = "../../m6coll/m6entry" }
+
+common = { package = "m6-common", path = "../common" }
+
+[dev-dependencies]
+lazy_static = "1.4.0"
+bit-vec = "^0.6.2"
+twox-hash = "^1.5.0"
+sorted-vec = "0.7.0"
+num_cpus = "1.0"

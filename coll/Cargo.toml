@@ -1,0 +1,13 @@
+[package]
+name = "m6-coll"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+paste = "1.0"
+uuid = { version = "0.8.2", features = ["v4"] }
+
+m6arr = { path = "../../m6coll/m6arr" }
+m6entry = { path = "../../m6coll/m6entry" }
+
+common = { package = "m6-common", path = "../common" }

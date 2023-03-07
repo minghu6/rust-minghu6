@@ -7,7 +7,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use itertools::Itertools;
+use coll::Itertools;
 use minghu6::{error_code::*, etc::path::{syn_walk, FindOptions}, read_dir_wrapper};
 
 use clap::Parser;

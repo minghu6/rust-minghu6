@@ -1,0 +1,11 @@
+[package]
+name = "m6-coll-st"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+common = { package = "m6-common", path = "../common" }
+coll = { package = "m6-coll", path = "../coll" }
+
+[dev-dependencies]
+indexmap = "1"

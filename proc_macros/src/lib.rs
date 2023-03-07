@@ -4,20 +4,23 @@
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
-use proc_macro2::{ Span };
-use syn::parse::{Parse, ParseStream, Result};
-use syn::token::{Paren, Priv};
-use syn::{Expr, Ident, Lit, LitStr, MacroDelimiter, Path, Token, parse_macro_input, LitInt};
-use quote::{quote, format_ident};
+use proc_macro2::Span;
+use quote::{format_ident, quote};
+use syn::{
+    parse::{Parse, ParseStream, Result},
+    parse_macro_input,
+    token::{Paren, Priv},
+    Expr, Ident, Lit, LitInt, LitStr, MacroDelimiter, Path, Token,
+};
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// VecMacroRules
+//// DefCollInit
 
 struct VecMacroRules {
     name: Ident,
     path: Path,
-    inc_op: Ident
+    inc_op: Ident,
 }
 
 impl Parse for VecMacroRules {
@@ -33,21 +36,14 @@ impl Parse for VecMacroRules {
             inc_op = Ident::new("insert", Span::call_site());
         }
 
-        Ok(Self {
-            name,
-            path,
-            inc_op
-        })
+        Ok(Self { name, path, inc_op })
     }
 }
 
 #[proc_macro]
 pub fn make_vec_macro_rules(input: TokenStream) -> TokenStream {
-    let VecMacroRules {
-        name,
-        path,
-        inc_op
-    } = parse_macro_input!(input as VecMacroRules);
+    let VecMacroRules { name, path, inc_op } =
+        parse_macro_input!(input as VecMacroRules);
 
     TokenStream::from(quote! {
         #[macro_export]
@@ -74,11 +70,10 @@ pub fn make_vec_macro_rules(input: TokenStream) -> TokenStream {
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //// Define New Custom Error
 struct MakeSimpleError {
-    name: Ident
+    name: Ident,
 }
 
 impl Parse for MakeSimpleError {
@@ -91,9 +86,8 @@ impl Parse for MakeSimpleError {
 
 #[proc_macro]
 pub fn make_simple_error_rules(input: TokenStream) -> TokenStream {
-    let MakeSimpleError {
-        name
-    } = parse_macro_input!(input as MakeSimpleError);
+    let MakeSimpleError { name } =
+        parse_macro_input!(input as MakeSimpleError);
 
     TokenStream::from(quote! {
         pub struct #name {
@@ -131,6 +125,4 @@ pub fn make_simple_error_rules(input: TokenStream) -> TokenStream {
 
 
 #[cfg(test)]
-mod tests {
-
-}
+mod tests {}

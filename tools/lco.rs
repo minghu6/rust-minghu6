@@ -1,6 +1,6 @@
 use std::ffi::OsStr;
 
-use itertools::Itertools;
+use coll::Itertools;
 use walkdir::WalkDir;
 
 

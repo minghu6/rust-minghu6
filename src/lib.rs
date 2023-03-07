@@ -32,16 +32,9 @@ use proc_macros::{
 // extern crate macros_gen;
 
 pub mod text;
-pub mod collections;
-pub mod algs;
-pub mod etc;
-pub mod error_code;
 pub mod io;
-pub mod debug;
 
 
 // make_vec_macro_rules!(vecdeq , std::collections::VecDeque, push_back);
 
 make_simple_error_rules!(XXXError);
-
-pub(crate) use crate::collections::easycoll::*;

@@ -1,0 +1,13 @@
+[package]
+name = "m6-coll-heap"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+m6arr = { path = "../../m6coll/m6arr" }
+
+common = { package = "m6-common", path = "../common" }
+coll = { package = "m6-coll", path = "../coll" }
+
+[dev-dependencies]
+lazy_static = "1.4.0"

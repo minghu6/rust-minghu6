@@ -1,0 +1,91 @@
+#![feature(test)]
+#![feature(box_syntax)]
+
+use lazy_static::lazy_static;
+use minghu6::{
+    collections::{
+        bt::bst::*,
+        bst,
+        bt,
+        Dictionary
+    }
+};
+
+extern crate test;
+use test::Bencher;
+
+mod dict_common;
+
+
+lazy_static! {
+    static ref INSERT_DATA: Vec<(u64, u64)> = {
+        let get_one = || rand::random::<u64>();
+
+        gen_data!(get_one, 50, 200)
+    };
+}
+
+
+macro_rules! bench_dict_insert {
+    ($v:ident, $name: ident, $dict: expr) => {
+        bench_dict_insert!($v, $name, $dict, i: insert);
+    };
+    ($v:ident, $name: ident, $dict: expr, i: $i:ident) => {
+        paste::paste!(
+            #[allow(non_snake_case)]
+            #[bench]
+            fn [<bench_dict_insert_ $v _ $name>] (b: &mut Bencher) {
+                b.iter(|| {
+                    let mut dict = $dict;
+
+                    for (k, v) in INSERT_DATA.iter().cloned() {
+                        dict.$i(k, v);
+                    }
+                });
+            }
+        );
+   };
+}
+
+
+bench_dict_insert!(_0_, HASH_MAP, std::collections::HashMap::new());
+
+
+bench_dict_insert!(V1, AVL, avl::AVL::new());
+bench_dict_insert!(V1, RAW, rawst::RawST::new());
+bench_dict_insert!(V1, RB, rb::RB::new());
+bench_dict_insert!(V1, LLRB, llrb::LLRB::new());
+// bench_dict_insert!(B3_V1, bt::b3::B3::new());
+// bench_dict_insert!(B4_V1, bt::b4::B4::new());
+// bench_dict_insert!(B4_STAR_V1, bt::b4::B4::new());
+bench_dict_insert!(V1, AA, aa::AA::new());
+bench_dict_insert!(V1, TREAP, treap::Treap::new());
+// bench_dict_insert!(V1, SPLAY, splay::Splay::new());
+// bench_dict_insert!(V1, LSG, lsg::LSG::new());
+// bench_dict_insert!(V1, LSG_06, lsg::LSG::with_alpha(0.6));
+
+// Too Slow
+// bench_dict_insert!(V2, SG, bst::sg::SG::new(0.7));
+// bench_dict_insert!(V2, LSG, bst::lsg::LSG::new(0.7));
+bench_dict_insert!(V2, AVL, bst::avl::AVL::new());
+bench_dict_insert!(V2, RB, bst::rb::RB::new());
+// bench_dict_insert!(V2, Splay, bst::splay::Splay::new());
+bench_dict_insert!(V2, Treap, bst::treap::Treap::new());
+// bench_dict_insert!(V2, TreapImproved, bst::treap::Treap::new().improve_search());
+bench_dict_insert!(V2, AA, bst::aa::AA::new());
+
+
+bench_dict_insert!(_0__60, B, bt::bt::BT::<u64, u64, 60>::new());
+bench_dict_insert!(_0__100, B, bt::bt::BT::<u64, u64, 100>::new());
+bench_dict_insert!(_0__200, B, bt::bt::BT::<u64, u64, 200>::new());
+bench_dict_insert!(_0__300, B, bt::bt::BT::<u64, u64, 300>::new());
+// bench_dict_insert!(_0__500, B, bt::bt::BT::<u64, u64, 500>::new());
+
+
+bench_dict_insert!(_0__60, BP, bt::bpt::BPT::<u64, u64, 60>::new());
+bench_dict_insert!(_0__105, BP, bt::bpt::BPT::<u64, u64, 105>::new());
+bench_dict_insert!(_0__100, BP, bt::bpt::BPT::<u64, u64, 100>::new());
+bench_dict_insert!(_0__200, BP, bt::bpt::BPT::<u64, u64, 200>::new());
+bench_dict_insert!(_0__300, BP, bt::bpt::BPT::<u64, u64, 300>::new());
+// bench_dict_insert!(_0__500, BP, bt::bpt::BPT::<u64, u64, 500>::new());
+bench_dict_insert!(_0__95, BP, bt::bpt::BPT::<u64, u64, 95>::new());
