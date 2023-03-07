@@ -114,10 +114,6 @@ fn bench_bp_remove() {
 
     use minghu6::{ etc::timeit::TPROFILE_STATS, get };
 
-    // TPROFILE_STATS.with(|map| {
-
-    // });
-
     let map = TPROFILE_STATS.take();
 
     println!("bpt_remove: {:?}", get!(map => "bpt_remove"));
@@ -125,9 +121,9 @@ fn bench_bp_remove() {
     println!("bpt_remove_stats_loss: {:?}", get!(map => "bpt_remove_root_stats"));
     println!("bpt_remove_search_internal: {:?}", get!(map => "bpt_remove_search_internal"));
     println!("bpt_remove_search_leaf: {:?}", get!(map => "bpt_remove_search_leaf"));
-    println!("bpt_remove_update_key: {:?}", get!(map => "bpt_remove_update_key"));
-    println!("bpt_remove_entry: {:?}", get!(map => "bpt_remove_entry"));
-    println!("bpt_remove_unpromote: {:?}", get!(map => "bpt_remove_unpromote"));
+    // println!("bpt_remove_update_key: {:?}", get!(map => "bpt_remove_update_key"));
+    // println!("bpt_remove_entry: {:?}", get!(map => "bpt_remove_entry"));
+    // println!("bpt_remove_unpromote: {:?}", get!(map => "bpt_remove_unpromote"));
 
     TPROFILE_STATS.set(map);
 }

@@ -69,8 +69,19 @@ mod tests {
     macro_rules! dict_insert {
         ($dict:ident, $num:expr) => {
             $dict.insert($num, $num);
-            assert!($dict.get(&$num).is_some());
+            assert_eq!($dict.get(&$num), Some(&$num));
             $dict.validate();
+        };
+        ($dict:ident, $key:expr, $val:expr) => {
+            $dict.insert($key, $val);
+            assert_eq!($dict.get(&$key), Some(&$val));
+            $dict.validate();
+        };
+    }
+
+    macro_rules! dict_get {
+        ($dict:ident, $num:expr) => {
+            assert_eq!($dict.get(&$num), Some(&$num));
         };
     }
 
@@ -84,5 +95,6 @@ mod tests {
     }
 
     pub(super) use dict_insert;
+    pub(super) use dict_get;
     pub(super) use dict_remove;
 }

@@ -14,7 +14,7 @@ use super::{
     super::bst2::{Left, Right},
     node as aux_node, *,
 };
-use crate::etc::timeit::*;
+use crate::{etc::timeit::*, def_coll_init};
 
 
 impl_node!(pub);
@@ -288,9 +288,8 @@ pub(super) use def_attr_macro_bpt;
 pub(super) use def_node__heap_access;
 pub(super) use def_node__wn_access;
 
-
 def_attr_macro_bpt!(paren, pred, succ, keys, entries, children);
-
+def_coll_init!(map^1 | bpt, crate::collections::bt2::bpt::BPT::new());
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Structure
@@ -350,7 +349,7 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
         K: Borrow<Q>,
         Q: Ord + ?Sized,
     {
-        let x = self.root.search_to_leaf(k);
+        let x = Self::search_to_leaf(&self.root, k);
 
         // Nil
         if x.is_none() {
@@ -393,7 +392,7 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
 
         match range.start_bound() {
             Included(&k) => {
-                let x = self.root.search_to_leaf(k.borrow());
+                let x = Self::search_to_leaf(&self.root, k.borrow());
 
                 // Nil
                 if x.is_none() {
@@ -412,7 +411,7 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
             }
             Excluded(_) => unimplemented!(),
             Unbounded => {
-                cur = self.min_node();
+                cur = self.min_node.upgrade();
             }
         }
 
@@ -470,38 +469,9 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
     where
         K: Clone,
     {
-        let x = self.root.search_to_leaf(&k);
+        let x = Self::search_to_leaf(&self.root, &k);
 
-        /* NonInternal Node */
-
-        /* Nil */
-        if x.is_none() {
-            self.root = node!(kv | k, v);
-            self.min_node = self.root.downgrade();
-            self.max_node = self.root.downgrade();
-        }
-        /* Leaf */
-        else {
-            let idx = match entries!(x).binary_search_by_key(&&k, |ent| &ent.0)
-            {
-                Ok(idx) => {
-                    return Some(replace(&mut entries_mut!(x)[idx].1, v))
-                }
-                Err(idx) => idx,
-            };
-
-            /* insert into leaf */
-
-            entries_mut!(x).insert(idx, KVEntry(k, v));
-
-            if entries!(x).len() == M {
-                self.promote(x);
-            }
-        }
-
-        self.cnt += 1;
-
-        None
+        self.insert_into_leaf(x, k, v)
     }
 
     pub fn remove<Q>(&mut self, k: &Q) -> Option<V>
@@ -544,98 +514,21 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
             Err(_idx) => return None,
         }
 
-        anchor!(search);
-        stats!(bpt_remove_search_leaf, search_internal, search);
+        self.remove_on_leaf(internal_and_idx, x.clone(), idx).map(|(_, v)| v)
 
-        let p = paren!(x);
-
-        /* Update internal key with its succsessor key */
-
-        if let Some((internal, i_idx)) = internal_and_idx {
-            let new_key;
-
-            if entries!(x).len() > 1 {
-                // left first
-                if idx > 0 {
-                    new_key = entries!(x)[idx - 1].0.clone();
-                } else {
-                    new_key = entries!(x)[idx + 1].0.clone();
-                }
-            } else {
-                let x_idx = index_of_child!(p, x);
-
-                /* check remain node */
-
-                // left first
-                if x_idx > 0 && entries!(children!(p)[x_idx - 1]).len() > 1 {
-                    new_key =
-                        children!(p)[x_idx - 1].max_key().unwrap().clone();
-                }
-                // right sib
-                else if x_idx < children!(p).len() - 1
-                    && entries!(children!(p)[x_idx + 1]).len() > 1
-                {
-                    new_key = entries!(succ!(x))[0].0.clone();
-                }
-                /* use default (left first)*/
-                else if x_idx > 0 {
-                    new_key =
-                        children!(p)[x_idx - 1].max_key().unwrap().clone();
-                } else {
-                    new_key = entries!(succ!(x))[0].0.clone();
-                }
-            }
-
-            keys_mut!(internal)[i_idx] = new_key;
-        }
-
-        anchor!(update_key);
-        stats!(bpt_remove_update_key, search, update_key);
-
-        let popped = entries_mut!(x).remove(idx);
-
-        anchor!(remove_entry);
-        stats!(bpt_remove_entry, update_key, remove_entry);
-
-        anchor!(remove_root_zero);
-
-        if entries!(x).is_empty() {
-            if p.is_none() {
-                self.root = Node::none();
-                self.min_node = WeakNode::none();
-                self.max_node = WeakNode::none();
-            } else {
-                anchor!(unpromote_zero);
-
-                self.unpromote(x.clone());
-
-                anchor!(unpromote_end);
-                stats!(bpt_remove_unpromote, unpromote_zero, unpromote_end);
-            }
-        }
-        anchor!(remove_root_end);
-        stats!(bpt_remove_root, remove_root_zero, remove_root_end);
-        anchor!(end);
-
-        stats!(bpt_remove, zero, end);
-        stats!(bpt_remove_root_stats, remove_root_end, end);
-
-        self.cnt -= 1;
-
-        Some(popped.1)
     }
 
 
     ////////////////////////////////////////////////////////////////////////////
     //// Extend Method
 
-    /// return node.v where node.k >= key
-    pub fn approximate_search<Q>(&self, key: &Q) -> Option<&V>
+    /// Approximate Search return node.v where node.k >= key
+    pub fn approx_search<Q>(&self, key: &Q) -> Option<&V>
     where
         K: Borrow<Q>,
         Q: Ord + ?Sized,
     {
-        let x = self.root.search_to_leaf(key);
+        let x = Self::search_to_leaf(&self.root, key);
 
         if x.is_none() {
             return None;
@@ -666,7 +559,7 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
             return 0;
         }
 
-        let x = self.root.search_to_leaf(key);
+        let x = Self::search_to_leaf(&self.root, key);
 
         debug_assert!(x.is_some());
 
@@ -689,7 +582,7 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
 
     /// return Nth child (start from 0), O(n/M)
     pub fn nth(&self, mut idx: usize) -> Option<&KVEntry<K, V>> {
-        let mut cur = self.min_node();
+        let mut cur = self.min_node.upgrade();
 
         while cur.is_some() {
             if idx < entries!(cur).len() {
@@ -719,54 +612,110 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
             .map(|k| unsafe { &*(k as *const K) })
     }
 
-    pub fn key_between<Q>(&self, key: &Q) -> (Option<&K>, Option<&K>)
+    /// return [at, ...)
+    pub fn split_off(&mut self, at: usize) -> Self
     where
-        K: Borrow<Q>,
-        Q: Ord + ?Sized,
+        K: Clone,
+        V: Debug,
     {
-        let x = self.root.search_to_leaf(key);
+        let mut oth = Self::new();
 
-        if x.is_none() {
-            return (None, None);
+        if self.cnt == 0 || at >= self.cnt {
+            return oth;
         }
 
-        let idx;
-        match entries!(x).binary_search_by_key(&key, |ent| ent.0.borrow()) {
-            Ok(idx_) => idx = idx_,
-            Err(idx_) => idx = idx_,
-        };
+        oth.bulk_push_front(self.bulk_pop(self.cnt - at));
 
-        if idx > 0 {
-            (Some(&entries!(x)[idx - 1].0), Some(&entries!(x)[idx].0))
-        } else {
-            (None, Some(&entries!(x)[idx].0))
+        oth
+    }
+
+    pub fn bulk_pop<'a>(
+        &'a mut self,
+        mut n: usize,
+    ) -> impl Iterator<Item = (K, V)> + 'a
+    where
+        K: Clone,
+        V: Debug,
+    {
+        std::iter::from_generator(move || {
+            while n > 0 && let Some((k, v)) = self.pop_last() {
+                yield (k, v);
+                n -= 1;
+            }
+        })
+    }
+
+    /// push into max
+    pub fn bulk_push_back(&mut self, iter: impl Iterator<Item = (K, V)>)
+    where
+        K: Clone,
+        V: Debug,
+    {
+        for (k, v) in iter {
+            let x = self.max_node.upgrade();
+            self.insert_into_leaf(x, k, v);
         }
     }
 
-    /// return [at, ...)
-    pub fn split_off<Q>(&mut self, at: usize) -> Self
+    /// push into min from max to min
+    pub fn bulk_push_front(&mut self, iter: impl Iterator<Item = (K, V)>)
     where
-        K: Borrow<Q>,
-        Q: Ord + ?Sized,
+        K: Clone,
+        V: Debug,
     {
-        if self.cnt == 0 || at >= self.cnt {
-            return Self::new();
+        for (k, v) in iter {
+            let x = self.min_node.upgrade();
+            self.insert_into_leaf(x, k, v);
+        }
+    }
+
+    pub fn pop_last(&mut self) -> Option<(K, V)>
+    where
+        K: Clone,
+    {
+        let x = self.max_node.upgrade();
+
+        if x.is_none() {
+            return None;
         }
 
-        /* remove need update index on internal node this implementation
-           SO WE COULDON'T STRAT FROM MAX_NODE EACH TIME
-        */
+        let p = paren!(x);
 
-        let remove_num = self.cnt - at;
+        let internal_and_idx;
 
-        todo!()
+        if p.is_some() {
+            internal_and_idx = Some((p.clone(), keys!(p).len() - 1));
+        }
+        else {
+            internal_and_idx = None;
+        }
+
+        self.remove_on_leaf(internal_and_idx, x.clone(), entries!(x).len() - 1)
     }
 
     ////////////////////////////////////////////////////////////////////////////
     //// Assistant Method
 
+    #[inline(always)]
+    fn search_to_leaf<Q>(mut x: &Node<K, V>, k: &Q) -> Node<K, V>
+    where
+        K: Borrow<Q>,
+        Q: Ord + ?Sized,
+    {
+        while x.is_internal() {
+            match keys!(x).binary_search_by_key(&k, |k_| k_.borrow()) {
+                Ok(idx) => x = &children!(x)[idx + 1],
+                Err(idx) => {
+                    x = &children!(x)[idx];
+                }
+            }
+        }
+
+        x.clone()
+    }
+
     fn nodes(&self) -> impl Iterator<Item = Node<K, V>> {
-        let mut cur = self.min_node();
+        let mut cur = self.min_node.upgrade();
 
         std::iter::from_generator(move || {
             while cur.is_some() {
@@ -777,26 +726,134 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
         })
     }
 
-    #[inline(always)]
-    fn min_node(&self) -> Node<K, V> {
-        let mut x = &self.root;
+    fn remove_on_leaf(
+        &mut self,
+        internal_and_idx: Option<(Node<K, V>, usize)>,
+        x: Node<K, V>,
+        idx: usize
+    ) -> Option<(K, V)>
+    where
+        K: Clone,
+    {
+        /* Update internal key with its succsessor key */
 
-        while x.is_internal() {
-            x = &children!(x)[0];
+        if let Some((internal, i_idx)) = internal_and_idx {
+            self.update_internal_key(&internal, i_idx, &x, idx);
         }
 
-        x.clone()
+        let popped = entries_mut!(x).remove(idx);
+        self.remove_retracing(x.clone());
+
+        self.cnt -= 1;
+
+        Some((popped.0, popped.1))
     }
 
-    #[inline]
-    fn max_node(&self) -> Node<K, V> {
-        let mut x = &self.root;
+    fn insert_into_leaf(&mut self, x: Node<K, V>, k: K, v: V) -> Option<V>
+    where
+        K: Clone,
+    {
+        /* NonInternal Node */
+        debug_assert!(!x.is_internal());
 
-        while x.is_internal() {
-            x = &children!(x).last().unwrap();
+        /* Nil */
+        if x.is_none() {
+            self.root = node!(kv | k, v);
+            self.min_node = self.root.downgrade();
+            self.max_node = self.root.downgrade();
+        }
+        /* Leaf */
+        else {
+            let idx = match entries!(x).binary_search_by_key(&&k, |ent| &ent.0)
+            {
+                Ok(idx) => {
+                    return Some(replace(&mut entries_mut!(x)[idx].1, v))
+                }
+                Err(idx) => idx,
+            };
+
+            /* insert into leaf */
+
+            entries_mut!(x).insert(idx, KVEntry(k, v));
+
+            self.insert_retracing(x);
         }
 
-        x.clone()
+        self.cnt += 1;
+
+        None
+    }
+
+    fn update_internal_key(
+        &self,
+        internal: &Node<K, V>,
+        i_idx: usize,
+        x: &Node<K, V>,
+        idx: usize,
+    ) where
+        K: Clone,
+    {
+        debug_assert!(x.is_leaf());
+        let p = paren!(x);
+        debug_assert!(p.is_some());
+
+        let new_key;
+
+        if entries!(x).len() > 1 {
+            // left first
+            if idx > 0 {
+                new_key = entries!(x)[idx - 1].0.clone();
+            } else {
+                new_key = entries!(x)[idx + 1].0.clone();
+            }
+        } else {
+            let x_idx = index_of_child!(p, x);
+
+            /* check remain node */
+
+            // left first
+            if x_idx > 0 && entries!(children!(p)[x_idx - 1]).len() > 1 {
+                new_key = children!(p)[x_idx - 1].max_key().unwrap().clone();
+            }
+            // right sib
+            else if x_idx < children!(p).len() - 1
+                && entries!(children!(p)[x_idx + 1]).len() > 1
+            {
+                new_key = entries!(succ!(x))[0].0.clone();
+            }
+            /* use default (left first)*/
+            else if x_idx > 0 {
+                new_key = children!(p)[x_idx - 1].max_key().unwrap().clone();
+            } else {
+                new_key = entries!(succ!(x))[0].0.clone();
+            }
+        }
+
+        keys_mut!(internal)[i_idx] = new_key;
+    }
+
+    fn insert_retracing(&mut self, x: Node<K, V>)
+    where
+        K: Clone,
+    {
+        if entries!(x).len() == M {
+            self.promote(x);
+        }
+    }
+
+    fn remove_retracing(&mut self, x: Node<K, V>)
+    where
+        K: Clone,
+    {
+        if entries!(x).is_empty() {
+            if self.root.rc_eq(&x) {
+                self.root = Node::none();
+                self.min_node = WeakNode::none();
+                self.max_node = WeakNode::none();
+            } else {
+                self.unpromote(x);
+            }
+        }
     }
 
     fn promote(&mut self, x: Node<K, V>)
@@ -1035,7 +1092,7 @@ impl<K, V> Node<K, V> {
         self.is_some() && !attr!(self | self).is_leaf()
     }
 
-    pub fn max_key(&self) -> Option<&K> {
+    fn max_key(&self) -> Option<&K> {
         if self.is_none() {
             None
         } else if self.is_internal() {
@@ -1045,7 +1102,7 @@ impl<K, V> Node<K, V> {
         }
     }
 
-    pub fn min_key(&self) -> Option<&K> {
+    fn min_key(&self) -> Option<&K> {
         if self.is_none() {
             None
         } else if self.is_internal() {
@@ -1053,26 +1110,6 @@ impl<K, V> Node<K, V> {
         } else {
             entries!(self).first().map(|ent| &ent.0)
         }
-    }
-
-    #[inline(always)]
-    fn search_to_leaf<Q>(&self, k: &Q) -> Self
-    where
-        K: Borrow<Q>,
-        Q: Ord + ?Sized,
-    {
-        let mut x = self;
-
-        while x.is_internal() {
-            match keys!(x).binary_search_by_key(&k, |k_| k_.borrow()) {
-                Ok(idx) => x = &children!(x)[idx + 1],
-                Err(idx) => {
-                    x = &children!(x)[idx];
-                }
-            }
-        }
-
-        x.clone()
     }
 }
 
@@ -1119,7 +1156,7 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT<K, V, M> {
 
         while let Some(x) = q.pop_front() && x.is_internal() {
             for k in keys!(x) {
-                let leaf = x.search_to_leaf(k);
+                let leaf = Self::search_to_leaf(&x, k);
 
                 if leaf.is_none()
                     || entries!(leaf).binary_search_by_key(
@@ -1157,7 +1194,7 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT<K, V, M> {
     }
 
     fn leafs(&self) -> impl Iterator<Item = Node<K, V>> {
-        let mut x = self.min_node();
+        let mut x = self.min_node.upgrade();
 
         std::iter::from_generator(move || {
             while x.is_some() {
@@ -1340,7 +1377,7 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT<K, V, M> {
 
                         /* search obsoleted key */
                         for k in keys!(child) {
-                            let leaf = child.search_to_leaf(k);
+                            let leaf = Self::search_to_leaf(&child, k);
 
                             if leaf.is_none()
                                 || entries!(leaf)
@@ -1421,7 +1458,7 @@ impl<K, V> Node<K, V> {
 
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
 
     use super::{super::tests::*, *};
     use crate::collections::bst2::test_dict;
@@ -1480,6 +1517,106 @@ mod tests {
         }};
     }
 
+    macro_rules! prepare_dict {
+        ($dict:expr) => {{
+            let mut dict = $dict;
+            let mut back = std::collections::BTreeMap::new();
+            let getone = || $crate::algs::random::<u16>() % 10_00;
+
+            for _ in 0..1000 {
+                let k = getone();
+
+                dict.insert(k, k);
+                back.insert(k, k);
+            }
+
+            for _ in 0..250 {
+                let k = getone();
+
+                dict.remove(&k);
+                back.remove(&k);
+            }
+
+            (dict, back)
+        }};
+    }
+
+    macro_rules! verify_bulk {
+        ($dict:expr) => {{
+            let (mut dict, back)= prepare_dict!($dict);
+
+            /* test bulk push */
+
+            let batch = 1000;
+            let group = 50;
+
+            for i in 0..group {
+                let range = 2_000+i*batch..2_000+(i+1)*batch;
+
+                dict.bulk_push_back(
+                    range.clone().map(|x| (x, x))
+                );
+
+                for j in range {
+                    assert_eq!(
+                        dict.get(&j),
+                        Some(&j),
+                        "[verify bulk push] verify get range"
+                    );
+                }
+                for k in back.keys() {
+                    assert_eq!(
+                        dict.get(k),
+                        Some(k),
+                        "[verify bulk push] verify get back"
+                    );
+                }
+
+                assert_eq!(
+                    dict.len(),
+                    back.len() + ((i+1)*batch) as usize,
+                    "[verify bulk push] verify cnt"
+                );
+
+                if i % 5 == 0 {
+                    dict.validate();
+                }
+            }
+
+
+            /* test bulk pop */
+
+            for i in (0..group).rev() {
+                let bulk: Vec<(u16, u16)> = dict.bulk_pop(batch as usize).collect();
+
+                for (j, (k, _v)) in bulk.into_iter().enumerate() {
+                    // println!("j: {j}");
+
+                    assert_eq!(
+                        ((i+1)*batch) as u16 + 2_000 - 1 - j as u16,
+                        k,
+                        "[verify bulk pop] verify range"
+                    )
+                }
+
+                assert_eq!(
+                    dict.len(),
+                    back.len() + (i*batch) as usize,
+                    "[verify bulk push] verify cnt"
+                );
+
+                if i % 5 == 0 {
+                    dict.validate();
+                }
+            }
+
+        }};
+    }
+
+    pub(crate) use assert_select_eq;
+    pub(crate) use verify_select;
+    pub(crate) use prepare_dict;
+    pub(crate) use verify_bulk;
 
     #[test]
     fn test_bt2_bpt_case_1() {
@@ -1566,6 +1703,14 @@ mod tests {
         verify_select!(BPT::<u16, u16, 5>::new());
         verify_select!(BPT::<u16, u16, 10>::new());
         verify_select!(BPT::<u16, u16, 21>::new());
+    }
+
+    #[test]
+    fn test_bt2_bpt_bulk_random() {
+        verify_bulk!(BPT::<u16, u16, 3>::new());
+        verify_bulk!(BPT::<u16, u16, 5>::new());
+        verify_bulk!(BPT::<u16, u16, 10>::new());
+        verify_bulk!(BPT::<u16, u16, 21>::new());
     }
 
     #[test]

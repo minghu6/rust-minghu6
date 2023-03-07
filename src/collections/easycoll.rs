@@ -217,6 +217,7 @@ macro_rules! push {
     };
 }
 
+#[macro_export]
 macro_rules! def_coll_init {
     (seq | $name:ident, $new:expr, $push:ident) => {
         macro_rules! $name {

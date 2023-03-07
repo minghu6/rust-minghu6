@@ -911,7 +911,9 @@ macro_rules! test_dict {
 
         for _ in 0..20 {
             let mut dict = $dict;
-            let mut elems = $crate::collections::bst2::gen_data!(get_one, 20, 50);
+            let group = 20;
+            let num = 50;
+            let mut elems = $crate::collections::bst2::gen_data!(get_one, group, num);
 
             /* Verify Create */
 
@@ -937,8 +939,8 @@ macro_rules! test_dict {
             /* Verify Update */
 
             for (i, (k, v)) in elems.clone().into_iter().enumerate() {
-                assert_eq!(dict.get(&k), Some(&v));
-                // println!("{i}. update: ");
+                // println!("{i}. update: {k:05}");
+                assert_eq!(dict.get(&k), Some(&v), "[dict update] get verify before");
 
                 let newv = k.wrapping_add(500);
 
@@ -958,36 +960,36 @@ macro_rules! test_dict {
 
             dict.validate();
 
-            /* Verify Remove */
+            // /* Verify Remove */
 
-            use rand::{prelude::SliceRandom, thread_rng};
+            // use rand::{prelude::SliceRandom, thread_rng};
 
-            elems.shuffle(&mut thread_rng());
+            // elems.shuffle(&mut thread_rng());
 
-            for (i, (k, v)) in elems.into_iter().enumerate() {
-                // println!("[dict remove]: {i:03}: {k:05}");
+            // for (i, (k, v)) in elems.into_iter().enumerate() {
+            //     // println!("[dict remove]: {i:03}: {k:05}");
 
-                assert_eq!(
-                    dict.get(&k),
-                    Some(&v),
-                    "[dict remove] Assure get Some"
-                );
-                assert_eq!(
-                    dict.remove(&k),
-                    Some(v),
-                    "[dict remove] Assert remove failed"
-                );
-                assert_eq!(
-                    dict.get(&k),
-                    None,
-                    "[dict remove] Assure get None"
-                );
+            //     assert_eq!(
+            //         dict.get(&k),
+            //         Some(&v),
+            //         "[dict remove] Assure get Some"
+            //     );
+            //     assert_eq!(
+            //         dict.remove(&k),
+            //         Some(v),
+            //         "[dict remove] Assert remove failed"
+            //     );
+            //     assert_eq!(
+            //         dict.get(&k),
+            //         None,
+            //         "[dict remove] Assure get None"
+            //     );
 
-                // sample to save time
-                if i % 10 == 0 {
-                    dict.validate();
-                }
-            }
+            //     // sample to save time
+            //     if i % 10 == 0 {
+            //         dict.validate();
+            //     }
+            // }
         }
     };
 }

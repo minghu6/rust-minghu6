@@ -15,7 +15,11 @@ use std::{
 use super::{
     super::bst2::{Left, Right},
     bpt::{
-        def_attr_macro_bpt, def_node__heap_access, def_node__wn_access, BPT,
+        def_attr_macro_bpt,
+        def_node__heap_access,
+        def_node__wn_access,
+        BPT,
+        bpt
     },
     node as aux_node, *,
 };
@@ -25,7 +29,7 @@ impl_node!();
 impl_tree!(
     /// B+ Trees powered by B+ tree
     ///
-    BPT2 { cnt: usize, min_node: Node<K, V> }
+    BPT2 { cnt: usize, min_node: WeakNode<K, V> }
 );
 
 def_attr_macro_bpt!(paren, succ, entries, children);
@@ -51,9 +55,8 @@ macro_rules! node {
             paren: $paren
         })
     }};
-    (basic-internal| $keys:expr, $children:expr, $paren:expr) => {{
+    (basic-internal| $children:expr, $paren:expr) => {{
         aux_node!(FREE-ENUM Internal {
-            keys: $keys,
             children: $children,
             paren: $paren
         })
@@ -61,31 +64,16 @@ macro_rules! node {
 }
 
 
-macro_rules! max_key {
-    ($x:expr) => {{
-        let x = $x.clone();
-
-        if $x.is_leaf() {
-            entries!(x).max_key().unwrap()
-        } else {
-            children!(x).max_key().unwrap()
-        }
-    }};
-}
-
-
 macro_rules! min_key {
-    ($x:expr) => {{
-        let x = $x.clone();
-
-        if $x.is_leaf() {
-            entries!(x).min_key().unwrap()
-        } else {
-            entries!(x).min_key().unwrap()
+    ($x:expr) => {
+        if let Some(k) = $x.min_key() {
+            k.clone()
         }
-    }};
+        else {
+            unreachable!("No min-key {:?}", $x)
+        }
+    };
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Implementation
@@ -100,7 +88,7 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
         Self {
             root: Node::none(),
             cnt: 0,
-            min_node: Node::none()
+            min_node: WeakNode::none(),
         }
     }
 
@@ -122,7 +110,7 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
         K: Borrow<Q>,
         Q: Ord + ?Sized,
     {
-        let x = self.root.search_to_leaf(k);
+        let x = Self::search_to_leaf_r(&self.root, k);
 
         // Nil
         if x.is_none() {
@@ -134,14 +122,11 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
         }
     }
 
-    pub fn select<'a, Q, R>(
-        &self,
-        range: R,
-    ) -> impl Iterator<Item = &V>
+    pub fn select<'a, Q, R>(&self, range: R) -> impl Iterator<Item = &V>
     where
         K: Borrow<Q>,
         Q: Ord + ?Sized + 'a,
-        R: RangeBounds<&'a Q> + Clone
+        R: RangeBounds<&'a Q> + Clone,
     {
         mut_self!(self).select_mut(range).map(|v| &*v)
     }
@@ -153,26 +138,35 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
     where
         K: Borrow<Q>,
         Q: Ord + ?Sized + 'a,
-        R: RangeBounds<&'a Q> + Clone
+        R: RangeBounds<&'a Q> + Clone,
     {
         /* find start_node */
 
         let mut cur;
-        match range.start_bound() {
-            Included(&k) => {
-                cur = self.root.search_to_leaf(k.borrow())
-            }
-            Excluded(_) => unimplemented!(),
-            Unbounded => {
-                cur = self.min_node.clone()
+
+        if self.cnt == 0 {
+            cur = Node::none();
+        }
+        else {
+            match range.start_bound() {
+                Included(&k) => {
+                    cur = Self::search_to_leaf_r(&self.root, k.borrow());
+
+                    if cur.is_none() {
+                        cur = self.min_node.upgrade();
+                    }
+                },
+                Excluded(_) => unimplemented!(),
+                Unbounded => {
+                    cur = self.min_node.upgrade();
+                }
             }
         }
 
         std::iter::from_generator(move || {
             while cur.is_some() {
-                let mut entries = entries_mut!(cur)
-                    .select_mut(range.clone())
-                    .peekable();
+                let mut entries =
+                    entries_mut!(cur).select_mut(range.clone()).peekable();
 
                 if entries.peek().is_none() {
                     return;
@@ -189,68 +183,116 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
 
     pub fn insert(&mut self, k: K, v: V) -> Option<V>
     where
-        K: Clone,
+        K: Clone + Debug,
+        V: Debug,
     {
-        let x = self.root.search_to_leaf(&k);
 
-        /* NonInternal Node */
-
-        /* Nil */
-        if x.is_none() {
+        /* empty none */
+        if self.root.is_none() {
             self.root = node!(kv | k, v);
-        }
-        /* Leaf */
-        else {
-            /* insert into leaf */
+            self.min_node = self.root.downgrade();
 
-            entries_mut!(x).insert(k, v);
+            self.cnt += 1;
 
-            if entries!(x).len() == M {
-                // self.promote(x);
-            }
+            return None;
         }
 
-        self.cnt += 1;
+        let mut x = Self::search_to_leaf_r(&self.root, &k);
 
-        None
+        /* new min none */
+
+        if x.is_none() {
+            x = self.min_node.upgrade();
+        }
+
+        /* insert into leaf */
+
+        debug_assert!(x.is_leaf());
+
+        let old_k = min_key!(x);
+
+        let popped = entries_mut!(x).insert(k, v);
+
+        Self::update_index(old_k, x.clone());
+
+        if entries!(x).len() == M {
+            self.promote(x);
+        }
+
+        if popped.is_none() {
+            self.cnt += 1;
+        }
+
+        popped
     }
 
     ////////////////////////////////////////////////////////////////////////////
     //// Assistant Method
 
-    fn nodes(&self) -> impl Iterator<Item = Node<K, V>> {
-        let mut cur = self.min_node.clone();
-
-        std::iter::from_generator(move || {
-            while cur.is_some() {
-                yield cur.clone();
-
-                cur = succ!(cur);
+    /// search to leaf restricted version (with short-circuit evaluation)
+    #[inline(always)]
+    fn search_to_leaf_r<Q>(mut x: &Node<K, V>, k: &Q) -> Node<K, V>
+    where
+        K: Borrow<Q> + Ord,
+        Q: Ord + ?Sized,
+    {
+        while x.is_internal() {
+            if let Some(x_) = children!(x).approx_search(k) {
+                x = x_;
+            } else {
+                return Node::none();
             }
-        })
+        }
+
+        x.clone()
+    }
+
+    // fn nodes(&self) -> impl Iterator<Item = Node<K, V>> {
+    //     let mut cur = self.min_node.upgrade();
+
+    //     std::iter::from_generator(move || {
+    //         while cur.is_some() {
+    //             yield cur.clone();
+
+    //             cur = succ!(cur);
+    //         }
+    //     })
+    // }
+    fn update_index(old_k: K, x: Node<K, V>)
+    where
+        K: Clone + Debug,
+    {
+        let k = min_key!(x);
+        let p = paren!(x);
+
+        if old_k != k && p.is_some() {
+            /* update x key */
+
+            let old_p_k = min_key!(p);
+
+            children_mut!(p).remove(&old_k);
+            children_mut!(p).insert(k.clone(), x.clone());
+
+            Self::update_index(old_p_k, p);
+        }
     }
 
     fn promote(&mut self, x: Node<K, V>)
     where
-        K: Clone,
+        K: Clone + Debug,
+        V: Debug,
     {
         debug_assert!(x.is_some());
 
         /* split node */
 
-        let lpos = M.div_floor(2);
-        let hpos = M.div_ceil(2);
-
-        let head_key;
         let x2;
 
         if x.is_leaf() {
             debug_assert_eq!(entries!(x).len(), Self::entries_high_bound());
 
             // keep key for leaf
-            let entries_x2 = entries_mut!(x).split_off(lpos);
-
-            head_key = entries_x2.min_key().unwrap();
+            let entries_x2 = entries_mut!(x).split_off(M.div_floor(2));
 
             x2 = node!(
                 basic - leaf | entries_x2,
@@ -259,50 +301,52 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
             );
 
             succ!(x, x2.clone());
+        } else {
+            debug_assert_eq!(children!(x).len(), Self::entries_high_bound() + 1);
+
+            let children_x2 = children_mut!(x).split_off((M+1).div_floor(2));
+
+            x2 = node!(basic - internal | children_x2, WeakNode::none());
+
+            for child in children_mut!(x2).values() {
+                paren!(child, x2.clone());
+            }
         }
-        // else {
-        //     debug_assert_eq!(keys!(x).len(), Self::entries_high_bound());
 
-        //     let keys_x2 = keys_mut!(x).split_off(hpos);
+        let p = paren!(x);
+        let x_k = min_key!(x);
+        let x2_k = min_key!(x2);
 
-        //     head_key = keys_mut!(x).pop().unwrap();
+        /* push new level */
+        if p.is_none() {
+            let children = bpt!{
+                x_k => x,
+                x2_k => x2
+            };
 
-        //     let children_x2 = children_mut!(x).split_off(hpos);
+            self.root =
+                node!(basic - internal | children, WeakNode::none());
 
-        //     x2 = node!(
-        //         basic - internal | keys_x2,
-        //         children_x2,
-        //         WeakNode::none()
-        //     );
+            for child in children_mut!(self.root).values() {
+                paren!(child, self.root.clone());
+            }
+        }
+        /* insert into paren node */
+        else {
+            paren!(x2, p.clone());
 
-        //     children_revref!(&x2);
-        // }
+            // insert new or update
+            children_mut!(p).insert(
+                x2_k,
+                x2
+            );
 
-
-        // let p = paren!(x);
-
-        // /* push new level */
-        // if p.is_none() {
-        //     let keys = vec![head_key];
-        //     let children = vec![x, x2];
-
-        //     self.root =
-        //         node!(basic - internal | keys, children, WeakNode::none());
-
-        //     children_revref!(&self.root);
-        // }
-        // /* insert into paren node */
-        // else {
-        //     keys_mut!(p).insert(head_key, ());
-        //     children_mut!(p).insert(x_idx + 1, x2.clone());
-
-        //     paren!(x2, p.clone());
-
-        //     if keys!(p).len() == Self::entries_high_bound() {
-        //         self.promote(p);
-        //     }
-        // }
+            if children!(p).len() == Self::entries_high_bound() + 1 {
+                self.promote(p);
+            }
+        }
     }
+
 
 }
 
@@ -322,6 +366,11 @@ impl<K: Ord + Debug, V, const M: usize> Debug for BPT2<K, V, M> {
 
 enum Node_<K, V> {
     Internal {
+        /// 维护 K 总为Node最小值
+        /// 维护： 可能需要更新index在insert、remove，查询可以短路终止
+        /// 不维护： 没有短路终止而且查询量加倍
+        ///
+        /// 还是维护的好
         children: BPT<K, Node<K, V>, SUB_M>,
         paren: WeakNode<K, V>,
     },
@@ -357,56 +406,32 @@ impl<K, V> Node<K, V> {
         self.is_some() && !attr!(self | self).is_leaf()
     }
 
-    #[inline(always)]
-    fn search_to_leaf<Q>(&self, k: &Q) -> Self
+    fn max_key(&self) -> Option<&K>
     where
-        K: Borrow<Q> + Ord,
-        Q: Ord + ?Sized,
+        K: Ord
     {
-        let mut x = self;
-
-        while x.is_internal() {
-            if let Some(x_) = children!(x).approximate_search(k) {
-                x = x_;
-            }
-            else {
-                return Node::none();
-            }
+        if self.is_none() {
+            None
+        } else if self.is_internal() {
+            children!(self).max_key()
+        } else {
+            entries!(self).max_key()
         }
+    }
 
-        x.clone()
+    fn min_key(&self) -> Option<&K>
+    where
+        K: Ord
+    {
+        if self.is_none() {
+            None
+        } else if self.is_internal() {
+            children!(self).min_key()
+        } else {
+            entries!(self).min_key()
+        }
     }
 }
-
-
-// impl<K, V> PartialEq for Node<K, V> {
-//     fn eq(&self, other: &Self) -> bool {
-//         self.rc_eq(other)
-//     }
-// }
-
-
-// impl<K, V> PartialOrd for Node<K, V> {
-//     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-//         Some(match (&self.0, &other.0) {
-//             (Some(rc1), Some(rc2)) => {
-//                 (rc1.as_ptr() as usize).cmp(&(rc2.as_ptr() as usize))
-//             }
-//             (Some(_), None) => Greater,
-//             (None, Some(_)) => Less,
-//             (None, None) => Equal,
-//         })
-//     }
-// }
-
-// impl<K, V> Ord for Node<K, V> {
-//     fn cmp(&self, other: &Self) -> Ordering {
-//         self.partial_cmp(other).unwrap()
-//     }
-// }
-
-
-// impl<K, V> Eq for Node<K, V> {}
 
 
 impl<K: Debug + Ord, V> Debug for Node<K, V> {
@@ -482,8 +507,9 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT2<K, V, M> {
                     let p = paren!(x);
 
                     if x.is_internal() {
-                        nxt_q
-                            .push_back(children!(x).values().cloned().collect());
+                        nxt_q.push_back(
+                            children!(x).values().cloned().collect(),
+                        );
                         writeln!(f, "({i:02}): {x:?} (p: [{p:?}])")?;
                     } else {
                         let succ = succ!(x);
@@ -518,126 +544,148 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT2<K, V, M> {
         println!("{cache}")
     }
 
-    // fn validate(&self)
-    // where
-    //     K: Debug,
-    // {
-    //     if self.root.is_none() {
-    //         return;
-    //     }
+    fn validate(&self)
+    where
+        K: Debug,
+    {
+        if self.root.is_none() {
+            return;
+        }
 
-    //     use std::collections::VecDeque;
+        use std::collections::VecDeque;
+        use crate::vecdeq;
 
-    //     use crate::vecdeq;
+        let mut cur_q = vecdeq![vecdeq![Node::none(), self.root.clone()]];
 
-    //     let mut cur_q = vecdeq![vecdeq![Node::none(), self.root.clone()]];
+        while !cur_q.is_empty() {
+            let mut nxt_q = vecdeq![];
+            let mut leaf_num = 0;
+            let mut internal_num = 0;
 
-    //     while !cur_q.is_empty() {
-    //         let mut nxt_q = vecdeq![];
-    //         let mut leaf_num = 0;
-    //         let mut internal_num = 0;
+            while let Some(mut group) = cur_q.pop_front() {
+                let p = group.pop_front().unwrap();
 
-    //         while let Some(mut group) = cur_q.pop_front() {
-    //             let p = group.pop_front().unwrap();
+                for child in group.iter() {
+                    assert!(child.is_some());
 
-    //             for child in group.iter() {
-    //                 assert!(child.is_some());
+                    if child.is_internal() {
+                        assert!(
+                            children!(child).len() < Self::entries_high_bound() + 1
+                        );
+                    } else {
+                        assert!(
+                            entries!(child).len() < Self::entries_high_bound()
+                        );
+                    }
 
-    //                 if child.is_internal() {
-    //                     assert_eq!(
-    //                         keys!(child).len() + 1,
-    //                         children!(child).len(),
-    //                         "{child:?}"
-    //                     );
-    //                     assert!(
-    //                         children!(child).len() <= M,
-    //                         "{child:?}: {}",
-    //                         children!(child).len()
-    //                     );
-    //                     assert!(
-    //                         keys!(child).len() < Self::entries_high_bound()
-    //                     );
-    //                 } else {
-    //                     assert!(
-    //                         entries!(child).len() < Self::entries_high_bound()
-    //                     );
-    //                 }
+                    // Exclude leaf
+                    if child.is_leaf() {
+                        leaf_num += 1;
+                    } else {
+                        // Exclude the root (which is always one when it's internal node)
+                        if paren!(child).is_some() {
+                            assert!(
+                                children!(child).len()
+                                    >= Self::entries_low_bound() + 1
+                            );
+                        } else {
+                            assert!(children!(child).len() >= 2);
+                        }
 
-    //                 // Exclude leaf
-    //                 if child.is_leaf() {
-    //                     if p.is_some() {
-    //                         let (br_lf, br_it) =
-    //                             keys!(p).key_between(max_key!(child));
+                        internal_num += 1;
 
-    //                         if let Some(br_lf) = br_lf {
-    //                             assert_eq!(br_lf, min_key!(&child));
-    //                         }
-    //                     }
+                        let mut nxt_children = VecDeque::from_iter(
+                            children!(child).values().cloned(),
+                        );
+                        nxt_children.push_front(child.clone());
 
-    //                     leaf_num += 1;
-    //                 } else {
-    //                     // Exclude the root (which is always one when it's internal node)
-    //                     if paren!(child).is_some() {
-    //                         assert!(
-    //                             keys!(child).len()
-    //                                 >= Self::entries_low_bound()
-    //                         );
-    //                     } else {
-    //                         assert!(children!(child).len() >= 2);
-    //                     }
+                        nxt_q.push_back(nxt_children);
+                    }
+                }
 
-    //                     /* search obsoleted key */
-    //                     for k in keys!(child).keys() {
-    //                         let leaf = child.search_to_leaf(k);
+                // All leaves are in same level
+                assert!(
+                    leaf_num == 0 || internal_num == 0,
+                    "leaf: {leaf_num}, internal: {internal_num}"
+                );
+            }
 
-    //                         if leaf.is_none()
-    //                             || entries!(leaf)
-    //                                 .keys()
-    //                                 .find(|&leafk| leafk == k)
-    //                                 .is_none()
-    //                         {
-    //                             panic!("Found obsoleted key: {k:?}");
-    //                         }
-    //                     }
+            cur_q = nxt_q;
+        }
+    }
+}
 
-    //                     internal_num += 1;
 
-    //                     let mut nxt_children = VecDeque::from_iter(
-    //                         children!(child).values().cloned(),
-    //                     );
-    //                     nxt_children.push_front(child.clone());
 
-    //                     nxt_q.push_back(nxt_children);
-    //                 }
-    //             }
+#[cfg(test)]
+mod tests {
 
-    //             // All leaves are in same level
-    //             assert!(
-    //                 leaf_num == 0 || internal_num == 0,
-    //                 "leaf: {leaf_num}, internal: {internal_num}"
-    //             );
+    use super::{super::tests::*, *, bpt::tests::*};
+    use crate::collections::bst2::test_dict;
 
-    //             // Ordered
-    //             if p.is_some() {
-    //                 let last_child = group.pop_back().unwrap();
+    #[test]
+    fn test_bt2_bpt2_case_1() {
+        let mut dict = BPT2::<u16, u16, 3>::new();
 
-    //                 for (i, child) in group.iter().enumerate() {
-    //                     let child_max_key = max_key!(&child);
-    //                     let (br_lf, br_rh) =
-    //                         keys!(p).key_between(child_max_key);
+        dict_insert!(dict, 52);
+        dict_insert!(dict, 47);
+        dict_insert!(dict, 3);
+        dict_insert!(dict, 35);
+        dict_insert!(dict, 24);
+        dict_insert!(dict, 44);
+        dict_insert!(dict, 66);
+        dict_insert!(dict, 38);
+        dict_insert!(dict, 30);
+        dict_insert!(dict, 28);
 
-    //                     assert!(child_max_key < br_rh.unwrap(),);
+        dict_insert!(dict, 52, 520);
+        dict_insert!(dict, 47, 470);
+        dict_insert!(dict, 3, 30);
 
-    //                     if i > 0 {
-    //                         assert!(br_lf.unwrap() <= min_key!(&child));
-    //                     }
-    //                 }
+        // dict.debug_print();
+    }
 
-    //                 assert!(max_key!(&p) <= min_key!(&last_child));
-    //             }
-    //         }
+    #[test]
+    fn test_bt2_bpt2_case_2() {
+        let mut dict = BPT2::<u16, u16, 3>::new();
 
-    //         cur_q = nxt_q;
-    //     }
+        dict_insert!(dict, 54);
+        dict_insert!(dict, 48);
+        dict_insert!(dict, 36);
+        dict_insert!(dict, 18);
+        dict_insert!(dict, 24);
+        dict_insert!(dict, 27);
+        dict_insert!(dict, 07);
+        dict_insert!(dict, 18);
+
+        dict_get!(dict, 54);
+        dict_get!(dict, 48);
+        dict_get!(dict, 36);
+        dict_get!(dict, 18);
+        dict_get!(dict, 24);
+        dict_get!(dict, 27);
+        dict_get!(dict, 07);
+        dict_get!(dict, 18);
+
+
+        dict.debug_print();
+    }
+
+    #[test]
+    fn test_bt2_bpt2_random() {
+        test_dict!(BPT2::<u16, u16, 3>::new());
+        test_dict!(BPT2::<u16, u16, 4>::new());
+        test_dict!(BPT2::<u16, u16, 5>::new());
+        test_dict!(BPT2::<u16, u16, 11>::new());
+        test_dict!(BPT2::<u16, u16, 20>::new());
+        test_dict!(BPT2::<u16, u16, 100>::new());
+    }
+
+    // #[test]
+    // fn test_bt2_bpt_select_random() {
+    //     verify_select!(BPT::<u16, u16, 3>::new());
+    //     verify_select!(BPT::<u16, u16, 5>::new());
+    //     verify_select!(BPT::<u16, u16, 10>::new());
+    //     verify_select!(BPT::<u16, u16, 21>::new());
     // }
 }
