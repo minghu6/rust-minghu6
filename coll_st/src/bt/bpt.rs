@@ -443,22 +443,22 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
         })
     }
 
-    pub fn entries(&self) -> impl Iterator<Item = &KVEntry<K, V>> {
+    pub fn entries(&self) -> impl Iterator<Item = (&K, &V)> {
         std::iter::from_generator(move || {
             for x in self.nodes() {
                 for ent in entries!(x) {
-                    yield ent
+                    yield (&ent.0, &ent.1)
                 }
             }
         })
     }
 
     pub fn keys(&self) -> impl Iterator<Item = &K> {
-        self.entries().map(|ent| &ent.0)
+        self.entries().map(|ent| ent.0)
     }
 
     pub fn values(&self) -> impl Iterator<Item = &V> {
-        self.entries().map(|ent| &ent.1)
+        self.entries().map(|ent| ent.1)
     }
 
     pub fn insert(&mut self, k: K, v: V) -> Option<V>
@@ -538,7 +538,7 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
         )
     }
 
-    /// Start from 0 O(n/M) same key rank +1
+    /// Start from 0 O(n/M)
     pub fn rank<Q>(&self, key: &Q) -> usize
     where
         K: Borrow<Q>,
@@ -554,7 +554,7 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
 
         let idx;
         match entries!(x).binary_search_by_key(&key, |ent| ent.0.borrow()) {
-            Ok(idx_) => idx = idx_ + 1,
+            Ok(idx_) => idx = idx_,
             Err(idx_) => idx = idx_,
         }
 
@@ -570,12 +570,13 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
     }
 
     /// return Nth child (start from 0), O(n/M)
-    pub fn nth(&self, mut idx: usize) -> Option<&KVEntry<K, V>> {
+    pub fn nth(&self, mut idx: usize) -> Option<(&K, &V)> {
         let mut cur = self.min_node.upgrade();
 
         while cur.is_some() {
             if idx < entries!(cur).len() {
-                return Some(&entries!(cur)[idx]);
+                let ent = &entries!(cur)[idx];
+                return Some((&ent.0, &ent.1));
             } else {
                 idx -= entries!(cur).len();
                 cur = succ!(cur);
@@ -641,8 +642,7 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
         V: Debug,
     {
         for (k, v) in iter {
-            let x = self.max_node.upgrade();
-            self.insert_into_leaf(x, k, v);
+            self.push_back(k, v);
         }
     }
 
@@ -656,6 +656,26 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
             let x = self.min_node.upgrade();
             self.insert_into_leaf(x, k, v);
         }
+    }
+
+    /// push into max
+    pub fn push_back(&mut self, k: K, v: V)
+    where
+        K: Clone,
+        V: Debug,
+    {
+        let x = self.max_node.upgrade();
+        self.insert_into_leaf(x, k, v);
+    }
+
+    /// push into min
+    pub fn push_front(&mut self, k: K, v: V)
+    where
+        K: Clone,
+        V: Debug,
+    {
+        let x = self.min_node.upgrade();
+        self.insert_into_leaf(x, k, v);
     }
 
     pub fn pop_last(&mut self) -> Option<(K, V)>
@@ -672,7 +692,7 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
 
         let internal_and_idx;
 
-        if p.is_some() {
+        if p.is_some() && entries!(x).len() == 1 {
             internal_and_idx = Some((p.clone(), keys!(p).len() - 1));
         }
         else {
@@ -680,6 +700,56 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
         }
 
         self.remove_on_leaf(internal_and_idx, x.clone(), entries!(x).len() - 1)
+    }
+
+    pub fn pop_first(&mut self) -> Option<(K, V)>
+    where
+        K: Clone,
+    {
+        let x = self.min_node.upgrade();
+
+        if x.is_none() {
+            return None;
+        }
+
+        /* min-key has no internal index */
+
+        self.remove_on_leaf(None, x.clone(), 0)
+    }
+
+    pub fn into_iter(self) -> impl Iterator<Item = (K, V)> {
+        let mut cur = self.min_node.upgrade();
+
+        std::iter::from_generator(move || {
+            while cur.is_some() {
+                let nxt = succ!(cur);
+
+                for ent in entries_mut!(cur).drain(..) {
+                    yield ent.drain();
+                }
+
+                cur = nxt;
+            }
+
+            drop(self);
+        })
+    }
+
+    /// collect all item without drop itself used for BPT2::remove
+    pub(crate) fn drain_all(&mut self) -> impl Iterator<Item = (K, V)> {
+        let mut cur = self.min_node.upgrade();
+
+        std::iter::from_generator(move || {
+            while cur.is_some() {
+                let nxt = succ!(cur);
+
+                for ent in entries_mut!(cur).drain(..) {
+                    yield ent.drain();
+                }
+
+                cur = nxt;
+            }
+        })
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -932,26 +1002,24 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
     where
         K: Clone,
     {
-        // Exclude leaf node and nil node
-        debug_assert!(x.is_some());
         debug_assert!(
             x.is_leaf() || keys!(x).len() == Self::entries_low_bound() - 1
         );
 
         if let Err((p, idx)) = Self::try_rebalancing(&x) {
-            if idx == 0 {
-                self.merge_node(&p, idx);
-            } else {
+            if idx > 0 {
                 self.merge_node(&p, idx - 1);
+            } else {
+                self.merge_node(&p, idx);
             }
 
             x = p;
 
             if paren!(x).is_none() {
-                // pop new level
                 debug_assert!(x.is_internal());
 
                 if keys!(x).is_empty() {
+                    // pop new level
                     self.root = children_mut!(x).pop().unwrap();
                     paren!(self.root, Node::none());
                 }
@@ -976,6 +1044,10 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
 
             // update succ
             succ!(left, succ!(right));
+            // update pred
+            if succ!(right).is_some() {
+                pred!(succ!(right), left.clone());
+            }
 
             if right.rc_eq(&self.max_node.upgrade()) {
                 // update max_node
@@ -1007,18 +1079,19 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
     where
         K: Clone,
     {
-        debug_assert!(paren!(x).is_some());
+        let p = paren!(x);
+        debug_assert!(p.is_some());
 
         /* Check if siblings has remains */
 
-        let p = paren!(x);
         let idx = index_of_child_by_rc!(p, x);
 
-        // Left first
+        // Try left first
         if idx > 0 {
             try_node_redistribution!(p, idx - 1, Left);
         }
 
+        // Try right then
         if idx < children!(p).len() - 1 {
             try_node_redistribution!(p, idx, Right);
         }
@@ -1139,6 +1212,7 @@ use indexmap::IndexMap;
 #[cfg(test)]
 #[allow(unused)]
 impl<K: Ord + Debug + Clone, V, const M: usize> BPT<K, V, M> {
+
     fn search_obsoleted_key(&self) -> Vec<K> {
         let mut obsoleted = vec![];
         let mut q = common::vecdeq![&self.root];
@@ -1172,7 +1246,7 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT<K, V, M> {
     {
         let mut map = IndexMap::new();
 
-        for x in self.leafs() {
+        for x in self.nodes() {
             for k in entries!(x).iter().map(|ent| ent.0.clone()) {
                 let cnt = self.count_key(&k);
                 map.insert(k, cnt);
@@ -1180,17 +1254,6 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT<K, V, M> {
         }
 
         map
-    }
-
-    fn leafs(&self) -> impl Iterator<Item = Node<K, V>> {
-        let mut x = self.min_node.upgrade();
-
-        std::iter::from_generator(move || {
-            while x.is_some() {
-                yield x.clone();
-                x = succ!(x);
-            }
-        })
     }
 
     /// Count key occurance across the tree
@@ -1202,8 +1265,6 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT<K, V, M> {
             match keys!(x).binary_search_by_key(&k, |k_| k_.borrow()) {
                 Ok(idx) => {
                     count += 1;
-
-                    // debug_assert!(x.lv() <= 3, "Found lv {}", x.lv());
 
                     x = &children!(x)[idx + 1];
                 }
@@ -1219,6 +1280,10 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT<K, V, M> {
 
         match entries!(x).binary_search_by_key(&k, |ent| &ent.0) {
             Ok(idx) => {
+                if count > 0 {
+                    assert_eq!(idx, 0, "has internal index for nodex idx: {idx}");
+                }
+
                 count += 1;
             }
             Err(idx) => unreachable!("There is no {k:?}"),
@@ -1282,7 +1347,7 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT<K, V, M> {
         Ok(())
     }
 
-    fn debug_print(&self)
+    pub(crate) fn debug_print(&self)
     where
         V: Debug,
     {
@@ -1293,9 +1358,10 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT<K, V, M> {
         println!("{cache}")
     }
 
-    fn validate(&self)
+    pub(crate) fn validate(&self)
     where
-        K: Debug,
+        K: Debug + std::hash::Hash,
+        V: Debug
     {
         if self.root.is_none() {
             return;
@@ -1419,12 +1485,46 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT<K, V, M> {
                         }
                     }
 
-                    assert!(p.max_key().unwrap() <= key!(&last_child, 0));
+                    if p.max_key().unwrap() > key!(&last_child, 0) {
+                        self.debug_print();
+                    }
+                    assert!(
+                        p.max_key().unwrap() <= key!(&last_child, 0),
+                        "p: {p:?}"
+                    );
                 }
+
             }
 
             cur_q = nxt_q;
         }
+
+        // test pred
+        let mut cur = self.max_node.upgrade();
+        let mut cnt = 0;
+
+        while cur.is_some() {
+            cnt += entries!(cur).len();
+            cur = pred!(cur)
+        }
+
+        assert_eq!(cnt, self.len());
+
+
+        // test succ
+        let mut cur = self.min_node.upgrade();
+        let mut cnt = 0;
+
+        while cur.is_some() {
+            cnt += entries!(cur).len();
+            cur = succ!(cur)
+        }
+
+        assert_eq!(cnt, self.len());
+
+        //
+        // self.count_nodes_keys();
+
     }
 }
 
@@ -1453,6 +1553,30 @@ pub(crate) mod tests {
 
     use super::{super::tests::*, *};
     use crate::bst::test_dict;
+
+    macro_rules! prepare_dict {
+        ($dict:expr) => {{
+            let mut dict = $dict;
+            let mut back = std::collections::BTreeMap::new();
+            let getone = || common::random::<u16>() % 10_00;
+
+            for _ in 0..1000 {
+                let k = getone();
+
+                dict.insert(k, k);
+                back.insert(k, k);
+            }
+
+            for _ in 0..250 {
+                let k = getone();
+
+                dict.remove(&k);
+                back.remove(&k);
+            }
+
+            (dict, back)
+        }};
+    }
 
     macro_rules! assert_select_eq {
         ($dict:expr, $r:expr, $r2:expr) => {{
@@ -1505,30 +1629,6 @@ pub(crate) mod tests {
                     break;
                 }
             }
-        }};
-    }
-
-    macro_rules! prepare_dict {
-        ($dict:expr) => {{
-            let mut dict = $dict;
-            let mut back = std::collections::BTreeMap::new();
-            let getone = || common::random::<u16>() % 10_00;
-
-            for _ in 0..1000 {
-                let k = getone();
-
-                dict.insert(k, k);
-                back.insert(k, k);
-            }
-
-            for _ in 0..250 {
-                let k = getone();
-
-                dict.remove(&k);
-                back.remove(&k);
-            }
-
-            (dict, back)
         }};
     }
 
@@ -1604,10 +1704,83 @@ pub(crate) mod tests {
         }};
     }
 
+    macro_rules! verify_pred_succ_etc {
+        ($dict:expr) => {{
+            let (dict, back)= prepare_dict!($dict);
+
+            // test rank/nth
+            for (i, (k, _v)) in back.iter().enumerate() {
+                let rk = dict.rank(&k);
+                let (dk, _v) = dict.nth(rk).unwrap();
+
+                assert_eq!(rk, i, "rank=");
+                assert_eq!(dk, k, "dk: {dk}, k: {k}");
+            }
+
+            // test pop first
+
+        }}
+    }
+
+    macro_rules! verify_bpt_properties {
+        ($dict:expr) => {{
+
+            for _ in 0..100 {
+                let (dict, _back) = prepare_dict!($dict);
+
+                // 所有 internal key 都是叶子节点 idx=0 的位置的key
+                let cnt_keys = dict.count_nodes_keys();
+
+                let min_key_cnt = cnt_keys.values().min().unwrap();
+                let max_key_cnt = cnt_keys.values().max().unwrap();
+
+                // 同样的 key 可以出现一次或者两次，也就是说在internal上最多有一个索引
+                assert_eq!(min_key_cnt, &1);
+                assert_eq!(max_key_cnt, &2);
+            }
+        }}
+    }
+
+    macro_rules! verify_bpt_pop {
+        ($dict:expr) => {{
+
+            for _ in 0..20 {
+                let (mut dict, mut back) = prepare_dict!($dict);
+                dict.validate();
+
+                while let Some((k, _v)) = back.pop_last() {
+                    let (dk, _) = dict.pop_last().unwrap();
+                    assert_eq!(k, dk, "[pop-last] k: {k}, dk: {dk}");
+
+                    dict.validate();
+                }
+
+                // let (mut dict, mut back) = prepare_dict!($dict);
+
+                // while let Some((k, _v)) = back.pop_first() {
+                //     let (dk, _) = dict.pop_first().unwrap();
+                //     assert_eq!(k, dk, "[pop-first] k: {k}, dk: {dk}");
+
+                //     dict.validate();
+                // }
+            }
+        }
+    }}
+
+
     pub(crate) use assert_select_eq;
     pub(crate) use verify_select;
     pub(crate) use prepare_dict;
     pub(crate) use verify_bulk;
+
+    #[test]
+    fn test_bt_bpt_succ_pred_etc() {
+        verify_pred_succ_etc!(BPT::<u16, u16, 3>::new());
+        verify_pred_succ_etc!(BPT::<u16, u16, 4>::new());
+        verify_pred_succ_etc!(BPT::<u16, u16, 5>::new());
+        verify_pred_succ_etc!(BPT::<u16, u16, 10>::new());
+        verify_pred_succ_etc!(BPT::<u16, u16, 21>::new());
+    }
 
     #[test]
     fn test_bt_bpt_case_1() {
@@ -1680,6 +1853,38 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn test_bt_bpt_case_2() {
+        let mut dict = BPT::<u16, u16, 5>::new();
+
+        dict_insert!(dict, 25);
+        dict_insert!(dict, 62);
+        dict_insert!(dict, 6);
+        dict_insert!(dict, 2);
+        dict_insert!(dict, 45);
+        dict_insert!(dict, 11);
+        dict_insert!(dict, 55);
+        dict_insert!(dict, 51);
+
+        // dict.debug_print();
+
+        dict_remove!(dict, 45);
+        dict_remove!(dict, 55);
+        dict_remove!(dict, 51);
+        dict_remove!(dict, 25);
+        dict_remove!(dict, 11);
+
+        dict.debug_print();
+
+        let mut iter = dict.into_iter();
+
+        assert_eq!(iter.next(), Some((2, 2)));
+        assert_eq!(iter.next(), Some((6, 6)));
+        assert_eq!(iter.next(), Some((62, 62)));
+
+
+    }
+
+    #[test]
     fn test_bt_bpt_random() {
         test_dict!(BPT::<u16, u16, 3>::new());
         test_dict!(BPT::<u16, u16, 4>::new());
@@ -1705,59 +1910,26 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn verify_bpt_properties() {
-        let group = 50;
-        let group_num = 100;
-
-        for _ in 0..20 {
-            let mut range: Vec<i32> = (1..=group_num).collect();
-
-            use common::{prelude::SliceRandom, thread_rng};
-
-            range.shuffle(&mut thread_rng());
-
-            let mut dict = BPT::<i32, i32, 3>::new();
-
-            for pos in range {
-                for i in pos..pos + group {
-                    let k = pos * 100 + i;
-
-                    dict.insert(k, k);
-                }
-            }
-
-            let cnt_keys = dict.count_nodes_keys();
-
-            let min_key_cnt = cnt_keys.values().min().unwrap();
-            let max_key_cnt = cnt_keys.values().max().unwrap();
-
-            // println!("min_key_cnt: {min_key_cnt}, max_key_cnt: {max_key_cnt}");
-            assert_eq!(min_key_cnt, &1);
-            assert_eq!(max_key_cnt, &2);
-        }
+    fn test_bt_bpt_properties() {
+        verify_bpt_properties!(BPT::<u16, u16, 3>::new());
+        verify_bpt_properties!(BPT::<u16, u16, 5>::new());
+        verify_bpt_properties!(BPT::<u16, u16, 10>::new());
+        verify_bpt_properties!(BPT::<u16, u16, 21>::new());
     }
 
     #[test]
-    fn test_bt_bpt_case_2() {
-        let mut dict = BPT::<u16, u16, 5>::new();
+    fn test_bt_bpt_pop() {
+        verify_bpt_pop!(BPT::<u16, u16, 3>::new());
+        println!("pass..M=3");
 
-        dict_insert!(dict, 25);
-        dict_insert!(dict, 62);
-        dict_insert!(dict, 6);
-        dict_insert!(dict, 2);
-        dict_insert!(dict, 45);
-        dict_insert!(dict, 11);
-        dict_insert!(dict, 55);
-        dict_insert!(dict, 51);
+        verify_bpt_pop!(BPT::<u16, u16, 5>::new());
+        println!("pass..M=5");
 
-        // dict.debug_print();
+        verify_bpt_pop!(BPT::<u16, u16, 10>::new());
+        println!("pass..M=10");
 
-        dict_remove!(dict, 45);
-        dict_remove!(dict, 55);
-        dict_remove!(dict, 51);
-        dict_remove!(dict, 25);
-        dict_remove!(dict, 11);
+        verify_bpt_pop!(BPT::<u16, u16, 21>::new());
+        println!("pass..M=21");
 
-        // dict.debug_print();
     }
 }

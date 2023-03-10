@@ -4,22 +4,14 @@
 
 use std::{
     borrow::Borrow,
-    cmp::Ordering::{self, *},
     fmt::*,
-    ops::{
-        Bound::{self, *},
-        RangeBounds,
-    },
+    ops::{Bound::*, RangeBounds},
 };
 
 use super::{
-    super::bst::{Left, Right},
     bpt::{
-        def_attr_macro_bpt,
-        def_node__heap_access,
-        def_node__wn_access,
+        bpt, def_attr_macro_bpt, def_node__heap_access, def_node__wn_access,
         BPT,
-        bpt
     },
     node as aux_node, *,
 };
@@ -34,7 +26,7 @@ impl_tree!(
 
 def_attr_macro_bpt!(paren, succ, entries, children);
 
-const SUB_M: usize = 10;
+const SUB_M: usize = 4;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -68,8 +60,7 @@ macro_rules! min_key {
     ($x:expr) => {
         if let Some(k) = $x.min_key() {
             k.clone()
-        }
-        else {
+        } else {
             unreachable!("No min-key {:?}", $x)
         }
     };
@@ -146,8 +137,7 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
 
         if self.cnt == 0 {
             cur = Node::none();
-        }
-        else {
+        } else {
             match range.start_bound() {
                 Included(&k) => {
                     cur = Self::search_to_leaf_r(&self.root, k.borrow());
@@ -155,7 +145,7 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
                     if cur.is_none() {
                         cur = self.min_node.upgrade();
                     }
-                },
+                }
                 Excluded(_) => unimplemented!(),
                 Unbounded => {
                     cur = self.min_node.upgrade();
@@ -165,18 +155,19 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
 
         std::iter::from_generator(move || {
             while cur.is_some() {
-                let mut entries =
-                    entries_mut!(cur).select_mut(range.clone()).peekable();
+                let mut entries = entries_mut!(cur).select_mut(range.clone());
 
-                if entries.peek().is_none() {
-                    return;
+                if let Some(fst) = entries.next() {
+                    yield fst;
+
+                    for ent in entries {
+                        yield ent
+                    }
+
+                    cur = succ!(cur);
+                } else {
+                    break;
                 }
-
-                for ent in entries {
-                    yield ent
-                }
-
-                cur = succ!(cur);
             }
         })
     }
@@ -186,23 +177,78 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
         K: Clone + Debug,
         V: Debug,
     {
+        let x = Self::search_to_leaf_r(&self.root, &k);
 
-        /* empty none */
-        if self.root.is_none() {
-            self.root = node!(kv | k, v);
-            self.min_node = self.root.downgrade();
+        self.insert_into_leaf(x, k, v)
+    }
 
-            self.cnt += 1;
+    pub fn remove<Q>(&mut self, k: &Q) -> Option<V>
+    where
+        K: Borrow<Q> + Clone + Debug,
+        Q: Ord + ?Sized,
+        V: Debug,
+    {
+        let x = Self::search_to_leaf_r(&self.root, k);
 
+        self.remove_on_leaf(x, k)
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //// Assistant Method
+
+    fn remove_on_leaf<Q>(&mut self, x: Node<K, V>, k: &Q) -> Option<V>
+    where
+        K: Borrow<Q> + Clone + Debug,
+        Q: Ord + ?Sized,
+        V: Debug,
+    {
+        if x.is_none() {
             return None;
         }
 
-        let mut x = Self::search_to_leaf_r(&self.root, &k);
+        debug_assert!(x.is_leaf());
 
+        let old_k = min_key!(x);
+
+        let popped = entries_mut!(x).remove(k);
+
+        if popped.is_some() {
+            self.cnt -= 1;
+        }
+
+        if entries!(x).len() == 0 {
+            if self.cnt == 0 {
+                self.root = Node::none();
+                self.min_node = WeakNode::none();
+            } else {
+                self.unpromote(x, old_k);
+            }
+        } else {
+            Self::update_index(old_k, &x);
+        }
+
+        popped
+    }
+
+    fn insert_into_leaf(&mut self, mut x: Node<K, V>, k: K, v: V) -> Option<V>
+    where
+        K: Clone + Debug,
+        V: Debug,
+    {
         /* new min none */
 
         if x.is_none() {
-            x = self.min_node.upgrade();
+            if self.cnt == 0 {
+                self.root = node!(kv | k, v);
+                self.min_node = self.root.downgrade();
+
+                self.cnt += 1;
+
+                return None;
+            } else {
+                x = self.min_node.upgrade();
+            }
         }
 
         /* insert into leaf */
@@ -213,7 +259,7 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
 
         let popped = entries_mut!(x).insert(k, v);
 
-        Self::update_index(old_k, x.clone());
+        Self::update_index(old_k, &x);
 
         if entries!(x).len() == M {
             self.promote(x);
@@ -226,8 +272,6 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
         popped
     }
 
-    ////////////////////////////////////////////////////////////////////////////
-    //// Assistant Method
 
     /// search to leaf restricted version (with short-circuit evaluation)
     #[inline(always)]
@@ -258,7 +302,7 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
     //         }
     //     })
     // }
-    fn update_index(old_k: K, x: Node<K, V>)
+    fn update_index(old_k: K, x: &Node<K, V>)
     where
         K: Clone + Debug,
     {
@@ -273,7 +317,7 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
             children_mut!(p).remove(&old_k);
             children_mut!(p).insert(k.clone(), x.clone());
 
-            Self::update_index(old_p_k, p);
+            Self::update_index(old_p_k, &p);
         }
     }
 
@@ -302,9 +346,12 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
 
             succ!(x, x2.clone());
         } else {
-            debug_assert_eq!(children!(x).len(), Self::entries_high_bound() + 1);
+            debug_assert_eq!(
+                children!(x).len(),
+                Self::entries_high_bound() + 1
+            );
 
-            let children_x2 = children_mut!(x).split_off((M+1).div_floor(2));
+            let children_x2 = children_mut!(x).split_off((M + 1).div_floor(2));
 
             x2 = node!(basic - internal | children_x2, WeakNode::none());
 
@@ -319,13 +366,12 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
 
         /* push new level */
         if p.is_none() {
-            let children = bpt!{
+            let children = bpt! {
                 x_k => x,
                 x2_k => x2
             };
 
-            self.root =
-                node!(basic - internal | children, WeakNode::none());
+            self.root = node!(basic - internal | children, WeakNode::none());
 
             for child in children_mut!(self.root).values() {
                 paren!(child, self.root.clone());
@@ -336,10 +382,7 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
             paren!(x2, p.clone());
 
             // insert new or update
-            children_mut!(p).insert(
-                x2_k,
-                x2
-            );
+            children_mut!(p).insert(x2_k, x2);
 
             if children!(p).len() == Self::entries_high_bound() + 1 {
                 self.promote(p);
@@ -347,7 +390,158 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
         }
     }
 
+    fn unpromote(&mut self, mut x: Node<K, V>, old_k: K)
+    where
+        K: Clone + Debug,
+        V: Debug,
+    {
+        debug_assert!(paren!(x).is_some());
+        debug_assert!(
+            x.is_leaf()
+                || children!(x).len() == Self::entries_low_bound() - 1 + 1
+        );
 
+        if let Err((p, idx)) = Self::try_rebalancing(&x, old_k.clone()) {
+            // merge with left_sib (no need to update index)
+            if idx > 0 {
+                let (_sib_k, sib_lf) = children!(p).nth(idx - 1).unwrap();
+
+                children_mut!(p).remove(&old_k);
+
+                if x.is_leaf() {
+                    succ!(sib_lf, succ!(x));
+                } else {
+                    debug_assert!(x.is_internal());
+
+                    // let x_inner = unwrap_into!(x);
+                    // let (children, _) = x_inner.unpack_as_internal();
+
+                    for (child_k, child) in children_mut!(x).drain_all() {
+                        paren!(child, sib_lf.clone());
+                        children_mut!(sib_lf).push_back(child_k, child);
+                    }
+                }
+            }
+            // for right_sib (merge into left)
+            else {
+                let (_sib_k, sib_rh) = children!(p).nth(idx + 1).unwrap();
+                let sib_rh = sib_rh.clone();
+
+                // 由于没有prev，只能总是合并到左节点，好在此时叶子节点只有一个元素
+                if x.is_leaf() {
+                    debug_assert_eq!(entries!(sib_rh).len(), 1);
+
+                    succ!(x, succ!(sib_rh));
+
+                    let (k, v) = entries_mut!(sib_rh).pop_first().unwrap();
+                    entries_mut!(x).insert(k.clone(), v);
+
+                    // remove x from p
+                    Self::update_index(old_k, &x);
+
+                    // 不需要更新索引，因为 sib_rh 值更大
+                } else {
+                    let old_key_sib_rh = min_key!(sib_rh);
+                    children_mut!(p).remove(&old_key_sib_rh);
+
+                    for (child_k, child) in children_mut!(sib_rh).drain_all() {
+                        paren!(child, x.clone());
+                        children_mut!(x).push_back(child_k, child);
+                    }
+
+                    Self::update_index(old_k, &x);
+                }
+            }
+
+            let old_key = min_key!(p);
+            x = p;
+
+            if paren!(x).is_none() {
+                if children!(x).len() == 1 {
+                    // pop new level
+                    self.root = children_mut!(x).pop_first().unwrap().1;
+                    paren!(self.root, Node::none());
+                }
+            } else {
+                if children!(x).len() < Self::entries_low_bound() + 1 {
+                    self.unpromote(x, old_key);
+                }
+            }
+        }
+    }
+
+    fn try_rebalancing(
+        x: &Node<K, V>,
+        old_k: K,
+    ) -> std::result::Result<(), (Node<K, V>, usize)>
+    where
+        K: Clone + Debug,
+        V: Debug,
+    {
+        let p = paren!(x);
+        debug_assert!(p.is_some());
+
+        let idx = children!(p).rank(&old_k);
+
+        // try to redistribute with left
+        if idx > 0 {
+            let (_sib_k, sib_lf) = children!(p).nth(idx - 1).unwrap();
+
+            if sib_lf.is_leaf() && entries!(sib_lf).len() > 1 {
+                let (k, v) = entries_mut!(sib_lf).pop_last().unwrap();
+                entries_mut!(x).insert(k, v);
+
+                Self::update_index(old_k, x);
+
+                return Ok(());
+            }
+
+            if sib_lf.is_internal()
+                && children!(sib_lf).len() > Self::entries_low_bound() + 1
+            {
+                let (k, v) = children_mut!(sib_lf).pop_last().unwrap();
+                paren!(v, x.clone());
+                children_mut!(x).insert(k, v);
+
+                Self::update_index(old_k, x);
+
+                return Ok(());
+            }
+        }
+        // try to redistribute with right then
+        if idx < children!(p).len() - 1 {
+            let (_sib_k, sib_rh) = children!(p).nth(idx + 1).unwrap();
+            let sib_rh = sib_rh.clone();
+
+            if sib_rh.is_leaf() && entries!(sib_rh).len() > 1 {
+                let (k, v) = entries_mut!(sib_rh).pop_first().unwrap();
+                entries_mut!(x).insert(k.clone(), v);
+
+                Self::update_index(old_k, x);  // WARNING： it wll replace sib_rh with x
+                children_mut!(p).insert(min_key!(sib_rh), sib_rh);
+
+                return Ok(());
+            }
+
+            if sib_rh.is_internal()
+                && children!(sib_rh).len() > Self::entries_low_bound() + 1
+            {
+                let sib_rh_old_key = min_key!(sib_rh);
+
+                let (k, v) = children_mut!(sib_rh).pop_first().unwrap();
+                paren!(v, x.clone());
+                children_mut!(x).insert(k.clone(), v);
+
+                // Self::update_index(old_k, x);
+                // children_mut!(p).insert(min_key!(sib_rh), sib_rh);
+                Self::update_index(sib_rh_old_key, &sib_rh);
+
+                return Ok(());
+            }
+        }
+
+        Err((p, idx))
+    }
 }
 
 
@@ -394,6 +588,33 @@ impl<K, V> Node_<K, V> {
 
     def_node__wn_access!(both, paren);
     def_node__wn_access!(leaf, succ);
+
+    // fn unpack_as_internal(self) -> (BPT<K, Node<K, V>, SUB_M>, WeakNode<K, V>)
+    // where
+    //     K: Ord + Debug,
+    // {
+    //     match self {
+    //         Internal { children, paren } => (children, paren),
+    //         Leaf { entries, .. } => {
+    //             unreachable!("unpack leaf:{:?} as internal", entries)
+    //         }
+    //     }
+    // }
+}
+
+
+impl<K: Debug + Ord, V> Debug for Node_<K, V> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        match self {
+            Self::Internal { children, .. } => f
+                .debug_struct("Internal")
+                .field("children", children)
+                .finish(),
+            Self::Leaf { entries, .. } => {
+                f.debug_struct("Leaf").field("entries", entries).finish()
+            }
+        }
+    }
 }
 
 
@@ -406,9 +627,10 @@ impl<K, V> Node<K, V> {
         self.is_some() && !attr!(self | self).is_leaf()
     }
 
+    #[allow(unused)]
     fn max_key(&self) -> Option<&K>
     where
-        K: Ord
+        K: Ord,
     {
         if self.is_none() {
             None
@@ -421,7 +643,7 @@ impl<K, V> Node<K, V> {
 
     fn min_key(&self) -> Option<&K>
     where
-        K: Ord
+        K: Ord,
     {
         if self.is_none() {
             None
@@ -469,16 +691,11 @@ impl<K: Debug + Ord, V> Debug for Node<K, V> {
 ////////////////////////////////////////////////////////////////////////////////
 //// Test && Stats Method
 
-#[cfg(test)]
-#[allow(unused)]
-// use std::collections::HashMap;
-use indexmap::IndexMap;
-
 
 #[cfg(test)]
 #[allow(unused)]
 impl<K: Ord + Debug + Clone, V, const M: usize> BPT2<K, V, M> {
-    fn debug_write<W: std::fmt::Write>(&self, f: &mut W) -> std::fmt::Result
+    fn debug_print(&self)
     where
         V: Debug,
     {
@@ -486,21 +703,21 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT2<K, V, M> {
 
         /* print header */
 
-        writeln!(f, "{self:?}")?;
+        println!("{self:?}");
 
         /* print body */
 
         if self.root.is_none() {
-            return Ok(());
+            return;
         }
 
         let mut this_q = vecdeq![vec![self.root.clone()]];
         let mut lv = 1;
 
         while !this_q.is_empty() {
-            writeln!(f)?;
-            writeln!(f, "############ Level: {lv} #############")?;
-            writeln!(f)?;
+            println!();
+            println!("############ Level: {lv} #############");
+            println!();
 
             let mut nxt_q = vecdeq![];
 
@@ -512,17 +729,16 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT2<K, V, M> {
                         nxt_q.push_back(
                             children!(x).values().cloned().collect(),
                         );
-                        writeln!(f, "({i:02}): {x:?} (p: [{p:?}])")?;
+                        println!("({i:02}): {x:?} (p: [{p:?}])");
                     } else {
                         let succ = succ!(x);
-                        writeln!(
-                            f,
+                        println!(
                             "({i:02}): {x:?} (p: [{p:?}], succ: [{succ:?}])"
-                        )?;
+                        );
                     }
                 }
 
-                writeln!(f)?;
+                println!();
             }
 
 
@@ -530,31 +746,21 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT2<K, V, M> {
             lv += 1;
         }
 
-        writeln!(f, "------------- end --------------\n")?;
+        println!("------------- end --------------\n");
 
-        Ok(())
-    }
-
-    fn debug_print(&self)
-    where
-        V: Debug,
-    {
-        let mut cache = String::new();
-
-        self.debug_write(&mut cache).unwrap();
-
-        println!("{cache}")
     }
 
     fn validate(&self)
     where
-        K: Debug,
+        K: Debug + std::hash::Hash,
+        V: Debug
     {
         if self.root.is_none() {
             return;
         }
 
         use std::collections::VecDeque;
+
         use common::vecdeq;
 
         let mut cur_q = vecdeq![vecdeq![Node::none(), self.root.clone()]];
@@ -572,12 +778,16 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT2<K, V, M> {
 
                     if child.is_internal() {
                         assert!(
-                            children!(child).len() < Self::entries_high_bound() + 1
+                            children!(child).len()
+                                < Self::entries_high_bound() + 1
                         );
+
+                        // children!(child).validate();
                     } else {
                         assert!(
                             entries!(child).len() < Self::entries_high_bound()
                         );
+                        // entries!(child).validate();
                     }
 
                     // Exclude leaf
@@ -622,7 +832,7 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT2<K, V, M> {
 #[cfg(test)]
 mod tests {
 
-    use super::{super::tests::*, *, bpt::tests::*};
+    use super::{super::tests::*, bpt::tests::*, *};
     use crate::bst::test_dict;
 
     #[test]
@@ -640,54 +850,92 @@ mod tests {
         dict_insert!(dict, 30);
         dict_insert!(dict, 28);
 
-        dict_insert!(dict, 52, 520);
-        dict_insert!(dict, 47, 470);
-        dict_insert!(dict, 3, 30);
+        // dict.debug_print();
+
+        dict_remove!(dict, 24);
+        dict_remove!(dict, 44);
+        dict_remove!(dict, 66);
+        dict_remove!(dict, 38);
+        dict_remove!(dict, 52);
+        dict_remove!(dict, 47);
+        dict_remove!(dict, 3);
+
+        assert_eq!(dict.select(..).cloned().collect::<Vec<_>>(), [28, 30, 35]);
+
+        dict_remove!(dict, 35);
+        dict_remove!(dict, 30);
+        dict_remove!(dict, 28);
+
+        assert_eq!(dict.select(..).cloned().collect::<Vec<_>>(), [0u16; 0]);
+
+        // dict.debug_print();
+
+    }
+
+    #[test]
+    fn test_bt_bpt2_case_2() {
+        let mut dict = BPT2::<u16, u16, 5>::new();
+
+        dict_insert!(dict, 22);
+        dict_insert!(dict, 18);
+        dict_insert!(dict, 12);
+        dict_insert!(dict, 58);
+        dict_insert!(dict, 20);
+
+        dict_insert!(dict, 42);
+        dict_insert!(dict, 34);
+        dict_insert!(dict, 32);
+        dict_insert!(dict, 13);
+        dict_insert!(dict, 45);
+
+        dict_insert!(dict, 10);
+        dict_insert!(dict, 46);
+        dict_insert!(dict, 53);
+        dict_insert!(dict, 00);
+        dict_insert!(dict, 27);
+
+
+        dict_remove!(dict, 34);
+        dict_remove!(dict, 13);
+        dict_remove!(dict, 18);
+        dict_remove!(dict, 00);
+        dict_remove!(dict, 46);
+
+        // dict.debug_print();
+
+        dict_remove!(dict, 42);
+        dict_remove!(dict, 22);
 
         // dict.debug_print();
     }
 
     #[test]
-    fn test_bt_bpt2_case_2() {
-        let mut dict = BPT2::<u16, u16, 3>::new();
+    fn test_bt_bpt2_random() {
+        // test_dict!(BPT2::<u16, u16, 3>::new());
+        // println!("Ok..M=3");
 
-        dict_insert!(dict, 54);
-        dict_insert!(dict, 48);
-        dict_insert!(dict, 36);
-        dict_insert!(dict, 18);
-        dict_insert!(dict, 24);
-        dict_insert!(dict, 27);
-        dict_insert!(dict, 07);
-        dict_insert!(dict, 18);
+        test_dict!(BPT2::<u16, u16, 4>::new());
+        println!("Ok..M=4");
 
-        dict_get!(dict, 54);
-        dict_get!(dict, 48);
-        dict_get!(dict, 36);
-        dict_get!(dict, 18);
-        dict_get!(dict, 24);
-        dict_get!(dict, 27);
-        dict_get!(dict, 07);
-        dict_get!(dict, 18);
+        test_dict!(BPT2::<u16, u16, 5>::new());
+        println!("Ok..M=5");
 
+        test_dict!(BPT2::<u16, u16, 11>::new());
+        println!("Ok..M=11");
 
-        dict.debug_print();
+        test_dict!(BPT2::<u16, u16, 20>::new());
+        println!("Ok..M=20");
+
+        test_dict!(BPT2::<u16, u16, 100>::new());
+        println!("Ok..M=100");
+
     }
 
     #[test]
-    fn test_bt_bpt2_random() {
-        test_dict!(BPT2::<u16, u16, 3>::new());
-        test_dict!(BPT2::<u16, u16, 4>::new());
-        test_dict!(BPT2::<u16, u16, 5>::new());
-        test_dict!(BPT2::<u16, u16, 11>::new());
-        test_dict!(BPT2::<u16, u16, 20>::new());
-        test_dict!(BPT2::<u16, u16, 100>::new());
+    fn test_bt_bpt2_select_random() {
+        verify_select!(BPT2::<u16, u16, 3>::new());
+        verify_select!(BPT2::<u16, u16, 5>::new());
+        verify_select!(BPT2::<u16, u16, 10>::new());
+        verify_select!(BPT2::<u16, u16, 21>::new());
     }
-
-    // #[test]
-    // fn test_bt_bpt_select_random() {
-    //     verify_select!(BPT::<u16, u16, 3>::new());
-    //     verify_select!(BPT::<u16, u16, 5>::new());
-    //     verify_select!(BPT::<u16, u16, 10>::new());
-    //     verify_select!(BPT::<u16, u16, 21>::new());
-    // }
 }

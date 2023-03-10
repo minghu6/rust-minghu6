@@ -79,6 +79,7 @@ mod tests {
         };
     }
 
+    #[allow(unused)]
     macro_rules! dict_get {
         ($dict:ident, $num:expr) => {
             assert_eq!($dict.get(&$num), Some(&$num));
@@ -95,6 +96,7 @@ mod tests {
     }
 
     pub(super) use dict_insert;
+    #[allow(unused)]
     pub(super) use dict_get;
     pub(super) use dict_remove;
 }
