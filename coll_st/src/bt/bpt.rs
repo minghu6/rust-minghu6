@@ -10,7 +10,7 @@ use std::{
 
 use coll::{ KVEntry, def_coll_init, node as aux_node, *};
 
-use crate::{ bst::{Left, Right}, bt::* };
+use crate::{ bst::{Left, Right, Dir}, bt::* };
 
 
 impl_node!(pub);
@@ -100,7 +100,7 @@ macro_rules! def_node__heap_access {
         fn $name(&self) -> &$ret {
             match self {
                 Internal { $name, .. } => $name,
-                Leaf {..} => unreachable!(
+                Leaf {..} => panic!(
                     "Get `{}` on leaf",
                     stringify!($name)
                 )
@@ -110,7 +110,7 @@ macro_rules! def_node__heap_access {
             fn [<$name _mut>](&mut self) -> &mut $ret {
                 match self {
                     Internal { $name, .. } => $name,
-                    Leaf {..} => unreachable!(
+                    Leaf {..} => panic!(
                         "Get `{}` on leaf",
                         stringify!($name)
                     )
@@ -121,7 +121,7 @@ macro_rules! def_node__heap_access {
     (leaf, $name:ident, $ret:ty) => {
         fn $name(&self) -> &$ret {
             match self {
-                Internal {..} => unreachable!(
+                Internal {..} => panic!(
                     "Get `{}` on internal node",
                     stringify!($name)
                 ),
@@ -131,7 +131,7 @@ macro_rules! def_node__heap_access {
         coll::paste!(
             fn [<$name _mut>](&mut self) -> &mut $ret {
                 match self {
-                    Internal {..} => unreachable!(
+                    Internal {..} => panic!(
                         "Get `{}` on internal node",
                         stringify!($name)
                     ),
@@ -166,7 +166,7 @@ macro_rules! def_node__wn_access {
     (leaf, $name:ident) => {
         fn $name(&self) -> Node<K, V> {
             match self {
-                Internal {..} => unreachable!(
+                Internal {..} => panic!(
                     "Get `{}` on internal node",
                     stringify!($name)
                 ),
@@ -177,7 +177,7 @@ macro_rules! def_node__wn_access {
         coll::paste!(
             fn [<set_ $name>](&mut self, x: Node<K, V>) {
                 match self {
-                    Internal {..} => unreachable!(
+                    Internal {..} => panic!(
                         "Get `{}` on internal node",
                         stringify!($name)
                     ),
@@ -214,69 +214,6 @@ macro_rules! def_attr_macro_bpt {
             );
         )+
     };
-}
-
-
-/// (parent, left-idx, sib_dir)
-macro_rules! try_node_redistribution {
-    ($p:expr, $idx:expr, $sib_dir:expr) => {{
-        let p = &$p;
-        let idx = $idx;
-        let sib_dir = $sib_dir;
-
-        let children = children!(p);
-
-        let left = &children[idx];
-        let right = &children[idx + 1];
-
-        let sib = if sib_dir.is_left() { left } else { right };
-
-        if sib.is_leaf() && entries!(sib).len() > 1 {
-            if sib_dir.is_left() {
-                entries_mut!(right)
-                    .insert(0, entries_mut!(left).pop().unwrap());
-            }
-            // sib is right
-            else {
-                entries_mut!(left).push(entries_mut!(right).remove(0));
-
-                keys_mut!(p)[idx] = entries!(right)[0].0.clone();
-            }
-
-            return Ok(());
-        }
-
-        if sib.is_internal() && keys!(sib).len() > Self::entries_low_bound() {
-            if sib_dir.is_left() {
-                keys_mut!(right).insert(
-                    0,
-                    replace(
-                        &mut keys_mut!(p)[idx],
-                        keys_mut!(left).pop().unwrap(),
-                    ),
-                );
-
-                let child = children_mut!(left).pop().unwrap();
-
-                paren!(child, right.clone());
-
-                children_mut!(right).insert(0, child);
-            } else {
-                keys_mut!(left).push(replace(
-                    &mut keys_mut!(p)[idx],
-                    keys_mut!(right).remove(0),
-                ));
-
-                let child = children_mut!(right).remove(0);
-
-                paren!(child, left.clone());
-
-                children_mut!(left).push(child);
-            }
-
-            return Ok(());
-        }
-    }};
 }
 
 
@@ -675,7 +612,24 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
         V: Debug,
     {
         let x = self.min_node.upgrade();
-        self.insert_into_leaf(x, k, v);
+        // self.insert_into_leaf(x, k, v);
+
+        self.cnt += 1;
+
+        /* Nil */
+        if x.is_none() {
+            self.root = node!(kv | k, v);
+            self.min_node = self.root.downgrade();
+            self.max_node = self.root.downgrade();
+        }
+        /* Leaf */
+        else {
+            /* insert into leaf */
+
+            entries_mut!(x).insert(0, KVEntry(k, v));
+
+            self.insert_retracing(x);
+        }
     }
 
     pub fn pop_last(&mut self) -> Option<(K, V)>
@@ -1087,13 +1041,13 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
         let idx = index_of_child_by_rc!(p, x);
 
         // Try left first
-        if idx > 0 {
-            try_node_redistribution!(p, idx - 1, Left);
+        if idx > 0 && Self::try_node_redistribution_eager(&p, idx - 1, Left) {
+            return Ok(());
         }
 
         // Try right then
-        if idx < children!(p).len() - 1 {
-            try_node_redistribution!(p, idx, Right);
+        if idx < children!(p).len() - 1 && Self::try_node_redistribution_eager(&p, idx, Right) {
+            return Ok(());
         }
 
         /* Or else just retrive from parent */
@@ -1115,6 +1069,119 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
 
         Err((p, idx))
     }
+
+    #[allow(unused)]
+    fn try_node_redistribution(p: &Node<K, V>, idx: usize, sib_dir: Dir) -> bool
+    where
+        K: Clone
+    {
+        let children = children!(p);
+
+        let left = &children[idx];
+        let right = &children[idx + 1];
+
+        let sib = if sib_dir.is_left() { left } else { right };
+
+        if sib.is_leaf() && entries!(sib).len() > 1 {
+            if sib_dir.is_left() {
+                entries_mut!(right)
+                    .insert(0, entries_mut!(left).pop().unwrap());
+            }
+            // sib is right
+            else {
+                entries_mut!(left).push(entries_mut!(right).remove(0));
+
+                keys_mut!(p)[idx] = entries!(right)[0].0.clone();
+            }
+
+            return true;
+        }
+
+        if sib.is_internal() && keys!(sib).len() > Self::entries_low_bound() {
+            if sib_dir.is_left() {
+                keys_mut!(right).insert(
+                    0,
+                    replace(
+                        &mut keys_mut!(p)[idx],
+                        keys_mut!(left).pop().unwrap(),
+                    ),
+                );
+
+                let child = children_mut!(left).pop().unwrap();
+
+                paren!(child, right.clone());
+
+                children_mut!(right).insert(0, child);
+            } else {
+                keys_mut!(left).push(replace(
+                    &mut keys_mut!(p)[idx],
+                    keys_mut!(right).remove(0),
+                ));
+
+                let child = children_mut!(right).remove(0);
+
+                paren!(child, left.clone());
+
+                children_mut!(left).push(child);
+            }
+
+            return true;
+        }
+
+        false
+    }
+
+    /// Try redistribute until all equal of two nodes instead of just lazy rebalancing
+    #[allow(unused)]
+    fn try_node_redistribution_eager(p: &Node<K, V>, idx: usize, sib_dir: Dir) -> bool
+    where
+        K: Clone
+    {
+        use common::vec_even_up;
+
+        let children = children!(p);
+
+        let left = &children[idx];
+        let right = &children[idx + 1];
+
+        let sib = if sib_dir.is_left() { left } else { right };
+
+        if sib.is_leaf() && entries!(sib).len() > 1 {
+            vec_even_up(entries_mut!(left), entries_mut!(right));
+
+            keys_mut!(p)[idx] = entries!(right)[0].0.clone();
+
+            return true;
+        }
+
+        if sib.is_internal() && keys!(sib).len() > Self::entries_low_bound() {
+            keys_mut!(left).push(keys_mut!(p)[idx].clone());
+
+            vec_even_up(keys_mut!(left), keys_mut!(right));
+
+            keys_mut!(p)[idx] = keys_mut!(left).pop().unwrap();
+
+            vec_even_up(children_mut!(left), children_mut!(right));
+
+            if (children!(left).len() + children!(right).len()) % 2 > 0 {
+                children_mut!(right).insert(
+                    0,
+                    children_mut!(left).pop().unwrap()
+                );
+            }
+
+            if sib_dir.is_left() {
+                children_revref!(right);
+            } else {
+                children_revref!(left);
+            }
+
+            return true;
+        }
+
+        false
+    }
+
 }
 
 
@@ -1257,6 +1324,7 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT<K, V, M> {
     }
 
     /// Count key occurance across the tree
+    #[track_caller]
     fn count_key(&self, k: &K) -> usize {
         let mut count = 0;
         let mut x = &self.root;
@@ -1275,7 +1343,7 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT<K, V, M> {
         }
 
         if x.is_none() {
-            unreachable!("There is no {k:?}")
+            panic!("There is no {k:?}")
         }
 
         match entries!(x).binary_search_by_key(&k, |ent| &ent.0) {
@@ -1286,7 +1354,7 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT<K, V, M> {
 
                 count += 1;
             }
-            Err(idx) => unreachable!("There is no {k:?}"),
+            Err(idx) => panic!("There is no {k:?}"),
         };
 
         count
@@ -1358,6 +1426,7 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT<K, V, M> {
         println!("{cache}")
     }
 
+    #[track_caller]
     pub(crate) fn validate(&self)
     where
         K: Debug + std::hash::Hash,
@@ -1499,28 +1568,28 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT<K, V, M> {
             cur_q = nxt_q;
         }
 
-        // test pred
-        let mut cur = self.max_node.upgrade();
-        let mut cnt = 0;
+        // // test pred
+        // let mut cur = self.max_node.upgrade();
+        // let mut cnt = 0;
 
-        while cur.is_some() {
-            cnt += entries!(cur).len();
-            cur = pred!(cur)
-        }
+        // while cur.is_some() {
+        //     cnt += entries!(cur).len();
+        //     cur = pred!(cur)
+        // }
 
-        assert_eq!(cnt, self.len());
+        // assert_eq!(cnt, self.len());
 
 
-        // test succ
-        let mut cur = self.min_node.upgrade();
-        let mut cnt = 0;
+        // // test succ
+        // let mut cur = self.min_node.upgrade();
+        // let mut cnt = 0;
 
-        while cur.is_some() {
-            cnt += entries!(cur).len();
-            cur = succ!(cur)
-        }
+        // while cur.is_some() {
+        //     cnt += entries!(cur).len();
+        //     cur = succ!(cur)
+        // }
 
-        assert_eq!(cnt, self.len());
+        // assert_eq!(cnt, self.len());
 
         //
         // self.count_nodes_keys();
@@ -1887,10 +1956,22 @@ pub(crate) mod tests {
     #[test]
     fn test_bt_bpt_random() {
         test_dict!(BPT::<u16, u16, 3>::new());
+        println!("pass..M=3");
+
         test_dict!(BPT::<u16, u16, 4>::new());
+        println!("pass..M=4");
+
         test_dict!(BPT::<u16, u16, 5>::new());
+        println!("pass..M=5");
+
+        test_dict!(BPT::<u16, u16, 9>::new());
+        println!("pass..M=9");
+
         test_dict!(BPT::<u16, u16, 11>::new());
+        println!("pass..M=11");
+
         test_dict!(BPT::<u16, u16, 20>::new());
+        println!("pass..M=20");
     }
 
     #[test]

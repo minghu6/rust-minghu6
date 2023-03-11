@@ -26,7 +26,7 @@ impl_tree!(
 
 def_attr_macro_bpt!(paren, succ, entries, children);
 
-const SUB_M: usize = 4;
+const SUB_M: usize = 20;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -61,7 +61,7 @@ macro_rules! min_key {
         if let Some(k) = $x.min_key() {
             k.clone()
         } else {
-            unreachable!("No min-key {:?}", $x)
+            panic!("No min-key {:?}", $x)
         }
     };
 }
@@ -302,6 +302,7 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
     //         }
     //     })
     // }
+    #[inline(always)]
     fn update_index(old_k: K, x: &Node<K, V>)
     where
         K: Clone + Debug,
@@ -596,7 +597,7 @@ impl<K, V> Node_<K, V> {
     //     match self {
     //         Internal { children, paren } => (children, paren),
     //         Leaf { entries, .. } => {
-    //             unreachable!("unpack leaf:{:?} as internal", entries)
+    //             panic!("unpack leaf:{:?} as internal", entries)
     //         }
     //     }
     // }
@@ -911,8 +912,8 @@ mod tests {
 
     #[test]
     fn test_bt_bpt2_random() {
-        // test_dict!(BPT2::<u16, u16, 3>::new());
-        // println!("Ok..M=3");
+        test_dict!(BPT2::<u16, u16, 3>::new());
+        println!("Ok..M=3");
 
         test_dict!(BPT2::<u16, u16, 4>::new());
         println!("Ok..M=4");

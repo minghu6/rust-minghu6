@@ -83,7 +83,7 @@ macro_rules! index_of_child {
 
         match entries!(p).binary_search(child.last_entry()) {
             Ok(oldidx) => {
-                unreachable!("Dup key on {oldidx}");
+                panic!("Dup key on {oldidx}");
             },
             Err(inseridx) => {
                 inseridx
@@ -472,12 +472,13 @@ impl<K: Ord, V, const M: usize> BT<K, V, M> {
 
 
 impl<K, V> Node<K, V> {
+    #[track_caller]
     fn last_entry(&self) -> &KVEntry<K, V> {
         if let Some(ent) = entries!(self).last() {
             ent
         }
         else {
-            unreachable!("EMPTY entries");
+            panic!("EMPTY entries");
         }
     }
 

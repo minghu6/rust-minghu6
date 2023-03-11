@@ -12,6 +12,7 @@ pub trait Conjugation<T> {
     fn adjoint(&self, baseline: &str) -> T;
 }
 
+/// Minimal representation bits
 pub trait BitLen {
     fn bit_len(&self) -> usize;
 }

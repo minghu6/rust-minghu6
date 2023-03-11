@@ -5,9 +5,9 @@ extern crate test;
 use test::Bencher;
 
 use lazy_static::lazy_static;
-use rand::{prelude::SliceRandom, thread_rng};
+use common::{prelude::SliceRandom, thread_rng};
 
-use minghu6::collections::{bt::bst::*, Dictionary, bst, bt};
+use m6_coll_st::{ bst, bt };
 
 
 mod dict_common;
@@ -15,7 +15,7 @@ mod dict_common;
 
 lazy_static! {
     static ref INSERT_DATA: Vec<(u64, u64)> = {
-        let get_one = || rand::random::<u64>();
+        let get_one = || common::random::<u64>();
 
         gen_data!(get_one, 50, 1_000)
     };
@@ -38,7 +38,7 @@ macro_rules! bench_dict_remove {
         bench_dict_remove!($v, $name, $dict, i: insert, r: remove);
     };
     ($v:ident, $name:ident, $dict:expr, i: $i:ident, r: $r:ident) => {
-        paste::paste!(
+        coll::paste!(
             #[allow(non_snake_case)]
             #[bench]
             fn [<bench_dict_remove_ $v _ $name>] (b: &mut Bencher) {
@@ -62,17 +62,7 @@ macro_rules! bench_dict_remove {
 bench_dict_remove!(_0_, HASH_MAP, std::collections::HashMap::new());
 
 
-bench_dict_remove!(V1, AVL, avl::AVL::new());
-// bench_dict_remove!(V1, RAW, rawst::RawST::new());
-bench_dict_remove!(V1, RB, rb::RB::new());
-bench_dict_remove!(V1, LLRB, llrb::LLRB::new());
-bench_dict_remove!(V1, AA, aa::AA::new());
-bench_dict_remove!(V1, TREAP, treap::Treap::new());
-// bench_dict_remove!(V1, SPLAY, splay::Splay::new());
-// bench_dict_remove!(V1, LSG, lsg::LSG::new());
-// bench_dict_remove!(V1, LSG_06, lsg::LSG::with_alpha(0.6));
-
-bench_dict_remove!(V2, AVL, bst::avl::AVL::new());
+// bench_dict_remove!(V2, AVL, bst::avl::AVL::new());
 // bench_dict_remove!(V2, Splay, bst::splay::Splay::new());
 bench_dict_remove!(V2, Treap, bst::treap::Treap::new());
 // bench_dict_remove!(V2, TreapImproved, bst::treap::Treap::new().improve_search());
@@ -80,7 +70,7 @@ bench_dict_remove!(V2, Treap, bst::treap::Treap::new());
 // bench_dict_remove!(V2, LSG, bst::lsg::LSG::new(0.7));
 // bench_dict_remove!(V2, SG, bst::sg::SG::new(0.7));
 bench_dict_remove!(V2, RB, bst::rb::RB::new());
-bench_dict_remove!(V2, AA, bst::aa::AA::new());
+// bench_dict_remove!(V2, AA, bst::aa::AA::new());
 // bench_dict_remove!(_0__11, B, bt::bt::BT::<u64, u64, 11>::new());
 // bench_dict_remove!(_0__20, B, bt::bt::BT::<u64, u64, 20>::new());
 bench_dict_remove!(_0__60, B, bt::bt::BT::<u64, u64, 60>::new());
@@ -88,13 +78,17 @@ bench_dict_remove!(_0__100, B, bt::bt::BT::<u64, u64, 100>::new());
 bench_dict_remove!(_0__300, B, bt::bt::BT::<u64, u64, 300>::new());
 bench_dict_remove!(_0__500, B, bt::bt::BT::<u64, u64, 500>::new());
 
-// bench_dict_remove!(_0__11, BP, bt::bpt::BPT::<u64, u64, 11>::new());
-// bench_dict_remove!(_0__20, BP, bt::bpt::BPT::<u64, u64, 20>::new());
-bench_dict_remove!(_0__60, BP, bt::bpt::BPT::<u64, u64, 60>::new());
-bench_dict_remove!(_0__100, BP, bt::bpt::BPT::<u64, u64, 100>::new());
-bench_dict_remove!(_0__300, BP, bt::bpt::BPT::<u64, u64, 300>::new());
-// bench_dict_remove!(_0__400, BP, bt::bpt::BPT::<u64, u64, 400>::new());
-bench_dict_remove!(_0__500, BP, bt::bpt::BPT::<u64, u64, 500>::new());
+bench_dict_remove!(_V1__60, BP, bt::bpt::BPT::<u64, u64, 60>::new());
+bench_dict_remove!(_V1__100, BP, bt::bpt::BPT::<u64, u64, 100>::new());
+bench_dict_remove!(_V1__300, BP, bt::bpt::BPT::<u64, u64, 300>::new());
+bench_dict_remove!(_V1__500, BP, bt::bpt::BPT::<u64, u64, 500>::new());
+
+bench_dict_remove!(_V2__60, BP, bt::bpt2::BPT2::<u64, u64, 60>::new());
+bench_dict_remove!(_V2__100, BP, bt::bpt2::BPT2::<u64, u64, 100>::new());
+bench_dict_remove!(_V2__300, BP, bt::bpt2::BPT2::<u64, u64, 300>::new());
+bench_dict_remove!(_V2__500, BP, bt::bpt2::BPT2::<u64, u64, 500>::new());
+
+
 
 
 #[cfg(tprofile)]

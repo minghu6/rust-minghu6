@@ -1,7 +1,7 @@
-pub mod avl;
-pub mod rb;
 pub mod aa;
+pub mod avl;
 pub mod lsg;
+pub mod rb;
 pub mod sg;
 pub mod splay;
 pub mod treap;
@@ -12,7 +12,7 @@ use coll::*;
 ////////////////////////////////////////////////////////////////////////////////
 //// Attr Access
 
-def_attr_macro!(clone| left, right, paren, height, color, size, deleted);
+def_attr_macro!(clone | left, right, paren, height, color, size, deleted);
 def_attr_macro!(ref| (key, K), (val, V));
 
 
@@ -23,11 +23,9 @@ def_attr_macro!(ref| (key, K), (val, V));
 ///
 /// replace val of x with null_mut
 macro_rules! replace_val {
-    ($it: expr, $x: expr) => {
-        {
-            std::mem::replace(val_mut!($it), $x)
-        }
-    };
+    ($it: expr, $x: expr) => {{
+        std::mem::replace(val_mut!($it), $x)
+    }};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -68,8 +66,7 @@ macro_rules! conn_child {
         if paren.is_some() {
             if dir.is_left() {
                 attr!(paren, left, child.clone());
-            }
-            else {
+            } else {
                 attr!(paren, right, child.clone());
             }
 
@@ -96,25 +93,22 @@ macro_rules! conn_right {
 
 
 macro_rules! disconn {
-    ($paren:expr, $child: expr) => {
-        {
-            let child = $child.clone();
-            let paren = $paren.clone();
+    ($paren:expr, $child: expr) => {{
+        let child = $child.clone();
+        let paren = $paren.clone();
 
-            if child.is_some() && paren.is_some() {
-                let dir = index_of_child!(paren, child);
+        if child.is_some() && paren.is_some() {
+            let dir = index_of_child!(paren, child);
 
-                if dir.is_left() {
-                    left!(paren, Node::none());
-                }
-                else {
-                    right!(paren, Node::none());
-                }
-
-                paren!(child, WeakNode::none());
+            if dir.is_left() {
+                left!(paren, Node::none());
+            } else {
+                right!(paren, Node::none());
             }
+
+            paren!(child, WeakNode::none());
         }
-    };
+    }};
 }
 
 
@@ -130,7 +124,7 @@ macro_rules! index_of_child {
         } else if right!(paren).rc_eq(child) {
             Right
         } else {
-            unreachable!("index of child failed")
+            panic!("index of child failed")
         }
     }};
 }
@@ -251,8 +245,7 @@ macro_rules! bst_search {
 
         if x.is_some() && !deleted!(x) {
             x
-        }
-        else {
+        } else {
             Node::none()
         }
     }};
@@ -306,7 +299,8 @@ macro_rules! bst_insert {
                     conn_left!(y, z);
                 }
                 Equal => {
-                    let val_y = replace_val!(y, replace_val!(z, Default::default()));
+                    let val_y =
+                        replace_val!(y, replace_val!(z, Default::default()));
 
                     return if deleted!(y) {
                         // restore deleted node
@@ -314,11 +308,10 @@ macro_rules! bst_insert {
                         $tree.cnt += 1;
 
                         None
-                    }
-                    else {
+                    } else {
                         Some(val_y)
-                    }
-                },
+                    };
+                }
                 Greater => {
                     conn_right!(y, z);
                 }
@@ -361,10 +354,11 @@ macro_rules! bst_insert {
                     conn_left!(y, z);
                 }
                 Equal => {
-                    return Some(
-                        replace_val!(y, replace_val!(z, Default::default()))
-                    )
-                },
+                    return Some(replace_val!(
+                        y,
+                        replace_val!(z, Default::default())
+                    ))
+                }
                 Greater => {
                     conn_right!(y, z);
                 }
@@ -424,7 +418,7 @@ macro_rules! bst_delete {
 macro_rules! bst_flatten {
     ($z: expr) => {{
         let mut x = $z;
-        let mut stack = vec![];  // paths
+        let mut stack = vec![]; // paths
         let mut nodes = vec![];
 
         debug_assert!(x.is_some());
@@ -441,9 +435,8 @@ macro_rules! bst_flatten {
                 if let Some(p) = stack.pop() {
                     x = p;
                     nodes.push(x.clone());
-                }
-                else {
-                    break 'outter
+                } else {
+                    break 'outter;
                 }
             }
 
@@ -458,7 +451,7 @@ macro_rules! bst_flatten {
         }
 
         nodes
-    }}
+    }};
 }
 
 
@@ -475,7 +468,7 @@ macro_rules! bst_build {
             let mid = (hi + lo) / 2;
 
             let left = bst_build_(&nodes[lo..mid]);
-            let right = bst_build_(&nodes[mid+1..hi]);
+            let right = bst_build_(&nodes[mid + 1..hi]);
 
             let p = nodes[mid].clone();
 
@@ -561,20 +554,17 @@ macro_rules! double_rotate {
 
 
 
-
 /// Used in red-balck tree serials
 ///
 /// Trciky method
 macro_rules! fake_swap {
-    ($x:expr, $y:expr) => {
-        {
-            let x = $x.clone();
-            let y = $y.clone();
+    ($x:expr, $y:expr) => {{
+        let x = $x.clone();
+        let y = $y.clone();
 
-            std::mem::swap(key_mut!(x), key_mut!(y));
-            std::mem::swap(val_mut!(x), val_mut!(y));
-        }
-    };
+        std::mem::swap(key_mut!(x), key_mut!(y));
+        std::mem::swap(val_mut!(x), val_mut!(y));
+    }};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -694,9 +684,11 @@ macro_rules! impl_tree_debug {
         impl<K: Ord, V> $treename<K, V> {
             pub fn debug_write<W: std::fmt::Write>(
                 &self,
-                f: &mut W
+                f: &mut W,
             ) -> std::fmt::Result
-            where K: std::fmt::Debug, V: std::fmt::Debug
+            where
+                K: std::fmt::Debug,
+                V: std::fmt::Debug,
             {
                 use common::vecdeq;
 
@@ -724,16 +716,14 @@ macro_rules! impl_tree_debug {
                     while let Some(x) = this_q.pop_front() {
                         if left!(x).is_none() && right!(x).is_none() {
                             write!(f, "{x:?}")?;
-                        }
-                        else {
+                        } else {
                             write!(f, "{x:?} | L-> ")?;
 
                             let left = left!(x);
                             if left.is_some() {
                                 write!(f, "{left:?}")?;
                                 nxt_q.push_back(left);
-                            }
-                            else {
+                            } else {
                                 write!(f, "nil")?;
                             }
 
@@ -743,8 +733,7 @@ macro_rules! impl_tree_debug {
                             if right.is_some() {
                                 write!(f, "{right:?}")?;
                                 nxt_q.push_back(right);
-                            }
-                            else {
+                            } else {
                                 write!(f, "nil")?;
                             }
                         }
@@ -762,7 +751,10 @@ macro_rules! impl_tree_debug {
             }
 
 
-            pub fn debug_print(&self) where K: std::fmt::Debug, V: std::fmt::Debug
+            pub fn debug_print(&self)
+            where
+                K: std::fmt::Debug,
+                V: std::fmt::Debug,
             {
                 let mut cache = String::new();
 
@@ -925,8 +917,9 @@ macro_rules! test_dict {
                     "[dict insert] insert res invalid"
                 );
                 assert_eq!(
-                    dict.get(&k), Some(&v),
-                     "[dict insert] insert but query failed"
+                    dict.get(&k),
+                    Some(&v),
+                    "[dict insert] insert but query failed"
                 );
 
                 if i % 20 == 0 {
@@ -940,7 +933,11 @@ macro_rules! test_dict {
 
             for (i, (k, v)) in elems.clone().into_iter().enumerate() {
                 // println!("{i}. update: {k:05}");
-                assert_eq!(dict.get(&k), Some(&v), "[dict update] get verify before");
+                assert_eq!(
+                    dict.get(&k),
+                    Some(&v),
+                    "[dict update] get verify before"
+                );
 
                 let newv = k.wrapping_add(500);
 
@@ -962,7 +959,7 @@ macro_rules! test_dict {
 
             /* Verify Remove */
 
-            use common::{SliceRandom, thread_rng};
+            use common::{thread_rng, SliceRandom};
 
             elems.shuffle(&mut thread_rng());
 
@@ -998,23 +995,9 @@ macro_rules! test_dict {
 ////////////////////////////////////////////////////////////////////////////////
 //// ReExport Declarative Macro
 
-use replace_val;
-use child;
-use conn_child;
-use conn_left;
-use conn_right;
-use disconn;
-use index_of_child;
-#[allow(unused)]
-use sib;
-use subtree_shift;
-
-use rotate;
-use double_rotate;
-
-use fake_swap;
-
+use bst_build;
 use bst_delete;
+use bst_flatten;
 use bst_insert;
 #[allow(unused)]
 use bst_maximum;
@@ -1023,19 +1006,27 @@ use bst_minimum;
 use bst_predecessor;
 use bst_search;
 use bst_successor;
-use bst_flatten;
-use bst_build;
-
-use impl_validate;
-use impl_rotate_cleanup;
+use child;
+use conn_child;
+use conn_left;
+use conn_right;
+use def_tree;
+use disconn;
+use double_rotate;
+use fake_swap;
 use impl_build_cleanup;
 use impl_flatten_cleanup;
-
 use impl_node_;
-use def_tree;
-use impl_tree_debug;
+use impl_rotate_cleanup;
 use impl_tree;
-
+use impl_tree_debug;
+use impl_validate;
+use index_of_child;
+use replace_val;
+use rotate;
+#[allow(unused)]
+use sib;
+use subtree_shift;
 #[cfg(test)]
 pub(crate) use test_dict;
 

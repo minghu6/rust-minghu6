@@ -19,7 +19,7 @@ macro_rules! index_of_child_by_rc {
             idx
         }
         else {
-            unreachable!("There are no matched child");
+            panic!("There are no matched child");
         }
     }};
 }

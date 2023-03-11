@@ -9,3 +9,4 @@ coll = { package = "m6-coll", path = "../coll" }
 
 [dev-dependencies]
 indexmap = "1"
+lazy_static = "1.4.0"

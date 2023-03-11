@@ -4,6 +4,7 @@
 #![feature(iter_from_generator)]
 #![feature(generators)]
 #![feature(let_chains)]
+#![feature(stmt_expr_attributes)]
 
 
 pub mod bst;

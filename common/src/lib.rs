@@ -3,6 +3,7 @@
 #![feature(test)]
 #![feature(absolute_path)]
 #![feature(macro_metavar_expr)]
+#![feature(int_roundings)]
 
 
 pub mod error_code;
