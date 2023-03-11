@@ -8,9 +8,12 @@ use std::{
     ops::{Bound::*, RangeBounds},
 };
 
-use coll::{ KVEntry, def_coll_init, node as aux_node, *};
+use coll::{def_coll_init, node as aux_node, KVEntry, *};
 
-use crate::{ bst::{Left, Right, Dir}, bt::* };
+use crate::{
+    bst::{Dir, Left, Right},
+    bt::*,
+};
 
 
 impl_node!(pub);
@@ -86,11 +89,16 @@ macro_rules! index_of_child {
 
 macro_rules! children_revref {
     ($x:expr) => {{
+        children_revref!($x, ..)
+    }};
+    ($x:expr, $range:expr) => {{
         let x = $x;
-        for child in children_mut!(x) {
+        let range = $range;
+
+        for child in &mut children_mut!(x)[range] {
             paren!(child, x.clone());
         }
-    }};
+    }}
 }
 
 
@@ -222,7 +230,7 @@ pub(super) use def_node__heap_access;
 pub(super) use def_node__wn_access;
 
 def_attr_macro_bpt!(paren, pred, succ, keys, entries, children);
-def_coll_init!(map^1 | bpt, crate::bt::bpt::BPT::new());
+def_coll_init!(map ^ 1 | bpt, crate::bt::bpt::BPT::new());
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Structure
@@ -440,8 +448,8 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
             Err(_idx) => return None,
         }
 
-        self.remove_on_leaf(internal_and_idx, x.clone(), idx).map(|(_, v)| v)
-
+        self.remove_on_leaf(internal_and_idx, x.clone(), idx)
+            .map(|(_, v)| v)
     }
 
 
@@ -648,8 +656,7 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
 
         if p.is_some() && entries!(x).len() == 1 {
             internal_and_idx = Some((p.clone(), keys!(p).len() - 1));
-        }
-        else {
+        } else {
             internal_and_idx = None;
         }
 
@@ -743,7 +750,7 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
         &mut self,
         internal_and_idx: Option<(Node<K, V>, usize)>,
         x: Node<K, V>,
-        idx: usize
+        idx: usize,
     ) -> Option<(K, V)>
     where
         K: Clone,
@@ -875,6 +882,16 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
     {
         debug_assert!(x.is_some());
 
+        let p = paren!(x);
+
+        if p.is_some() {
+            let idx = index_of_child_by_rc!(p, x);
+
+            if Self::try_rebalancing(&p, idx) {
+                return;
+            }
+        }
+
         /* split node */
 
         let lpos = M.div_floor(2);
@@ -924,9 +941,6 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
             children_revref!(&x2);
         }
 
-
-        let p = paren!(x);
-
         /* push new level */
         if p.is_none() {
             let keys = vec![head_key];
@@ -952,7 +966,7 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
         }
     }
 
-    fn unpromote(&mut self, mut x: Node<K, V>)
+    fn unpromote(&mut self, x: Node<K, V>)
     where
         K: Clone,
     {
@@ -960,27 +974,35 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
             x.is_leaf() || keys!(x).len() == Self::entries_low_bound() - 1
         );
 
-        if let Err((p, idx)) = Self::try_rebalancing(&x) {
-            if idx > 0 {
-                self.merge_node(&p, idx - 1);
-            } else {
-                self.merge_node(&p, idx);
+        let p = paren!(x);
+
+        debug_assert!(p.is_some());
+
+        let idx = index_of_child_by_rc!(p, x);
+
+        if Self::try_rebalancing(&p, idx) {
+            return;
+        }
+
+        /* merge node */
+
+        if idx > 0 {
+            self.merge_node(&p, idx - 1);
+        } else {
+            self.merge_node(&p, idx);
+        }
+
+        if paren!(p).is_none() {
+            debug_assert!(p.is_internal());
+
+            if keys!(p).is_empty() {
+                // pop new level
+                self.root = children_mut!(p).pop().unwrap();
+                paren!(self.root, Node::none());
             }
-
-            x = p;
-
-            if paren!(x).is_none() {
-                debug_assert!(x.is_internal());
-
-                if keys!(x).is_empty() {
-                    // pop new level
-                    self.root = children_mut!(x).pop().unwrap();
-                    paren!(self.root, Node::none());
-                }
-            } else {
-                if keys!(x).len() < Self::entries_low_bound() {
-                    self.unpromote(x);
-                }
+        } else {
+            if keys!(p).len() < Self::entries_low_bound() {
+                self.unpromote(p);
             }
         }
     }
@@ -994,6 +1016,8 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
 
         // for leaf node
         if left.is_leaf() {
+            keys_mut!(p).remove(idx);
+
             entries_mut!(left).extend(entries_mut!(right).drain(..));
 
             // update succ
@@ -1003,6 +1027,7 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
                 pred!(succ!(right), left.clone());
             }
 
+            // update max_node
             if right.rc_eq(&self.max_node.upgrade()) {
                 // update max_node
                 self.max_node = left.downgrade();
@@ -1010,6 +1035,7 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
         }
         // for internal node
         else {
+            keys_mut!(left).push(keys_mut!(p).remove(idx));
             keys_mut!(left).extend(keys_mut!(right).drain(..));
 
             // merge right's children to the left
@@ -1026,54 +1052,34 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
         children_mut!(p).remove(idx + 1);
     }
 
-    /// -> (idx, idx)
-    fn try_rebalancing(
-        x: &Node<K, V>,
-    ) -> std::result::Result<(), (Node<K, V>, usize)>
+    /// parent, x idx of parent
+    fn try_rebalancing(p: &Node<K, V>, idx: usize) -> bool
     where
         K: Clone,
     {
-        let p = paren!(x);
-        debug_assert!(p.is_some());
-
-        /* Check if siblings has remains */
-
-        let idx = index_of_child_by_rc!(p, x);
-
         // Try left first
         if idx > 0 && Self::try_node_redistribution_eager(&p, idx - 1, Left) {
-            return Ok(());
+            return true;
         }
 
         // Try right then
-        if idx < children!(p).len() - 1 && Self::try_node_redistribution_eager(&p, idx, Right) {
-            return Ok(());
+        if idx < children!(p).len() - 1
+            && Self::try_node_redistribution_eager(&p, idx, Right)
+        {
+            return true;
         }
 
-        /* Or else just retrive from parent */
-
-        if x.is_leaf() {
-            if idx == 0 {
-                keys_mut!(p).remove(0);
-            } else {
-                // merge right single entry node, remove its corresponding parent key
-                keys_mut!(p).remove(idx - 1);
-            }
-        } else {
-            if idx == 0 {
-                keys_mut!(x).push(keys_mut!(p).remove(0));
-            } else {
-                keys_mut!(x).insert(0, keys_mut!(p).remove(idx - 1));
-            }
-        }
-
-        Err((p, idx))
+        false
     }
 
     #[allow(unused)]
-    fn try_node_redistribution(p: &Node<K, V>, idx: usize, sib_dir: Dir) -> bool
+    fn try_node_redistribution(
+        p: &Node<K, V>,
+        idx: usize,
+        sib_dir: Dir,
+    ) -> bool
     where
-        K: Clone
+        K: Clone,
     {
         let children = children!(p);
 
@@ -1132,10 +1138,16 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
     }
 
     /// Try redistribute until all equal of two nodes instead of just lazy rebalancing
+    ///
+    /// B* tree property
     #[allow(unused)]
-    fn try_node_redistribution_eager(p: &Node<K, V>, idx: usize, sib_dir: Dir) -> bool
+    fn try_node_redistribution_eager(
+        p: &Node<K, V>,
+        idx: usize,
+        sib_dir: Dir,
+    ) -> bool
     where
-        K: Clone
+        K: Clone,
     {
         use common::vec_even_up;
 
@@ -1144,9 +1156,17 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
         let left = &children[idx];
         let right = &children[idx + 1];
 
-        let sib = if sib_dir.is_left() { left } else { right };
+        let (sib, x) = if sib_dir.is_left() {
+            (left, right)
+        } else {
+            (right, left)
+        };
 
-        if sib.is_leaf() && entries!(sib).len() > 1 {
+        if sib.is_leaf()
+            && (entries!(x).len() == 0 && entries!(sib).len() > 1
+                || entries!(x).len() == Self::entries_high_bound()
+                    && entries!(sib).len() < Self::entries_high_bound() - 1)
+        {
             vec_even_up(entries_mut!(left), entries_mut!(right));
 
             keys_mut!(p)[idx] = entries!(right)[0].0.clone();
@@ -1154,8 +1174,16 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
             return true;
         }
 
-        if sib.is_internal() && keys!(sib).len() > Self::entries_low_bound() {
+        if sib.is_internal()
+            && (keys!(x).len() < Self::entries_low_bound()
+                && keys!(sib).len() > Self::entries_low_bound()
+                || keys!(x).len() == Self::entries_high_bound()
+                    && keys!(sib).len() < Self::entries_high_bound() - 1)
+        {
             keys_mut!(left).push(keys_mut!(p)[idx].clone());
+
+            let left_old_len = children!(left).len();
+            let right_old_len = children!(right).len();
 
             vec_even_up(keys_mut!(left), keys_mut!(right));
 
@@ -1164,16 +1192,14 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
             vec_even_up(children_mut!(left), children_mut!(right));
 
             if (children!(left).len() + children!(right).len()) % 2 > 0 {
-                children_mut!(right).insert(
-                    0,
-                    children_mut!(left).pop().unwrap()
-                );
+                children_mut!(right)
+                    .insert(0, children_mut!(left).pop().unwrap());
             }
 
-            if sib_dir.is_left() {
-                children_revref!(right);
+            if left_old_len < right_old_len  {
+                children_revref!(left, left_old_len..children!(left).len());
             } else {
-                children_revref!(left);
+                children_revref!(right, 0..children!(right).len()-right_old_len);
             }
 
             return true;
@@ -1181,7 +1207,6 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
 
         false
     }
-
 }
 
 
@@ -1279,7 +1304,6 @@ use indexmap::IndexMap;
 #[cfg(test)]
 #[allow(unused)]
 impl<K: Ord + Debug + Clone, V, const M: usize> BPT<K, V, M> {
-
     fn search_obsoleted_key(&self) -> Vec<K> {
         let mut obsoleted = vec![];
         let mut q = common::vecdeq![&self.root];
@@ -1349,7 +1373,10 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT<K, V, M> {
         match entries!(x).binary_search_by_key(&k, |ent| &ent.0) {
             Ok(idx) => {
                 if count > 0 {
-                    assert_eq!(idx, 0, "has internal index for nodex idx: {idx}");
+                    assert_eq!(
+                        idx, 0,
+                        "has internal index for nodex idx: {idx}"
+                    );
                 }
 
                 count += 1;
@@ -1430,7 +1457,7 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT<K, V, M> {
     pub(crate) fn validate(&self)
     where
         K: Debug + std::hash::Hash,
-        V: Debug
+        V: Debug,
     {
         if self.root.is_none() {
             return;
@@ -1562,7 +1589,6 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT<K, V, M> {
                         "p: {p:?}"
                     );
                 }
-
             }
 
             cur_q = nxt_q;
@@ -1579,7 +1605,6 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT<K, V, M> {
 
         // assert_eq!(cnt, self.len());
 
-
         // // test succ
         // let mut cur = self.min_node.upgrade();
         // let mut cnt = 0;
@@ -1593,7 +1618,6 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT<K, V, M> {
 
         //
         // self.count_nodes_keys();
-
     }
 }
 
@@ -1703,7 +1727,7 @@ pub(crate) mod tests {
 
     macro_rules! verify_bulk {
         ($dict:expr) => {{
-            let (mut dict, back)= prepare_dict!($dict);
+            let (mut dict, back) = prepare_dict!($dict);
 
             /* test bulk push */
 
@@ -1711,11 +1735,9 @@ pub(crate) mod tests {
             let group = 50;
 
             for i in 0..group {
-                let range = 2_000+i*batch..2_000+(i+1)*batch;
+                let range = 2_000 + i * batch..2_000 + (i + 1) * batch;
 
-                dict.bulk_push_back(
-                    range.clone().map(|x| (x, x))
-                );
+                dict.bulk_push_back(range.clone().map(|x| (x, x)));
 
                 for j in range {
                     assert_eq!(
@@ -1734,7 +1756,7 @@ pub(crate) mod tests {
 
                 assert_eq!(
                     dict.len(),
-                    back.len() + ((i+1)*batch) as usize,
+                    back.len() + ((i + 1) * batch) as usize,
                     "[verify bulk push] verify cnt"
                 );
 
@@ -1747,13 +1769,14 @@ pub(crate) mod tests {
             /* test bulk pop */
 
             for i in (0..group).rev() {
-                let bulk: Vec<(u16, u16)> = dict.bulk_pop(batch as usize).collect();
+                let bulk: Vec<(u16, u16)> =
+                    dict.bulk_pop(batch as usize).collect();
 
                 for (j, (k, _v)) in bulk.into_iter().enumerate() {
                     // println!("j: {j}");
 
                     assert_eq!(
-                        ((i+1)*batch) as u16 + 2_000 - 1 - j as u16,
+                        ((i + 1) * batch) as u16 + 2_000 - 1 - j as u16,
                         k,
                         "[verify bulk pop] verify range"
                     )
@@ -1761,7 +1784,7 @@ pub(crate) mod tests {
 
                 assert_eq!(
                     dict.len(),
-                    back.len() + (i*batch) as usize,
+                    back.len() + (i * batch) as usize,
                     "[verify bulk push] verify cnt"
                 );
 
@@ -1769,13 +1792,12 @@ pub(crate) mod tests {
                     dict.validate();
                 }
             }
-
         }};
     }
 
     macro_rules! verify_pred_succ_etc {
         ($dict:expr) => {{
-            let (dict, back)= prepare_dict!($dict);
+            let (dict, back) = prepare_dict!($dict);
 
             // test rank/nth
             for (i, (k, _v)) in back.iter().enumerate() {
@@ -1787,8 +1809,7 @@ pub(crate) mod tests {
             }
 
             // test pop first
-
-        }}
+        }};
     }
 
     macro_rules! verify_bpt_properties {
@@ -1812,7 +1833,6 @@ pub(crate) mod tests {
 
     macro_rules! verify_bpt_pop {
         ($dict:expr) => {{
-
             for _ in 0..20 {
                 let (mut dict, mut back) = prepare_dict!($dict);
                 dict.validate();
@@ -1833,14 +1853,14 @@ pub(crate) mod tests {
                 //     dict.validate();
                 // }
             }
-        }
-    }}
+        }};
+    }
 
 
     pub(crate) use assert_select_eq;
-    pub(crate) use verify_select;
     pub(crate) use prepare_dict;
     pub(crate) use verify_bulk;
+    pub(crate) use verify_select;
 
     #[test]
     fn test_bt_bpt_succ_pred_etc() {
@@ -1949,8 +1969,6 @@ pub(crate) mod tests {
         assert_eq!(iter.next(), Some((2, 2)));
         assert_eq!(iter.next(), Some((6, 6)));
         assert_eq!(iter.next(), Some((62, 62)));
-
-
     }
 
     #[test]
@@ -2011,6 +2029,5 @@ pub(crate) mod tests {
 
         verify_bpt_pop!(BPT::<u16, u16, 21>::new());
         println!("pass..M=21");
-
     }
 }
