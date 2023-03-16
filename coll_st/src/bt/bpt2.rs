@@ -281,7 +281,7 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
         Q: Ord + ?Sized,
     {
         while x.is_internal() {
-            if let Some(x_) = children!(x).approx_search(k) {
+            if let Some(x_) = children!(x).low_bound_search(k) {
                 x = x_;
             } else {
                 return Node::none();
@@ -391,7 +391,7 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
         }
     }
 
-    fn unpromote(&mut self, mut x: Node<K, V>, old_k: K)
+    fn unpromote(&mut self, mut x: Node<K, V>, x_k: K)
     where
         K: Clone + Debug,
         V: Debug,
@@ -402,88 +402,90 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
                 || children!(x).len() == Self::entries_low_bound() - 1 + 1
         );
 
-        if let Err((p, idx)) = Self::try_rebalancing(&x, old_k.clone()) {
-            // merge with left_sib (no need to update index)
-            if idx > 0 {
-                let (_sib_k, sib_lf) = children!(p).nth(idx - 1).unwrap();
+        let p = paren!(x);
+        let idx = children!(p).rank(&x_k).unwrap();
 
-                children_mut!(p).remove(&old_k);
+        if Self::try_rebalancing(&p, &x, idx, x_k.clone()) {
+            return;
+        }
 
-                if x.is_leaf() {
-                    succ!(sib_lf, succ!(x));
-                } else {
-                    debug_assert!(x.is_internal());
+        // merge with left_sib (no need to update index)
+        if idx > 0 {
+            let (_sib_k, sib_lf) = children!(p).nth(idx - 1).unwrap();
 
-                    // let x_inner = unwrap_into!(x);
-                    // let (children, _) = x_inner.unpack_as_internal();
+            children_mut!(p).remove(&x_k);
 
-                    for (child_k, child) in children_mut!(x).drain_all() {
-                        paren!(child, sib_lf.clone());
-                        children_mut!(sib_lf).push_back(child_k, child);
-                    }
-                }
-            }
-            // for right_sib (merge into left)
-            else {
-                let (_sib_k, sib_rh) = children!(p).nth(idx + 1).unwrap();
-                let sib_rh = sib_rh.clone();
-
-                // 由于没有prev，只能总是合并到左节点，好在此时叶子节点只有一个元素
-                if x.is_leaf() {
-                    debug_assert_eq!(entries!(sib_rh).len(), 1);
-
-                    succ!(x, succ!(sib_rh));
-
-                    let (k, v) = entries_mut!(sib_rh).pop_first().unwrap();
-                    entries_mut!(x).insert(k.clone(), v);
-
-                    // remove x from p
-                    Self::update_index(old_k, &x);
-
-                    // 不需要更新索引，因为 sib_rh 值更大
-                } else {
-                    let old_key_sib_rh = min_key!(sib_rh);
-                    children_mut!(p).remove(&old_key_sib_rh);
-
-                    for (child_k, child) in children_mut!(sib_rh).drain_all() {
-                        paren!(child, x.clone());
-                        children_mut!(x).push_back(child_k, child);
-                    }
-
-                    Self::update_index(old_k, &x);
-                }
-            }
-
-            let old_key = min_key!(p);
-            x = p;
-
-            if paren!(x).is_none() {
-                if children!(x).len() == 1 {
-                    // pop new level
-                    self.root = children_mut!(x).pop_first().unwrap().1;
-                    paren!(self.root, Node::none());
-                }
+            if x.is_leaf() {
+                succ!(sib_lf, succ!(x));
             } else {
-                if children!(x).len() < Self::entries_low_bound() + 1 {
-                    self.unpromote(x, old_key);
+                debug_assert!(x.is_internal());
+
+                // let x_inner = unwrap_into!(x);
+                // let (children, _) = x_inner.unpack_as_internal();
+
+                for (child_k, child) in children_mut!(x).drain_all() {
+                    paren!(child, sib_lf.clone());
+                    children_mut!(sib_lf).push_back(child_k, child);
                 }
+            }
+        }
+        // for right_sib (merge into left)
+        else {
+            let (_sib_k, sib_rh) = children!(p).nth(idx + 1).unwrap();
+            let sib_rh = sib_rh.clone();
+
+            // 由于没有prev，只能总是合并到左节点，好在此时叶子节点只有一个元素
+            if x.is_leaf() {
+                debug_assert_eq!(entries!(sib_rh).len(), 1);
+
+                succ!(x, succ!(sib_rh));
+
+                let (k, v) = entries_mut!(sib_rh).pop_first().unwrap();
+                entries_mut!(x).insert(k.clone(), v);
+
+                // remove x from p
+                Self::update_index(x_k, &x);
+
+                // 不需要更新索引，因为 sib_rh 值更大
+            } else {
+                let old_key_sib_rh = min_key!(sib_rh);
+                children_mut!(p).remove(&old_key_sib_rh);
+
+                for (child_k, child) in children_mut!(sib_rh).drain_all() {
+                    paren!(child, x.clone());
+                    children_mut!(x).push_back(child_k, child);
+                }
+
+                Self::update_index(x_k, &x);
+            }
+        }
+
+        let old_key = min_key!(p);
+        x = p;
+
+        if paren!(x).is_none() {
+            if children!(x).len() == 1 {
+                // pop new level
+                self.root = children_mut!(x).pop_first().unwrap().1;
+                paren!(self.root, Node::none());
+            }
+        } else {
+            if children!(x).len() < Self::entries_low_bound() + 1 {
+                self.unpromote(x, old_key);
             }
         }
     }
 
     fn try_rebalancing(
+        p: &Node<K, V>,
         x: &Node<K, V>,
+        idx: usize,
         old_k: K,
-    ) -> std::result::Result<(), (Node<K, V>, usize)>
+    ) -> bool
     where
         K: Clone + Debug,
         V: Debug,
     {
-        let p = paren!(x);
-        debug_assert!(p.is_some());
-
-        let idx = children!(p).rank(&old_k);
-
         // try to redistribute with left
         if idx > 0 {
             let (_sib_k, sib_lf) = children!(p).nth(idx - 1).unwrap();
@@ -494,7 +496,7 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
 
                 Self::update_index(old_k, x);
 
-                return Ok(());
+                return true;
             }
 
             if sib_lf.is_internal()
@@ -506,7 +508,7 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
 
                 Self::update_index(old_k, x);
 
-                return Ok(());
+                return true;
             }
         }
         // try to redistribute with right then
@@ -518,10 +520,10 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
                 let (k, v) = entries_mut!(sib_rh).pop_first().unwrap();
                 entries_mut!(x).insert(k.clone(), v);
 
-                Self::update_index(old_k, x);  // WARNING： it wll replace sib_rh with x
+                Self::update_index(old_k, x); // WARNING： it wll replace sib_rh with x
                 children_mut!(p).insert(min_key!(sib_rh), sib_rh);
 
-                return Ok(());
+                return true;
             }
 
             if sib_rh.is_internal()
@@ -533,15 +535,16 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
                 paren!(v, x.clone());
                 children_mut!(x).insert(k.clone(), v);
 
+                // 不需要像叶子节点那样两段儿更新是因为在叶子更新的时候，已经对 x 向上更新过了
                 // Self::update_index(old_k, x);
                 // children_mut!(p).insert(min_key!(sib_rh), sib_rh);
                 Self::update_index(sib_rh_old_key, &sib_rh);
 
-                return Ok(());
+                return true;
             }
         }
 
-        Err((p, idx))
+        false
     }
 }
 
@@ -562,10 +565,6 @@ impl<K: Ord + Debug, V, const M: usize> Debug for BPT2<K, V, M> {
 enum Node_<K, V> {
     Internal {
         /// 维护 K 总为Node最小值
-        /// 维护： 可能需要更新index在insert、remove，查询可以短路终止
-        /// 不维护： 没有短路终止而且查询量加倍
-        ///
-        /// 还是维护的好
         children: BPT<K, Node<K, V>, SUB_M>,
         paren: WeakNode<K, V>,
     },
@@ -748,13 +747,12 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT2<K, V, M> {
         }
 
         println!("------------- end --------------\n");
-
     }
 
     fn validate(&self)
     where
         K: Debug + std::hash::Hash,
-        V: Debug
+        V: Debug,
     {
         if self.root.is_none() {
             return;
@@ -870,7 +868,6 @@ mod tests {
         assert_eq!(dict.select(..).cloned().collect::<Vec<_>>(), [0u16; 0]);
 
         // dict.debug_print();
-
     }
 
     #[test]
@@ -929,7 +926,6 @@ mod tests {
 
         test_dict!(BPT2::<u16, u16, 100>::new());
         println!("Ok..M=100");
-
     }
 
     #[test]

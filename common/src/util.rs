@@ -254,6 +254,22 @@ pub fn vec_even_up<T>(v0: &mut Vec<T>, v1: &mut Vec<T>) {
 }
 
 
+pub fn vec_even_up_1<T>(v0: &mut Vec<T>, v1: &mut Vec<T>) {
+    let v0_old_len = v0.len();
+    let v1_old_len = v1.len();
+
+    if v0_old_len == v1_old_len {
+        return;
+    }
+
+    if v0_old_len < v1_old_len {
+        v0.push(v1.remove(0));
+    }
+    else {
+        v1.insert(0, v0.pop().unwrap());
+    }
+}
+
 
 
 #[cfg(test)]

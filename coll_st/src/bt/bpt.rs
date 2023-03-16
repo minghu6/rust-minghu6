@@ -16,7 +16,7 @@ use crate::{
 };
 
 
-impl_node!(pub);
+impl_node!();
 impl_tree!(
     /// B+ Trees
     ///
@@ -37,12 +37,11 @@ macro_rules! node {
         let mut entries = Vec::with_capacity(M);
         entries.push(KVEntry($k, $v));
 
-        node!(basic-leaf| entries, WeakNode::none(), WeakNode::none(), WeakNode::none())
+        node!(basic-leaf| entries, WeakNode::none(), WeakNode::none())
     }};
-    (basic-leaf| $entries:expr, $pred:expr, $succ:expr, $paren:expr) => {{
+    (basic-leaf| $entries:expr, $succ:expr, $paren:expr) => {{
         aux_node!(FREE-ENUM Leaf {
             entries: $entries,
-            pred: $pred,
             succ: $succ,
             paren: $paren
         })
@@ -229,8 +228,9 @@ pub(super) use def_attr_macro_bpt;
 pub(super) use def_node__heap_access;
 pub(super) use def_node__wn_access;
 
-def_attr_macro_bpt!(paren, pred, succ, keys, entries, children);
+def_attr_macro_bpt!(paren, succ, keys, entries, children);
 def_coll_init!(map ^ 1 | bpt, crate::bt::bpt::BPT::new());
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Structure
@@ -243,8 +243,6 @@ enum Node_<K, V> {
     },
     Leaf {
         entries: Vec<KVEntry<K, V>>,
-        /// Predecessor (Leaf)
-        pred: WeakNode<K, V>,
         /// Successor (Leaf)
         succ: WeakNode<K, V>,
         paren: WeakNode<K, V>,
@@ -457,7 +455,7 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
     //// Extend Method
 
     /// Approximate Search return node.v where node.k >= key
-    pub fn approx_search<Q>(&self, key: &Q) -> Option<&V>
+    pub fn low_bound_search<Q>(&self, key: &Q) -> Option<&V>
     where
         K: Borrow<Q>,
         Q: Ord + ?Sized,
@@ -484,13 +482,13 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
     }
 
     /// Start from 0 O(n/M)
-    pub fn rank<Q>(&self, key: &Q) -> usize
+    pub fn rank<Q>(&self, key: &Q) -> std::result::Result<usize, usize>
     where
         K: Borrow<Q>,
         Q: Ord + ?Sized,
     {
         if self.root.is_none() {
-            return 0;
+            return Err(0);
         }
 
         let x = Self::search_to_leaf(&self.root, key);
@@ -498,20 +496,32 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
         debug_assert!(x.is_some());
 
         let idx;
+        let mut is_err = false;
+
         match entries!(x).binary_search_by_key(&key, |ent| ent.0.borrow()) {
             Ok(idx_) => idx = idx_,
-            Err(idx_) => idx = idx_,
+            Err(idx_) => {
+                idx = idx_;
+                is_err = true;
+            }
         }
 
-        let mut cur = pred!(x);
-        let mut cnt = idx;
+        let mut rem = entries!(x).len() - (idx + 1);
+        let mut cur = succ!(x);
 
         while cur.is_some() {
-            cnt += entries!(cur).len();
-            cur = pred!(cur);
+            rem += entries!(cur).len();
+            cur = succ!(cur);
         }
 
-        cnt
+        let rk = self.cnt - rem - 1;
+
+        if !is_err {
+            Ok(rk)
+        }
+        else {
+            Err(rk)
+        }
     }
 
     /// return Nth child (start from 0), O(n/M)
@@ -910,14 +920,13 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
 
             x2 = node!(
                 basic - leaf | entries_x2,
-                x.downgrade(),
                 succ!(x).downgrade(),
                 WeakNode::none()
             );
 
-            if succ!(x2).is_some() {
-                pred!(succ!(x2), x2.clone());
-            }
+            // if succ!(x2).is_some() {
+            //     pred!(succ!(x2), x2.clone());
+            // }
             succ!(x, x2.clone());
 
             if x.rc_eq(&self.max_node.upgrade()) {
@@ -1022,10 +1031,10 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
 
             // update succ
             succ!(left, succ!(right));
-            // update pred
-            if succ!(right).is_some() {
-                pred!(succ!(right), left.clone());
-            }
+            // // update pred
+            // if succ!(right).is_some() {
+            //     pred!(succ!(right), left.clone());
+            // }
 
             // update max_node
             if right.rc_eq(&self.max_node.upgrade()) {
@@ -1150,6 +1159,7 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
         K: Clone,
     {
         use common::vec_even_up;
+        // use common::vec_even_up_1;
 
         let children = children!(p);
 
@@ -1168,6 +1178,7 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
                     && entries!(sib).len() < Self::entries_high_bound() - 1)
         {
             vec_even_up(entries_mut!(left), entries_mut!(right));
+            // vec_even_up_1(entries_mut!(left), entries_mut!(right));
 
             keys_mut!(p)[idx] = entries!(right)[0].0.clone();
 
@@ -1180,17 +1191,35 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
                 || keys!(x).len() == Self::entries_high_bound()
                     && keys!(sib).len() < Self::entries_high_bound() - 1)
         {
-            keys_mut!(left).push(keys_mut!(p)[idx].clone());
-
             let left_old_len = children!(left).len();
             let right_old_len = children!(right).len();
 
+            // for vec_even_up
+            keys_mut!(left).push(keys_mut!(p)[idx].clone());
             vec_even_up(keys_mut!(left), keys_mut!(right));
-
             keys_mut!(p)[idx] = keys_mut!(left).pop().unwrap();
 
-            vec_even_up(children_mut!(left), children_mut!(right));
+            // for vec_even_up_1
+            // if left_old_len < right_old_len {
+            //     keys_mut!(left).push(replace(
+            //         &mut keys_mut!(p)[idx],
+            //         keys_mut!(right).remove(0),
+            //     ));
+            // }
+            // else {
+            //     keys_mut!(right).insert(
+            //         0,
+            //         replace(
+            //             &mut keys_mut!(p)[idx],
+            //             keys_mut!(left).pop().unwrap(),
+            //         ),
+            //     );
+            // }
 
+            vec_even_up(children_mut!(left), children_mut!(right));
+            // vec_even_up_1(children_mut!(left), children_mut!(right));
+
+            // for vec_even_up
             if (children!(left).len() + children!(right).len()) % 2 > 0 {
                 children_mut!(right)
                     .insert(0, children_mut!(left).pop().unwrap());
@@ -1233,7 +1262,7 @@ impl<K, V> Node_<K, V> {
 
     def_node__wn_access!(both, paren);
     def_node__wn_access!(leaf, succ);
-    def_node__wn_access!(leaf, pred);
+    // def_node__wn_access!(leaf, pred);
 }
 
 
@@ -1801,7 +1830,7 @@ pub(crate) mod tests {
 
             // test rank/nth
             for (i, (k, _v)) in back.iter().enumerate() {
-                let rk = dict.rank(&k);
+                let rk = dict.rank(&k).unwrap();
                 let (dk, _v) = dict.nth(rk).unwrap();
 
                 assert_eq!(rk, i, "rank=");

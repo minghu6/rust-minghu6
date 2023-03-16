@@ -37,7 +37,6 @@ macro_rules! impl_tree {
     ) =>
     {
         $(#[$attr])*
-        #[allow(unused)]
         pub struct $treename<K, V, const M: usize> {
             root: Node<K, V>,
 

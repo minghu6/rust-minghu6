@@ -87,3 +87,53 @@ bench_dict_insert!(_V2__100, BP, bt::bpt2::BPT2::<u64, u64, 100>::new());
 bench_dict_insert!(_V2__200, BP, bt::bpt2::BPT2::<u64, u64, 200>::new());
 bench_dict_insert!(_V2__300, BP, bt::bpt2::BPT2::<u64, u64, 300>::new());
 bench_dict_insert!(_V2__95, BP, bt::bpt2::BPT2::<u64, u64, 95>::new());
+
+
+////////////////////////////////////////////////////////////////////////////////
+//// Nodes Distribution Bench
+
+/// performance cross for u64 key:
+///
+/// | batch | M |
+/// | -- | -- |
+/// | 1150 | 105(main) |
+/// | 2500 | 10(sub) | (at most 105)
+///
+const DISTRBUTE_BATCH: u64 = 2500;
+
+#[bench]
+fn bench_distribute_vec (b: &mut Bencher) {
+    use std::hint::black_box;
+
+    b.iter(|| {
+        let mut v1 = Vec::with_capacity(DISTRBUTE_BATCH as usize);
+        let mut v2 = Vec::with_capacity(DISTRBUTE_BATCH as usize);
+
+        for i in 0..DISTRBUTE_BATCH {
+            black_box(v1.push(i));
+        }
+
+        for _ in 0..DISTRBUTE_BATCH {
+            black_box(v2.push(black_box(v1.remove(0))));
+        }
+    });
+}
+
+#[bench]
+fn bench_distribute_bpt (b: &mut Bencher) {
+    use std::hint::black_box;
+
+    b.iter(|| {
+        let mut v1 = bt::bpt::BPT::<u64, u64, 10>::new();
+        let mut v2 = bt::bpt::BPT::<u64, u64, 10>::new();
+
+        for i in 0..DISTRBUTE_BATCH {
+            black_box(v1.push_back(i, i));
+        }
+
+        for _ in 0..DISTRBUTE_BATCH {
+            let (k, v) = black_box(v1.pop_first().unwrap());
+            black_box(v2.push_back(k, v));
+        }
+    });
+}

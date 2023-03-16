@@ -1,16 +1,17 @@
 //! B Tree
 //!
 
-use std::{fmt::*, borrow::Borrow, mem::swap};
+use std::{borrow::Borrow, fmt::*, mem::swap};
 
-use coll::{ *, node as aux_node };
+use coll::{node as aux_node, *};
 
-use crate::{ bst::{ Left, Right }, bt::* };
+use crate::{
+    bst::{Left, Right},
+    bt::*,
+};
 
 
-def_attr_macro!(clone|
-    paren
-);
+def_attr_macro!(clone | paren);
 def_attr_macro!(ref|
     (entries, Vec<KVEntry<K, V>>),
     (children, Vec<Node<K, V>>)
@@ -38,9 +39,9 @@ macro_rules! node {
         let mut entries = Vec::with_capacity(M);
         entries.push(KVEntry($k, $v));
 
-        let children = vec![Node::none() ; 2];
+        let children = vec![Node::none(); 2];
 
-        node!(basic| entries, children, WeakNode::none())
+        node!(basic | entries, children, WeakNode::none())
     }};
     (basic| $entries:expr, $children:expr, $paren:expr) => {{
         aux_node!(FREE {
@@ -59,19 +60,6 @@ macro_rules! key {
 }
 
 
-macro_rules! last_child {
-    ($x:expr) => {
-        children!($x).last().unwrap()
-    };
-}
-
-
-macro_rules! first_child {
-    ($x:expr) => {
-        children!($x).first().unwrap()
-    };
-}
-
 
 /// O(logM) search by key
 macro_rules! index_of_child {
@@ -84,129 +72,110 @@ macro_rules! index_of_child {
         match entries!(p).binary_search(child.last_entry()) {
             Ok(oldidx) => {
                 panic!("Dup key on {oldidx}");
-            },
-            Err(inseridx) => {
-                inseridx
-            },
+            }
+            Err(inseridx) => inseridx,
         }
     }};
 }
 
 
 macro_rules! children_revref {
-    ($x:expr) => {
-        {
-            let x = &$x;
-            let children = children_mut!(x);
+    ($x:expr) => {{
+        let x = &$x;
+        let children = children_mut!(x);
 
-            if children[0].is_some() {
-                for child in children {
-                    paren!(child, x.downgrade());
-                }
+        if children[0].is_some() {
+            for child in children {
+                paren!(child, x.downgrade());
             }
         }
-    };
+    }};
 }
 
 
 /// (parent, left-idx)
 macro_rules! merge_node {
-    ($p:expr, $idx:expr) => {
-        {
-            let p = &$p;
-            let idx = $idx;
+    ($p:expr, $idx:expr) => {{
+        let p = &$p;
+        let idx = $idx;
 
-            let children = children!(p);
+        let children = children!(p);
 
-            let left = children[idx].clone();
-            let right = children[idx+1].clone();
+        let left = children[idx].clone();
+        let right = children[idx + 1].clone();
 
-            // merge right's children to the left
+        // merge right's children to the left
 
-            let left_children = children_mut!(left);
+        let left_children = children_mut!(left);
 
-            for child in children_mut!(right).drain(..) {
-                if child.is_some() {
-                    paren!(child, left.downgrade());
-                }
-
-                left_children.push(child);
+        for child in children_mut!(right).drain(..) {
+            if child.is_some() {
+                paren!(child, left.downgrade());
             }
 
-            // merge entries
-            entries_mut!(left).extend(
-                entries_mut!(right).drain(..)
-            );
-
-            // remove right from p
-            children_mut!(p).remove(idx+1);
+            left_children.push(child);
         }
-    };
+
+        // merge entries
+        entries_mut!(left).extend(entries_mut!(right).drain(..));
+
+        // remove right from p
+        children_mut!(p).remove(idx + 1);
+    }};
 }
 
 
 /// (parent, left-idx, sib_dir)
-macro_rules! try_rebalance_node {
-    ($p:expr, $idx:expr, $sib_dir:expr) => {
+macro_rules! try_node_redistribution {
+    ($p:expr, $idx:expr, $sib_dir:expr) => {{
+        let p = &$p;
+        let idx = $idx;
+        let sib_dir = $sib_dir;
+
+        let children = children!(p);
+
+        let left = &children[idx];
+        let right = &children[idx + 1];
+
+        let sib = if sib_dir.is_left() { left } else { right };
+
+        if children!(sib)[0].is_none() && entries!(sib).len() > 1
+            || entries!(sib).len() > Self::entries_low_bound()
         {
-            let p = &$p;
-            let idx = $idx;
-            let sib_dir = $sib_dir;
+            if sib_dir.is_left() {
+                entries_mut!(right).insert(
+                    0,
+                    replace(
+                        &mut entries_mut!(p)[idx],
+                        entries_mut!(left).pop().unwrap(),
+                    ),
+                );
 
-            let children = children!(p);
+                let child = children_mut!(left).pop().unwrap();
 
-            let left = &children[idx];
-            let right = &children[idx+1];
-
-            let sib = if sib_dir.is_left() { left } else { right };
-
-            if children!(sib)[0].is_none() && entries!(sib).len() > 1
-                || entries!(sib).len() > Self::entries_low_bound()
-            {
-                if sib_dir.is_left() {
-                    entries_mut!(right).insert(
-                        0,
-                        replace(
-                            &mut entries_mut!(p)[idx],
-                            entries_mut!(left).pop().unwrap()
-                        )
-                    );
-
-                    let child = children_mut!(left).pop().unwrap();
-
-                    if child.is_some() {
-                        paren!(child, right.downgrade());
-                    }
-
-                    children_mut!(right).insert(
-                        0,
-                        child
-                    );
-                }
-                else {
-                    entries_mut!(left).push(
-                        replace(
-                            &mut entries_mut!(p)[idx],
-                            entries_mut!(right).remove(0)
-                        )
-                    );
-
-                    let child = children_mut!(right).remove(0);
-
-                    if child.is_some() {
-                        paren!(child, left.downgrade());
-                    }
-
-                    children_mut!(left).push(
-                        child
-                    );
+                if child.is_some() {
+                    paren!(child, right.downgrade());
                 }
 
-                return Ok(())
+                children_mut!(right).insert(0, child);
+            } else {
+                entries_mut!(left).push(replace(
+                    &mut entries_mut!(p)[idx],
+                    entries_mut!(right).remove(0),
+                ));
+
+                let child = children_mut!(right).remove(0);
+
+                if child.is_some() {
+                    paren!(child, left.downgrade());
+                }
+
+                children_mut!(left).push(child);
             }
 
+            return Ok(());
         }
-    }
+    }};
 }
 
 
@@ -218,7 +187,7 @@ struct Node_<K, V> {
     entries: Vec<KVEntry<K, V>>,
     /// 即使是叶子节点，也要保持孩子数量 = k-v 数量 + 1
     children: Vec<Node<K, V>>,
-    paren: WeakNode<K, V>
+    paren: WeakNode<K, V>,
 }
 
 
@@ -227,7 +196,6 @@ struct Node_<K, V> {
 //// Implementation
 
 impl<K: Ord, V, const M: usize> BT<K, V, M> {
-
     ////////////////////////////////////////////////////////////////////////////
     //// Public API
 
@@ -238,21 +206,23 @@ impl<K: Ord, V, const M: usize> BT<K, V, M> {
     }
 
     pub fn get<Q>(&self, k: &Q) -> Option<&V>
-    where K: Borrow<Q>, Q: Ord + ?Sized
+    where
+        K: Borrow<Q>,
+        Q: Ord + ?Sized,
     {
-        self
-        .root
-        .search(k)
-        .map(|(node, idx)| &entries!(node)[idx].1)
+        self.root
+            .search(k)
+            .map(|(node, idx)| &entries!(node)[idx].1)
     }
 
     pub fn get_mut<Q>(&mut self, k: &Q) -> Option<&mut V>
-    where K: Borrow<Q>, Q: Ord + ?Sized
+    where
+        K: Borrow<Q>,
+        Q: Ord + ?Sized,
     {
-        self
-        .root
-        .search(k)
-        .map(|(node, idx)| &mut entries_mut!(node)[idx].1)
+        self.root
+            .search(k)
+            .map(|(node, idx)| &mut entries_mut!(node)[idx].1)
     }
 
     pub fn insert(&mut self, k: K, v: V) -> Option<V> {
@@ -266,26 +236,23 @@ impl<K: Ord, V, const M: usize> BT<K, V, M> {
                     idx = idx_;
 
                     break;
-                },
+                }
                 Err(idx_) => {
                     idx = idx_;
 
                     y = x;
                     x = &children!(y)[idx];
-                },
+                }
             }
         }
 
         if x.is_some() {
-            return Some(
-                replace(&mut entries_mut!(x)[idx].1, v)
-            );
+            return Some(replace(&mut entries_mut!(x)[idx].1, v));
         }
 
         if y.is_none() {
-            self.root = node!(kv| k, v);
-        }
-        else {
+            self.root = node!(kv | k, v);
+        } else {
             /* insert into leaf */
 
             entries_mut!(y).insert(idx, KVEntry(k, v));
@@ -297,18 +264,19 @@ impl<K: Ord, V, const M: usize> BT<K, V, M> {
         }
 
         None
-
     }
 
     pub fn remove<Q>(&mut self, k: &Q) -> Option<V>
-    where K: Borrow<Q> + Debug, Q: Ord + ?Sized, V: Debug
+    where
+        K: Borrow<Q> + Debug,
+        Q: Ord + ?Sized,
+        V: Debug,
     {
         if let Some((mut x, mut idx)) = self.root.search(k) {
-
             /* Swap to its successor leaf node */
 
             if children!(x)[0].is_some() {
-                let (succ, succ_idx) = x.successor(idx);
+                let (succ, succ_idx) = children!(x)[idx + 1].minimum();
 
                 swap(
                     &mut entries_mut!(x)[idx],
@@ -327,15 +295,13 @@ impl<K: Ord, V, const M: usize> BT<K, V, M> {
             if entries!(x).is_empty() {
                 if paren!(x).is_none() {
                     self.root = Node::none();
-                }
-                else {
+                } else {
                     self.unpromote(x);
                 }
             }
 
             Some(popped.1)
-        }
-        else {
+        } else {
             None
         }
     }
@@ -359,7 +325,7 @@ impl<K: Ord, V, const M: usize> BT<K, V, M> {
 
         let children_x2 = children_mut!(x).split_off(split_pos);
 
-        let x2 = node!(basic| entries_x2, children_x2, WeakNode::none());
+        let x2 = node!(basic | entries_x2, children_x2, WeakNode::none());
         children_revref!(x2);
 
         let p = paren!(x).upgrade();
@@ -370,11 +336,10 @@ impl<K: Ord, V, const M: usize> BT<K, V, M> {
             let entries = vec![entry_head];
             let children = vec![x, x2];
 
-            self.root = node!(basic| entries, children, WeakNode::none());
+            self.root = node!(basic | entries, children, WeakNode::none());
 
             children_revref!(self.root);
-        }
-        else {
+        } else {
             /* insert into paren node */
 
             let x_idx = index_of_child!(p, x);
@@ -388,54 +353,51 @@ impl<K: Ord, V, const M: usize> BT<K, V, M> {
                 self.promote(p);
             }
         }
-
     }
 
-    fn unpromote(&mut self, mut x: Node<K, V>)
-    {
+    fn unpromote(&mut self, x: Node<K, V>) {
         // Exclude leaf node
         debug_assert!(
             children!(x)[0].is_none()
-            || entries!(x).len() == Self::entries_low_bound() - 1
+                || entries!(x).len() == Self::entries_low_bound() - 1
         );
 
-        if let Err((p, idx)) = self.try_rebalance_node(&x) {
+        if let Err((p, idx)) = self.try_rebalancing(&x) {
             /* merge with sib node (rebalance failed means that each node are small) */
 
+            // merge left child
+            if idx > 0 {
+                entries_mut!(x).insert(0, entries_mut!(p).remove(idx - 1));
+                merge_node!(p, idx - 1);
+            }
             // merge right child
-            if idx == 0 {
+            else {
+                entries_mut!(x).push(entries_mut!(p).remove(0));
                 merge_node!(p, idx);
             }
-            // merge left child
-            else {
-                merge_node!(p, idx-1);
-            }
 
-            x = p;
-
-            if paren!(x).is_none() {
+            if paren!(p).is_none() {
                 // pop new level
-                if entries!(x).is_empty() {
-                    debug_assert!(children!(x)[0].is_some());
-                    debug_assert_eq!(children!(x).len(), 1);
+                if entries!(p).is_empty() {
+                    debug_assert!(children!(p)[0].is_some());
+                    debug_assert_eq!(children!(p).len(), 1);
 
-                    self.root = children_mut!(x).pop().unwrap();
+                    self.root = children_mut!(p).pop().unwrap();
                     paren!(self.root, WeakNode::none());
                 }
-            }
-            else {
-                if entries!(x).len() < Self::entries_low_bound() {
-                    self.unpromote(x);
+            } else {
+                if entries!(p).len() < Self::entries_low_bound() {
+                    self.unpromote(p);
                 }
             }
         }
-
     }
 
     /// -> (idx, idx)
-    fn try_rebalance_node(&mut self, x: &Node<K, V>)
-    -> std::result::Result<(), (Node<K, V>, usize)>
-    {
+    fn try_rebalancing(
+        &mut self,
+        x: &Node<K, V>,
+    ) -> std::result::Result<(), (Node<K, V>, usize)> {
         debug_assert!(paren!(x).is_some());
 
         let p = paren!(x).upgrade();
@@ -444,30 +406,15 @@ impl<K: Ord, V, const M: usize> BT<K, V, M> {
         /* Check if siblings has remains */
 
         if idx > 0 {
-            try_rebalance_node!(p, idx-1, Left);
+            try_node_redistribution!(p, idx - 1, Left);
         }
 
         if idx < children!(p).len() - 1 {
-            try_rebalance_node!(p, idx, Right);
-        }
-
-        /* Or else just retrive from parent */
-
-        if idx == 0 {
-            entries_mut!(x).push(
-                entries_mut!(p).remove(0)
-            );
-        }
-        else {
-            entries_mut!(x).insert(
-                0,
-                entries_mut!(p).remove(idx-1)
-            );
+            try_node_redistribution!(p, idx, Right);
         }
 
         Err((p, idx))
     }
-
 }
 
 
@@ -476,23 +423,24 @@ impl<K, V> Node<K, V> {
     fn last_entry(&self) -> &KVEntry<K, V> {
         if let Some(ent) = entries!(self).last() {
             ent
-        }
-        else {
+        } else {
             panic!("EMPTY entries");
         }
     }
 
     /// 漂亮的尾递归
     fn search<Q>(&self, k: &Q) -> Option<(Self, usize)>
-    where K: Borrow<Q>, Q: Ord + ?Sized
+    where
+        K: Borrow<Q>,
+        Q: Ord + ?Sized,
     {
         if self.is_some() {
-            match entries!(self).binary_search_by_key(&k, |ent| ent.0.borrow()) {
+            match entries!(self).binary_search_by_key(&k, |ent| ent.0.borrow())
+            {
                 Ok(idx) => Some((self.clone(), idx)),
                 Err(idx) => children!(self)[idx].search(k),
             }
-        }
-        else {
+        } else {
             None
         }
     }
@@ -504,44 +452,11 @@ impl<K, V> Node<K, V> {
 
         while x.is_some() {
             y = x.clone();
-            x = first_child!(x);
+            x = children!(x).first().unwrap();
         }
 
         (y, 0)
     }
-
-    fn successor(&self, idx: usize) -> (Self, usize)
-    where K: Ord
-    {
-        debug_assert!(self.is_some());
-
-        let rh = &children!(self)[idx+1];
-
-        if rh.is_some() {
-            rh.minimum()
-        }
-        /* paren: from right-most-up, left */
-        else {
-            let mut x = self.clone();
-            let mut y = paren!(&x).upgrade();
-
-            while y.is_some() && !x.rc_eq(last_child!(y)) {
-                x = y.clone();
-                y = paren!(y).upgrade();
-            }
-
-            let mut idx = 0;
-
-            if y.is_some() {
-                idx = index_of_child!(y, x);
-            }
-
-            (y, idx)
-        }
-    }
-
-
-
 }
 
 
@@ -550,12 +465,11 @@ impl<K: Debug, V> Debug for Node<K, V> {
         if self.is_some() {
             let kn = entries!(self).len();
 
-            for i in 0..kn-1 {
+            for i in 0..kn - 1 {
                 write!(f, "{:?}, ", key!(self, i))?;
             }
-            write!(f, "{:?}", key!(self, kn-1))?;
-        }
-        else {
+            write!(f, "{:?}", key!(self, kn - 1))?;
+        } else {
             write!(f, "nil")?;
         }
 
@@ -568,9 +482,8 @@ impl<K: Debug, V> Debug for Node<K, V> {
 #[cfg(test)]
 mod tests {
 
+    use super::{super::tests::*, *};
     use crate::bst::test_dict;
-
-    use super::{ *, super::tests::* };
 
     impl<K: Ord, V, const M: usize> BT<K, V, M> {
         ////////////////////////////////////////////////////////////////////////////
@@ -579,9 +492,11 @@ mod tests {
         #[cfg(test)]
         fn debug_write<W: std::fmt::Write>(
             &self,
-            f: &mut W
+            f: &mut W,
         ) -> std::fmt::Result
-        where K: std::fmt::Debug, V: std::fmt::Debug
+        where
+            K: std::fmt::Debug,
+            V: std::fmt::Debug,
         {
             use common::vecdeq;
 
@@ -631,7 +546,10 @@ mod tests {
         }
 
         #[cfg(test)]
-        fn debug_print(&self) where K: std::fmt::Debug, V: std::fmt::Debug
+        fn debug_print(&self)
+        where
+            K: std::fmt::Debug,
+            V: std::fmt::Debug,
         {
             let mut cache = String::new();
 
@@ -642,7 +560,8 @@ mod tests {
 
         #[cfg(test)]
         fn validate(&self)
-        where K: Debug
+        where
+            K: Debug,
         {
             if self.root.is_none() {
                 return;
@@ -666,31 +585,38 @@ mod tests {
                         assert!(child.is_some());
 
                         assert_eq!(
-                            entries!(child).len() + 1, children!(child).len(),
+                            entries!(child).len() + 1,
+                            children!(child).len(),
                             "{child:?}"
                         );
-                        assert!(children!(child).len() <= M, "{child:?}: {}", children!(child).len());
-                        assert!(entries!(child).len() < Self::entries_high_bound());
+                        assert!(
+                            children!(child).len() <= M,
+                            "{child:?}: {}",
+                            children!(child).len()
+                        );
+                        assert!(
+                            entries!(child).len() < Self::entries_high_bound()
+                        );
 
                         // Exclude leaf
                         if children!(child)[0].is_none() {
                             assert!(entries!(child).len() > 0);
                             leaf_num += 1;
-                        }
-                        else {
+                        } else {
                             // Exclude the root (which is always one when it's internal node)
                             if paren!(child).is_some() {
-                                assert!(entries!(child).len() >= Self::entries_low_bound());
-                            }
-                            else {
+                                assert!(
+                                    entries!(child).len()
+                                        >= Self::entries_low_bound()
+                                );
+                            } else {
                                 assert!(children!(child).len() >= 2);
                             }
 
                             internal_num += 1;
 
-                            let mut nxt_children = VecDeque::from(
-                                children!(child).clone()
-                            );
+                            let mut nxt_children =
+                                VecDeque::from(children!(child).clone());
                             nxt_children.push_front(child.clone());
 
                             nxt_q.push_back(nxt_children);
@@ -721,13 +647,10 @@ mod tests {
 
                         assert!(key!(last_child, 0) > &p.last_entry().0);
                     }
-
                 }
 
                 cur_q = nxt_q;
             }
-
-
         }
     }
 
@@ -760,7 +683,6 @@ mod tests {
         dict_remove!(dict, 28);
 
         dict.debug_print();
-
     }
 
 
@@ -772,6 +694,4 @@ mod tests {
         test_dict!(BT::<u16, u16, 11>::new());
         test_dict!(BT::<u16, u16, 20>::new());
     }
-
-
 }
