@@ -1,4 +1,10 @@
 //! Persistent Data Structure
 #![feature(box_syntax)]
+#![feature(macro_metavar_expr)]
 
-pub mod vector;
+#[cfg(test)]
+mod vec;
+pub mod trievec0;
+
+pub mod trievec;
+

@@ -20,26 +20,29 @@ macro_rules! impl_node {
         impl_node!(pub(self));
     };
     ($vis:vis) => {
-        $vis struct Node<K, V>(
-            Option<std::rc::Rc<std::cell::RefCell<Node_<K, V>>>>,
+        impl_node!($vis <K, V>);
+    };
+    ($vis:vis <$($g:ident),+>) => {
+        $vis struct Node<$($g),+>(
+            Option<std::rc::Rc<std::cell::RefCell<Node_<$($g),+>>>>,
         );
 
         /// Used for reverse reference to avoid circular-reference
         ///
         /// So we can easy auto drop
-        struct WeakNode<K, V>(
-            Option<std::rc::Weak<std::cell::RefCell<Node_<K, V>>>>,
+        struct WeakNode<$($g),+>(
+            Option<std::rc::Weak<std::cell::RefCell<Node_<$($g),+>>>>,
         );
 
         #[allow(unused)]
-        impl<K, V> Node<K, V> {
-            fn downgrade(&self) -> WeakNode<K, V> {
+        impl<$($g),+> Node<$($g),+> {
+            fn downgrade(&self) -> WeakNode<$($g),+> {
                 WeakNode(
                     self.0.clone().map(|ref rc| std::rc::Rc::downgrade(rc)),
                 )
             }
 
-            fn as_ptr(&self) -> *mut Node_<K, V> {
+            fn as_ptr(&self) -> *mut Node_<$($g),+> {
                 match self.0 {
                     Some(ref rc) => rc.as_ptr(),
                     None => std::ptr::null_mut(),
@@ -73,14 +76,14 @@ macro_rules! impl_node {
         }
 
 
-        impl<K, V> Default for Node<K, V> {
+        impl<$($g),+> Default for Node<$($g),+> {
             fn default() -> Self {
                 Self::none()
             }
         }
 
 
-        impl<K, V> Clone for Node<K, V> {
+        impl<$($g),+> Clone for Node<$($g),+> {
             fn clone(&self) -> Self {
                 Self(self.0.clone())
             }
@@ -88,8 +91,8 @@ macro_rules! impl_node {
 
 
         #[allow(unused)]
-        impl<K, V> WeakNode<K, V> {
-            fn upgrade(&self) -> Node<K, V> {
+        impl<$($g),+> WeakNode<$($g),+> {
+            fn upgrade(&self) -> Node<$($g),+> {
                 Node(self.0.clone().map(|weak| {
                     if let Some(strong) = weak.upgrade() {
                         strong
@@ -117,13 +120,14 @@ macro_rules! impl_node {
         }
 
 
-        impl<K, V> Clone for WeakNode<K, V> {
+        impl<$($g),+> Clone for WeakNode<$($g),+> {
             fn clone(&self) -> Self {
                 Self(self.0.clone())
             }
         }
-    };
+    }
 }
+
 
 #[macro_export]
 macro_rules! boxptr {
@@ -132,6 +136,7 @@ macro_rules! boxptr {
     };
 }
 
+
 #[macro_export]
 #[allow(unused)]
 macro_rules! unboxptr {
@@ -139,6 +144,7 @@ macro_rules! unboxptr {
         unsafe { *Box::from_raw($ptr) }
     };
 }
+
 
 #[macro_export]
 macro_rules! node {
@@ -172,12 +178,131 @@ macro_rules! node {
     };
 }
 
+
 #[macro_export]
 macro_rules! unwrap_into {
     ($node:expr) => {
         std::rc::Rc::try_unwrap($node.0.unwrap())
             .unwrap()
             .into_inner()
+    };
+}
+
+
+////////////////////////////////////////
+//// Node Implementation
+
+
+/// Node_ heap data field access
+#[macro_export]
+macro_rules! def_node__heap_access {
+    (internal, $name:ident, $ret:ty) => {
+        fn $name(&self) -> &$ret {
+            match self {
+                Internal { $name, .. } => $name,
+                Leaf {..} => panic!(
+                    "Get `{}` on leaf",
+                    stringify!($name)
+                )
+            }
+        }
+        coll::paste!(
+            fn [<$name _mut>](&mut self) -> &mut $ret {
+                match self {
+                    Internal { $name, .. } => $name,
+                    Leaf {..} => panic!(
+                        "Get `{}` on leaf",
+                        stringify!($name)
+                    )
+                }
+            }
+        );
+    };
+    (leaf, $name:ident, $ret:ty) => {
+        fn $name(&self) -> &$ret {
+            match self {
+                Internal {..} => panic!(
+                    "Get `{}` on internal node",
+                    stringify!($name)
+                ),
+                Leaf { $name, ..} => $name
+            }
+        }
+        coll::paste!(
+            fn [<$name _mut>](&mut self) -> &mut $ret {
+                match self {
+                    Internal {..} => panic!(
+                        "Get `{}` on internal node",
+                        stringify!($name)
+                    ),
+                    Leaf { $name, ..} => $name
+                }
+            }
+        );
+    };
+    (both, $name:ident, $ret:ty) => {
+        fn $name(&self) -> &$ret {
+            match self {
+                Internal { $name, .. } => $name,
+                Leaf {$name, ..} => $name
+            }
+        }
+        coll::paste!(
+            fn [<$name _mut>](&mut self) -> &mut $ret {
+                match self {
+                    Internal { $name, .. } => $name,
+                    Leaf {$name, ..} => $name
+                }
+            }
+        );
+    };
+}
+
+
+/// Node_ WeakNode field access
+#[macro_export]
+macro_rules! def_node__wn_access {
+    (both, $name:ident) => {
+        fn $name(&self) -> Node<K, V> {
+            match self {
+                Internal { $name, .. } => $name,
+                Leaf { $name, .. } => $name,
+            }
+            .upgrade()
+        }
+        coll::paste!(
+            fn [<set_ $name>](&mut self, x: Node<K, V>) {
+                match self {
+                    Internal { $name, .. } => $name,
+                    Leaf { $name, .. } => $name,
+                }
+                .replace(x.downgrade());
+            }
+        );
+    };
+    (leaf, $name:ident) => {
+        fn $name(&self) -> Node<K, V> {
+            match self {
+                Internal {..} => panic!(
+                    "Get `{}` on internal node",
+                    stringify!($name)
+                ),
+                Leaf { $name, .. } => $name,
+            }
+            .upgrade()
+        }
+        coll::paste!(
+            fn [<set_ $name>](&mut self, x: Node<K, V>) {
+                match self {
+                    Internal {..} => panic!(
+                        "Get `{}` on internal node",
+                        stringify!($name)
+                    ),
+                    Leaf { $name, .. } => $name,
+                }
+                .replace(x.downgrade());
+            }
+        );
     };
 }
 
@@ -289,8 +414,33 @@ macro_rules! def_attr_macro {
             pub(crate) use $name;
 
         )+
+    };
+    (call | $($name:ident),+) => {
+        $(
+            coll::paste!(
+                macro_rules! $name {
+                    ($node:expr) => {
+                        attr!(self | $$node).$name()
+                    };
+                    ($node:expr, $val:expr) => {
+                        attr!(self_mut | $$node).[<set_ $name>]($$val)
+                    };
+                }
+            );
+
+            coll::paste!(
+                #[allow(unused)]
+                macro_rules! [<$name _mut>] {
+                    ($node:expr) => {
+                        attr!(self_mut | $$node).[<$name _mut>]()
+                    };
+                }
+            );
+        )+
     }
 }
+
+
 
 
 ////////////////////////////////////////

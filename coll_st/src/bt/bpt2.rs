@@ -10,8 +10,7 @@ use std::{
 
 use super::{
     bpt::{
-        bpt, def_attr_macro_bpt, def_node__heap_access, def_node__wn_access,
-        BPT,
+        BPT, bpt
     },
     node as aux_node, *,
 };
@@ -24,7 +23,7 @@ impl_tree!(
     BPT2 { cnt: usize, min_node: WeakNode<K, V> }
 );
 
-def_attr_macro_bpt!(paren, succ, entries, children);
+def_attr_macro!(call | paren, succ, entries, children);
 
 const SUB_M: usize = 20;
 

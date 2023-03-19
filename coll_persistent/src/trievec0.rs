@@ -4,20 +4,15 @@
 //!
 
 use std::{
-    cmp::min,
-    collections::VecDeque,
-    error::Error,
-    fmt::Debug,
-    fmt::Display,
-    ops::Index,
-    ptr::null_mut,
+    cmp::min, collections::VecDeque, fmt::Debug, fmt::Display,
+    ops::Index, ptr::null_mut,
 };
 
+use coll::{boxptr, uuid::Uuid, Array};
 use common::Itertools;
-use coll::{uuid::Uuid, boxptr, Array};
 
-const BIT_WIDTH: usize = 5;
-const NODE_SIZE: usize = 1 << BIT_WIDTH;
+const BIT_WIDTH: u32 = 5;
+const NODE_SIZE: usize = 1 << BIT_WIDTH as usize;
 const MASK: usize = NODE_SIZE - 1;
 
 
@@ -87,11 +82,17 @@ impl<T> Node<T> {
         boxptr!(Node::LEAF(id, Array::new(cap)))
     }
 
-    fn duplicate(&self) -> *mut Self where T: Clone {
+    fn duplicate(&self) -> *mut Self
+    where
+        T: Clone,
+    {
         boxptr!(self.clone())
     }
 
-    fn duplicate_with(&self, id: Option<Uuid>, cap: usize) -> *mut Self where T: Clone {
+    fn duplicate_with(&self, id: Option<Uuid>, cap: usize) -> *mut Self
+    where
+        T: Clone,
+    {
         boxptr!(match self {
             Node::BR(_id, arr) => {
                 debug_assert!(
@@ -140,11 +141,17 @@ impl<T> Node<T> {
         .clone()
     }
 
-    fn clone_tree(&self) -> *mut Node<T> where T: Clone {
+    fn clone_tree(&self) -> *mut Node<T>
+    where
+        T: Clone,
+    {
         unsafe { Self::clone_tree_(self as *const Node<T> as *mut Node<T>) }
     }
 
-    unsafe fn clone_tree_(node: *mut Node<T>) -> *mut Node<T> where T: Clone {
+    unsafe fn clone_tree_(node: *mut Node<T>) -> *mut Node<T>
+    where
+        T: Clone,
+    {
         if node.is_null() {
             return node;
         }
@@ -221,10 +228,30 @@ impl<T: Display> Debug for Node<T> {
 }
 
 
+impl<T> PTrieVec<T> {
+    /// Tail Offset (elements number before tail)
+    fn tailoff(&self) -> usize {
+        if self.cnt == 0 {
+            return 0;
+        }
+
+        ((self.cnt - 1) >> BIT_WIDTH) << BIT_WIDTH
+    }
+
+    /// Indicate the trie structure.
+    fn shift(&self) -> u32 {
+        (self.height() - 1) * BIT_WIDTH
+    }
+
+    /// Leaf should be same level
+    fn height(&self) -> u32 {
+        trie_height(self.tailoff())
+    }
+}
+
 
 /// Impl Persistent Vec
 impl<T: Debug + Clone> PTrieVec<T> {
-
     ////////////////////////////////////////////////////////////////////////////
     //// Public API
 
@@ -286,7 +313,8 @@ impl<T: Debug + Clone> PTrieVec<T> {
                 let old_tail_arr = (*self.tail).as_leaf();
                 let tail = Node::new_leaf(self.id(), old_tail_arr.len() + 1);
 
-                (*tail).as_leaf_mut()[..old_tail_arr.len()].clone_from_slice(&old_tail_arr[..]);
+                (*tail).as_leaf_mut()[..old_tail_arr.len()]
+                    .clone_from_slice(&old_tail_arr[..]);
                 (*tail).as_leaf_mut()[old_tail_arr.len()] = item;
 
                 return Self::new(cnt, root, tail);
@@ -311,11 +339,15 @@ impl<T: Debug + Clone> PTrieVec<T> {
             let shift = self.shift();
 
             if tailoff == NODE_SIZE.pow(self.height() as u32) {
+                debug_assert_eq!(self.height(), 1);
+
                 root = Node::new_br(self.id(), 2);
                 (*root).as_br_mut()[0] = self.root;
                 (*root).as_br_mut()[1] =
                     Self::new_path(self.id(), shift, leaf);
             } else {
+                debug_assert!(self.height() >= 2);
+
                 root = self.push_tail_into_trie(shift, self.root, leaf)
             }
 
@@ -323,42 +355,48 @@ impl<T: Debug + Clone> PTrieVec<T> {
         }
     }
 
-    pub fn pop(&self) -> Result<Self, Box<dyn Error>> {
+    pub fn pop(&self) -> Self {
         unsafe {
             assert!(self.cnt > 0, "Can't pop empty vector");
 
             if self.cnt == 1 {
-                return Ok(Self::empty());
+                return Self::empty();
             }
 
             let cnt = self.cnt - 1;
 
             if self.cnt - self.tailoff() > 1 {
                 let tail = Node::new_leaf(self.id(), (*self.tail).len() - 1);
-                (*tail).as_leaf_mut()[..]
-                    .clone_from_slice(&(*self.tail).as_leaf()[..(*tail).len()]);
+                (*tail).as_leaf_mut()[..].clone_from_slice(
+                    &(*self.tail).as_leaf()[..(*tail).len()],
+                );
 
                 let root = self.root;
 
-                return Ok(Self::new(cnt, root, tail));
+                return Self::new(cnt, root, tail);
             }
+
 
             let tail = self.array_for(self.cnt - 2);
 
             let mut root;
             if self.cnt == NODE_SIZE + 1 {
+                debug_assert_eq!(self.height(), 1);
+
                 root = null_mut();
             } else {
+                debug_assert!(self.height() > 1);
+
                 let shift = self.shift();
 
                 root = self.pop_tail_from_trie(shift, self.root);
 
-                if shift >= BIT_WIDTH as i32 && (*root).as_br()[1].is_null() {
+                if shift >= BIT_WIDTH && (*root).as_br()[1].is_null() {
                     root = (*root).as_br()[0]; // remove empty root
                 }
             }
 
-            Ok(Self::new(cnt, root, tail))
+            Self::new(cnt, root, tail)
         }
     }
 
@@ -418,14 +456,6 @@ impl<T: Debug + Clone> PTrieVec<T> {
         Some(self.nth(self.cnt - 1))
     }
 
-    pub fn duplicate(&self) -> Self {
-        Self {
-            cnt: self.cnt,
-            root: self.root.clone(),
-            tail: self.tail.clone(),
-        }
-    }
-
     pub fn bfs_display(&self)
     where
         T: Display,
@@ -483,39 +513,6 @@ impl<T: Debug + Clone> PTrieVec<T> {
     ////////////////////////////////////////////////////////////////////////////
     //// Inner Method
 
-    /// Tail Offset (elements number before tail)
-    fn tailoff(&self) -> usize {
-        if self.cnt == 0 {
-            return 0;
-        }
-
-        ((self.cnt - 1) >> BIT_WIDTH) << BIT_WIDTH
-    }
-
-    /// Indicate the trie structure.
-    fn shift(&self) -> i32 {
-        (self.height() as i32 - 1) * BIT_WIDTH as i32
-    }
-
-    /// Leaf should be same level
-    fn height(&self) -> usize {
-        Self::height_(self.tailoff())
-    }
-
-    fn height_(trie_size: usize) -> usize {
-        if trie_size == 0 {
-            return 0;
-        }
-
-        let mut h = 1;
-        let mut shift = (trie_size - 1) >> BIT_WIDTH;
-        while shift > 0 {
-            shift >>= BIT_WIDTH;
-            h += 1;
-        }
-
-        h
-    }
 
     /// Get the Bucket
     fn array_for(&self, idx: usize) -> *mut Node<T> {
@@ -532,7 +529,7 @@ impl<T: Debug + Clone> PTrieVec<T> {
             while shift > 0 {
                 cur = (*cur).as_br()[(idx >> shift) & MASK];
 
-                shift -= BIT_WIDTH as i32;
+                shift -= BIT_WIDTH;
             }
 
             cur
@@ -541,10 +538,10 @@ impl<T: Debug + Clone> PTrieVec<T> {
 
     fn new_path(
         id: Option<Uuid>,
-        shift: i32,
+        shift: u32,
         node: *mut Node<T>,
     ) -> *mut Node<T> {
-        if shift == 0 as i32 {
+        if shift == 0 {
             return node;
         }
 
@@ -552,7 +549,7 @@ impl<T: Debug + Clone> PTrieVec<T> {
 
         unsafe {
             (*ret).as_br_mut()[0] =
-                Self::new_path(id, shift - BIT_WIDTH as i32, node);
+                Self::new_path(id, shift - BIT_WIDTH, node);
         }
 
         ret
@@ -561,27 +558,32 @@ impl<T: Debug + Clone> PTrieVec<T> {
     // The Trie isn't full.
     unsafe fn push_tail_into_trie(
         &self,
-        shift: i32,
+        shift: u32,
         paren: *mut Node<T>,
         leaf: *mut Node<T>,
     ) -> *mut Node<T> {
         let sub_idx = ((self.cnt - 1) >> shift) & MASK;
 
         let paren_arr = (*paren).as_br();
-        let ret = Node::new_br(self.id(), min(paren_arr.len() + 1, NODE_SIZE));
+        let ret = Node::new_br(
+            self.id(),
+            min(paren_arr.len() + 1, NODE_SIZE)
+        );
+
         (*ret).as_br_mut()[..paren_arr.len()].copy_from_slice(&paren_arr[..]);
 
         let node_to_insert;
-        if shift == BIT_WIDTH as i32 {
+        if shift == BIT_WIDTH {
             node_to_insert = leaf;
         } else {
-            node_to_insert = if (*paren).len() > sub_idx
+            node_to_insert =
+            if (*paren).len() > sub_idx
                 && !(*paren).as_br()[sub_idx].is_null()
             {
                 let child = (*paren).as_br()[sub_idx];
-                self.push_tail_into_trie(shift - BIT_WIDTH as i32, child, leaf)
+                self.push_tail_into_trie(shift - BIT_WIDTH, child, leaf)
             } else {
-                Self::new_path(self.id(), shift - BIT_WIDTH as i32, leaf)
+                Self::new_path(self.id(), shift - BIT_WIDTH, leaf)
             };
         }
 
@@ -592,16 +594,16 @@ impl<T: Debug + Clone> PTrieVec<T> {
 
     unsafe fn pop_tail_from_trie(
         &self,
-        shift: i32,
+        shift: u32,
         node: *mut Node<T>,
     ) -> *mut Node<T> {
         let sub_id = ((self.cnt - 2) >> shift) & MASK;
 
-        if shift > BIT_WIDTH as i32 {
+        if shift > BIT_WIDTH {
             debug_assert!((*node).len() > sub_id);
 
             let child = self.pop_tail_from_trie(
-                shift - BIT_WIDTH as i32,
+                shift - BIT_WIDTH,
                 (*node).as_br()[sub_id],
             );
 
@@ -627,7 +629,7 @@ impl<T: Debug + Clone> PTrieVec<T> {
     }
 
     unsafe fn do_assoc(
-        shift: i32,
+        shift: u32,
         node: *mut Node<T>,
         idx: usize,
         item: T,
@@ -641,12 +643,11 @@ impl<T: Debug + Clone> PTrieVec<T> {
             let child = (*node).as_br()[sub_idx];
 
             (*ret).as_br_mut()[sub_idx] =
-                Self::do_assoc(shift - BIT_WIDTH as i32, child, idx, item);
+                Self::do_assoc(shift - BIT_WIDTH, child, idx, item);
         }
 
         ret
     }
-
 }
 
 
@@ -677,7 +678,6 @@ impl<T> Clone for PTrieVec<T> {
 
 /// Impl Transient Vec
 impl<T: Debug + Clone> TTrieVec<T> {
-
     ////////////////////////////////////////////////////////////////////////////
     //// Public API
 
@@ -765,7 +765,8 @@ impl<T: Debug + Clone> TTrieVec<T> {
                 let idx = self.cnt;
 
                 if (*self.tail).len() <= idx & MASK {
-                    self.tail = (*self.tail).duplicate_with(self.id(), NODE_SIZE);
+                    self.tail =
+                        (*self.tail).duplicate_with(self.id(), NODE_SIZE);
                 }
 
                 (*self.tail).as_leaf_mut()[idx & MASK] = item;
@@ -797,7 +798,8 @@ impl<T: Debug + Clone> TTrieVec<T> {
             if tailoff == NODE_SIZE.pow(self.height() as u32) {
                 root = Node::new_br(self.id(), NODE_SIZE);
                 (*root).as_br_mut()[0] = self.root;
-                (*root).as_br_mut()[1] = Self::new_path(self.id(), shift, leaf);
+                (*root).as_br_mut()[1] =
+                    new_path(self.id(), shift, leaf, NODE_SIZE);
             } else {
                 root = self.push_tail_into_trie(shift, self.root, leaf)
             }
@@ -810,14 +812,14 @@ impl<T: Debug + Clone> TTrieVec<T> {
         }
     }
 
-    pub fn pop(&mut self) -> Result<Self, Box<dyn Error>> {
+    pub fn pop(&mut self) -> Self {
         unsafe {
             assert!(self.cnt > 0, "Can't pop empty vector");
 
             if self.cnt == 1 || self.cnt - self.tailoff() > 1 {
                 self.cnt -= 1;
 
-                return Ok(self.clone_head());
+                return self.clone_head();
             }
 
             let tail = self.editable_array_for(self.cnt - 2);
@@ -840,7 +842,7 @@ impl<T: Debug + Clone> TTrieVec<T> {
             self.tail = tail;
             self.cnt -= 1;
 
-            Ok(self.clone_head())
+            self.clone_head()
         }
     }
 
@@ -893,7 +895,7 @@ impl<T: Debug + Clone> TTrieVec<T> {
                 let tail = Node::new_leaf(root_id, self.cnt - self.tailoff());
 
                 (*tail).as_leaf_mut()[..].clone_from_slice(
-                    &(*self.tail).as_leaf()[..(*tail).len()]
+                    &(*self.tail).as_leaf()[..(*tail).len()],
                 );
 
                 tail
@@ -944,24 +946,10 @@ impl<T: Debug + Clone> TTrieVec<T> {
     }
 
     /// Leaf should be same level
-    fn height(&self) -> usize {
-        Self::height_(self.tailoff())
+    fn height(&self) -> u32 {
+        trie_height(self.tailoff())
     }
 
-    fn height_(trie_size: usize) -> usize {
-        if trie_size == 0 {
-            return 0;
-        }
-
-        let mut h = 1;
-        let mut shift = (trie_size - 1) >> BIT_WIDTH;
-        while shift > 0 {
-            shift >>= BIT_WIDTH;
-            h += 1;
-        }
-
-        h
-    }
 
     /// Get the Bucket
     fn array_for(&self, idx: usize) -> *mut Node<T> {
@@ -1005,30 +993,11 @@ impl<T: Debug + Clone> TTrieVec<T> {
             node_to_insert = if !child.is_null() {
                 self.push_tail_into_trie(shift - BIT_WIDTH as i32, child, leaf)
             } else {
-                Self::new_path(self.id(), shift - BIT_WIDTH as i32, leaf)
+                new_path(self.id(), shift - BIT_WIDTH as i32, leaf, NODE_SIZE)
             };
         }
 
         (*ret).as_br_mut()[sub_idx] = node_to_insert;
-
-        ret
-    }
-
-    fn new_path(
-        id: Option<Uuid>,
-        shift: i32,
-        node: *mut Node<T>,
-    ) -> *mut Node<T> {
-        if shift == 0 as i32 {
-            return node;
-        }
-
-        let ret = Node::new_br(id, NODE_SIZE);
-
-        unsafe {
-            (*ret).as_br_mut()[0] =
-                Self::new_path(id, shift - BIT_WIDTH as i32, node);
-        }
 
         ret
     }
@@ -1169,6 +1138,11 @@ impl<T: Debug + Clone> TTrieVec<T> {
 }
 
 
+impl<T: Clone + Debug> Clone for TTrieVec<T> {
+    fn clone(&self) -> Self {
+        self.duplicate()
+    }
+}
 
 
 impl<T: Debug + Clone> Debug for TTrieVec<T> {
@@ -1182,28 +1156,65 @@ impl<T: Debug + Clone> Debug for TTrieVec<T> {
 }
 
 
+const fn trie_height(trie_size: usize) -> u32 {
+    match trie_size {
+        0 => 0,
+        1 => 1,
+        x => {
+            let mut h = (x - 1).ilog2() / BIT_WIDTH;
+
+            if x > NODE_SIZE.pow(h as u32) {
+                h += 1;
+            }
+
+            h
+        }
+    }
+}
+
+
+fn new_path<T>(
+    id: Option<Uuid>,
+    shift: i32,
+    node: *mut Node<T>,
+    cap: usize,
+) -> *mut Node<T> {
+    if shift == 0 as i32 {
+        return node;
+    }
+
+    let ret = Node::new_br(id, cap);
+
+    unsafe {
+        (*ret).as_br_mut()[0] =
+            new_path(id, shift - BIT_WIDTH as i32, node, cap);
+    }
+
+    ret
+}
+
 
 #[cfg(test)]
 mod tests {
-    use super::{PTrieVec, TTrieVec, super::* };
+    use super::{super::vec::*, *};
 
     #[test]
-    fn test_ptrie_vec_randomedata() {
+    fn test_ptrie0_vec_randomedata() {
         test_pvec!(PTrieVec::empty());
     }
 
     #[test]
-    fn test_ttrie_vec_randomedata() {
+    fn test_ttrie0_vec_randomedata() {
         test_tvec!(TTrieVec::empty());
     }
 
     #[test]
-    fn test_pttrie_tran_randomdata() {
+    fn test_pttrie0_vec_tran_randomdata() {
         test_pttran!(PTrieVec::empty());
     }
 
     #[test]
-    fn test_ttrievec_manually() {
+    fn test_ttrie0_vec_manually() {
         let tv = TTrieVec::empty();
 
         // let mut bpv = (box pv) as Box<dyn Vector<usize>>;
@@ -1246,7 +1257,7 @@ mod tests {
 
 
         for i in (0..total).rev() {
-            btv = btv.pop().unwrap();
+            btv = btv.pop();
 
             for j in 0..i {
                 assert_eq!(btv.nth(j), &uelem_vec[j]);
@@ -1255,12 +1266,12 @@ mod tests {
 
         // btv = btv.pop_().unwrap();
 
-        btv.bfs_display();
+        // btv.bfs_display();
     }
 
 
     #[test]
-    fn test_pttrietran_manually() {
+    fn test_pttrie0_vec_tran_manually() {
         // let mut vec = (box PVec::empty()) as Box<dyn Vector<usize>>;
         let mut pvec = PTrieVec::empty();
         let pbatchnum = 300;
@@ -1285,5 +1296,4 @@ mod tests {
             }
         }
     }
-
 }
