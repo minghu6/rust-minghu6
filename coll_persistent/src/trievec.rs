@@ -201,7 +201,7 @@ impl<T> PTrieVec<T> {
 
     pub fn push(&self, v: T) -> Self
     where
-        T: Clone
+        T: Clone,
     {
         let cnt = self.cnt + 1;
 
@@ -214,7 +214,7 @@ impl<T> PTrieVec<T> {
         }
         // tail is available
         else if self.tail.len() < NODE_SIZE {
-            tail = node!(dup-inc-leaf| self.id(), &self.tail, v);
+            tail = node!(dup - inc - leaf | self.id(), &self.tail, v);
         }
         // tail is full
         else {
@@ -229,7 +229,7 @@ impl<T> PTrieVec<T> {
     /// idx in `[0, self.len()]` (update or push)
     pub fn assoc(&self, idx: usize, v: T) -> Self
     where
-        T: Clone
+        T: Clone,
     {
         assert!(self.cnt >= idx);
 
@@ -246,16 +246,15 @@ impl<T> PTrieVec<T> {
         if idx >= tailoff!(self) {
             root = self.root.clone();
 
-            tail = node!(dup| self.id(), &self.tail);
+            tail = node!(dup | self.id(), &self.tail);
             values_mut!(tail)[idx!(idx, 1)] = v;
-        }
-        else {
+        } else {
             let mut lv = h!(self);
 
             debug_assert!(lv > 0);
 
             let mut p_i = idx!(idx, lv);
-            let mut p = node!(dup| self.id(), &self.root);
+            let mut p = node!(dup | self.id(), &self.root);
 
             root = p.clone();
 
@@ -263,7 +262,7 @@ impl<T> PTrieVec<T> {
                 // at p's level
 
                 let mut old_cur = &children!(p)[p_i];
-                let mut cur = node!(dup| self.id(), old_cur);
+                let mut cur = node!(dup | self.id(), old_cur);
 
                 loop {
                     children_mut!(p)[p_i] = cur.clone();
@@ -273,11 +272,12 @@ impl<T> PTrieVec<T> {
                     p_i = idx!(idx, lv);
                     p = cur;
 
-                    if lv == 1 { break }
+                    if lv == 1 {
+                        break;
+                    }
 
                     old_cur = &children!(p)[p_i];
-                    cur = node!(dup| self.id(), old_cur);
-
+                    cur = node!(dup | self.id(), old_cur);
                 }
             }
 
@@ -291,7 +291,7 @@ impl<T> PTrieVec<T> {
 
     pub fn pop(&self) -> Self
     where
-        T: Clone
+        T: Clone,
     {
         assert!(self.cnt > 0, "Can't pop empty vector");
         debug_assert!(self.tail.len() > 0);
@@ -307,20 +307,15 @@ impl<T> PTrieVec<T> {
         }
         // Get non-empty tail
         else if self.tail.len() > 1 {
-            tail = node!(dup-dec| self.id(), &self.tail);
-        }
-        else {
+            tail = node!(dup - dec | self.id(), &self.tail);
+        } else {
             // the last two idx
             tail = self.down_to_leaf(self.cnt - 2);
 
             root = self.pop_tail_from_trie();
         }
 
-        Self {
-            cnt,
-            root,
-            tail
-        }
+        Self { cnt, root, tail }
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -328,7 +323,7 @@ impl<T> PTrieVec<T> {
 
     fn pop_tail_from_trie(&self) -> Node<T>
     where
-        T: Clone
+        T: Clone,
     {
         debug_assert_eq!(self.tail.len(), 1);
 
@@ -336,7 +331,7 @@ impl<T> PTrieVec<T> {
         let mut lv = h!(self);
         debug_assert!(lv > 0);
 
-        let leaf_i = self.cnt - 1 - 1;  // tail size 1
+        let leaf_i = self.cnt - 1 - 1; // tail size 1
         let mut p_i = idx!(leaf_i, lv);
 
         let root;
@@ -345,8 +340,7 @@ impl<T> PTrieVec<T> {
             root = Node::none();
 
             return root;
-        }
-        else if lv == 2 && p_i == 1 {
+        } else if lv == 2 && p_i == 1 {
             root = children!(self.root)[0].clone();
 
             return root;
@@ -354,12 +348,12 @@ impl<T> PTrieVec<T> {
 
         debug_assert!(lv >= 2);
 
-        let mut p = node!(dup| self.id(), &self.root);
+        let mut p = node!(dup | self.id(), &self.root);
 
         root = p.clone();
 
         while lv > 2 {
-            let cur = node!(dup| self.id(), &children!(p)[p_i]);
+            let cur = node!(dup | self.id(), &children!(p)[p_i]);
 
             children_mut!(p)[p_i] = cur.clone();
 
@@ -376,7 +370,7 @@ impl<T> PTrieVec<T> {
 
     fn push_tail_into_trie(&self) -> Node<T>
     where
-        T: Clone
+        T: Clone,
     {
         debug_assert_eq!(self.tail.len(), NODE_SIZE);
 
@@ -390,7 +384,7 @@ impl<T> PTrieVec<T> {
 
             return root;
         } else if lv == 1 {
-            root = node!(internal| self.id(), 2);
+            root = node!(internal | self.id(), 2);
 
             children_mut!(root)[0] = self.root.clone();
             children_mut!(root)[1] =
@@ -402,52 +396,50 @@ impl<T> PTrieVec<T> {
         debug_assert!(lv >= 2);
 
         let mut p_i = idx!(leaf_i, lv);
-        let mut cur_i = idx!(leaf_i, lv - 1);
-
-        let mut old_p = &self.root;
         let mut p;
 
-        if old_p.len() > p_i {
-            p = node!(dup | self.id(), old_p);
+        if self.root.len() > p_i {
+            p = node!(dup | self.id(), &self.root);
         } else {
-            p = node!(dup - inc - internal | self.id(), old_p, Node::none());
+            p = node!(
+                dup - inc - internal | self.id(),
+                &self.root,
+                Node::none()
+            );
         };
 
-        let mut old_cur = &children!(p)[p_i];
-        let mut cur;
-
-        let ret = p.clone();
+        let root = p.clone();
 
         // Go down through the branch
         while lv >= 3 {
             // at p's level
 
-            if old_p.len() > p_i && children!(old_p)[p_i].is_some() {
+            if children!(p)[p_i].is_some() {
+                let old_cur = &children!(p)[p_i];
+                let cur;
+                let cur_i = idx!(leaf_i, lv - 1);
+
                 if old_cur.len() > cur_i {
                     cur = node!(dup | self.id(), old_cur);
                 } else {
                     cur = node!(
                         dup - inc - internal | self.id(),
-                        old_p,
+                        old_cur,
                         Node::none()
                     );
                 }
 
+                children_mut!(p)[p_i] = cur.clone();
+
                 lv -= 1;
 
                 p_i = cur_i;
-                cur_i = idx!(leaf_i, lv - 1);
-
-                old_p = old_cur;
-                old_cur = &children!(old_p)[p_i];
-
-                children_mut!(p)[p_i] = cur.clone();
                 p = cur;
             } else {
-                cur = new_path(self.id(), lv, &self.tail, 1);
-                children_mut!(p)[p_i] = cur.clone();
+                children_mut!(p)[p_i] =
+                    new_path(self.id(), lv - 1, &self.tail, 1);
 
-                return ret;
+                return root;
             }
         }
 
@@ -455,7 +447,7 @@ impl<T> PTrieVec<T> {
 
         children_mut!(p)[p_i] = self.tail.clone();
 
-        ret
+        root
     }
 
     // Alias as search to leaf, array_for, etc
@@ -556,13 +548,10 @@ fn new_path<T>(id: ID, lv: u32, x: &Node<T>, cap: usize) -> Node<T> {
 #[cfg(test)]
 mod tests {
 
-    use super::{ *, super::vec::* };
+    use super::{super::vec::*, *};
 
     #[test]
     fn test_ptrievec_random() {
         test_pvec!(PTrieVec::new());
     }
-
-
 }
-
