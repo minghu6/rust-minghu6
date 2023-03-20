@@ -1,4 +1,4 @@
-use std::cmp::min;
+use std::{cmp::min, fmt::Debug};
 
 use coll::{node as aux_node, uuid::Uuid, *};
 
@@ -8,13 +8,38 @@ impl_node!(pub <T>);
 def_attr_macro!(call | id, children, values);
 
 
-const BIT_WIDTH: u32 = 5;
+const BIT_WIDTH: u32 = 3;
 const NODE_SIZE: usize = 1 << BIT_WIDTH as usize;
 const MASK: usize = NODE_SIZE - 1;
 
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Macro
+
+macro_rules! impl_trie_common {
+    () => {
+        pub fn new() -> Self {
+            Self {
+                cnt: 0,
+                root: Node::none(),
+                tail: Node::none(),
+            }
+        }
+
+        pub fn len(&self) -> usize {
+            self.cnt
+        }
+
+        pub fn id(&self) -> Option<Uuid> {
+            if self.root.is_none() {
+                None
+            } else {
+                id!(self.root).clone()
+            }
+        }
+    };
+}
+
 
 macro_rules! node {
     (dup| $id:expr, $x:expr) => {{
@@ -25,6 +50,16 @@ macro_rules! node {
         }
         else {
             node!(dup-with-internal| $id, x, x.len())
+        }
+    }};
+    (dup-with| $id:expr, $x:expr, $cap:expr) => {{
+        let x = $x;
+
+        if x.is_leaf() {
+            node!(dup-with-leaf| $id, x, $cap)
+        }
+        else {
+            node!(dup-with-internal| $id, x, $cap)
         }
     }};
     (dup-inc-leaf| $id:expr, $x:expr, $v:expr) => {{
@@ -95,8 +130,8 @@ macro_rules! node {
 
         node
     }};
-    (single-leaf| $v:expr) => {{
-        let node = node!(leaf| None, 1);
+    (single-leaf| $id:expr, $v:expr, $cap:expr) => {{
+        let node = node!(leaf| $id, $cap);
         values_mut!(node)[0] = $v;
         node
     }};
@@ -153,6 +188,13 @@ pub struct PTrieVec<T> {
 }
 
 
+pub struct TTrieVec<T> {
+    cnt: usize,
+    root: Node<T>,
+    tail: Node<T>,
+}
+
+
 pub type ID = Option<Uuid>;
 
 
@@ -171,25 +213,7 @@ impl<T> PTrieVec<T> {
     ////////////////////////////////////////////////////////////////////////////
     //// Public API
 
-    pub fn new() -> Self {
-        Self {
-            cnt: 0,
-            root: Node::none(),
-            tail: Node::none(),
-        }
-    }
-
-    pub fn len(&self) -> usize {
-        self.cnt
-    }
-
-    pub fn id(&self) -> Option<Uuid> {
-        if self.root.is_none() {
-            None
-        } else {
-            id!(self.root).clone()
-        }
-    }
+    impl_trie_common!();
 
     pub fn nth(&self, idx: usize) -> &T {
         assert!(self.cnt > idx);
@@ -209,8 +233,8 @@ impl<T> PTrieVec<T> {
         let tail;
 
         // trie is empty
-        if self.cnt == 0 {
-            tail = node!(single - leaf | v);
+        if self.tail.is_none() {
+            tail = node!(single - leaf | self.id(), v, 1);
         }
         // tail is available
         else if self.tail.len() < NODE_SIZE {
@@ -218,7 +242,7 @@ impl<T> PTrieVec<T> {
         }
         // tail is full
         else {
-            tail = node!(single - leaf | v);
+            tail = node!(single - leaf | self.id(), v, 1);
 
             root = self.push_tail_into_trie();
         }
@@ -334,7 +358,7 @@ impl<T> PTrieVec<T> {
         let leaf_i = self.cnt - 1 - 1; // tail size 1
         let mut p_i = idx!(leaf_i, lv);
 
-        let root;
+        let mut root;
 
         if lv == 1 {
             root = Node::none();
@@ -352,6 +376,9 @@ impl<T> PTrieVec<T> {
 
         root = p.clone();
 
+        let mut ps = vec![p.clone()];
+        let mut pis = vec![p_i];
+
         while lv > 2 {
             let cur = node!(dup | self.id(), &children!(p)[p_i]);
 
@@ -361,9 +388,30 @@ impl<T> PTrieVec<T> {
 
             p_i = idx!(leaf_i, lv);
             p = cur;
+
+            ps.push(p.clone());
+            pis.push(p_i);
         }
 
         children_mut!(p)[p_i] = Node::none();
+
+
+        if p_i == 0 {
+            /* Unnew path */
+
+            for i in (0..ps.len() - 1).rev() {
+                if pis[i + 1] == 0 {
+                    children_mut!(ps[i])[pis[i]] = Node::none();
+                }
+                else {
+                    break;
+                }
+            }
+
+            if children!(root)[1].is_none() {
+                root = children!(root)[0].clone();
+            }
+        }
 
         root
     }
@@ -383,12 +431,13 @@ impl<T> PTrieVec<T> {
             root = self.tail.clone();
 
             return root;
-        } else if lv == 1 {
+        }
+        // Complete trie including case lv == 1
+        else if tailoff!(self) == NODE_SIZE.pow(lv) {
             root = node!(internal | self.id(), 2);
 
             children_mut!(root)[0] = self.root.clone();
-            children_mut!(root)[1] =
-                new_path(self.id(), h!(self), &self.tail, 1);
+            children_mut!(root)[1] = new_path(self.id(), lv, &self.tail, 1);
 
             return root;
         }
@@ -466,7 +515,78 @@ impl<T> PTrieVec<T> {
             lv -= 1;
         }
 
+        debug_assert!(cur.is_leaf(), "leaf_i: {}", idx!(idx, 1));
+
         cur.clone()
+    }
+}
+
+
+
+impl<T> TTrieVec<T> {
+    ////////////////////////////////////////////////////////////////////////////
+    //// Public API
+
+    impl_trie_common!();
+
+    pub fn push(&mut self, v: T) -> Self
+    where
+        T: Clone,
+    {
+        // trie is empty
+        if self.tail.is_none() {
+            self.tail = node!(single - leaf | self.id(), v, NODE_SIZE)
+        }
+        // tail is available
+        else if self.tail.len() < NODE_SIZE {
+            let leaf_i = self.tail.len();
+
+            if self.tail.len() <= leaf_i {
+                self.tail =
+                    node!(dup - with | self.id(), &self.tail, NODE_SIZE);
+            }
+
+            values_mut!(self.tail)[leaf_i] = v;
+        }
+        // tail is full
+        else {
+            self.push_tail_into_trie();
+            self.tail = node!(single - leaf | self.id(), v, NODE_SIZE);
+        }
+
+        self.cnt += 1;
+
+
+        Self {
+            cnt: self.cnt,
+            root: self.root.clone(),
+            tail: self.tail.clone(),
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
+    //// Assistant Method
+
+    pub fn push_tail_into_trie(&mut self)
+    where
+        T: Clone,
+    {
+        let mut lv = h!(self);
+
+        if lv == 0 {
+            self.root = self.tail.clone();
+
+            return;
+        } else if lv == 1 {
+            let root = node!(internal | self.id(), NODE_SIZE);
+
+            children_mut!(root)[0] = self.root.clone();
+            children_mut!(root)[1] = self.tail.clone();
+
+            self.root = root;
+
+            return;
+        }
     }
 }
 
@@ -500,6 +620,47 @@ impl<T> Node<T> {
         } else {
             values!(self).len()
         }
+    }
+}
+
+
+impl<T: Debug> Debug for Node<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.is_none() {
+            write!(f, "nil")?;
+        } else if self.is_internal() {
+            write!(f, "br: ")?;
+
+            match children!(self).iter().filter(|&x| !x.is_none()).count() {
+                0 => writeln!(f, "[]"),
+                1 => writeln!(f, "[0]"),
+                2 => writeln!(f, "[0, 1]"),
+                3 => writeln!(f, "[0, 1, 2]"),
+                upper => writeln!(f, "[0, 1, ... {}]", upper - 1),
+            }?
+        } else {
+            write!(f, "leaf: ")?;
+
+            let arr = values!(self);
+
+            match arr.len() {
+                0 => writeln!(f, "[]"),
+                1 => writeln!(f, "[{:?}]", arr[0]),
+                2 => writeln!(f, "[{:?}, {:?}]", arr[0], arr[1]),
+                3 => {
+                    writeln!(f, "[{:?}, {:?}, {:?}]", arr[0], arr[1], arr[2],)
+                }
+                upper => writeln!(
+                    f,
+                    "[{:?}, {:?}, ... {:?}]",
+                    arr[0],
+                    arr[1],
+                    arr[upper - 1],
+                ),
+            }?
+        }
+
+        Ok(())
     }
 }
 
@@ -542,13 +703,111 @@ fn new_path<T>(id: ID, lv: u32, x: &Node<T>, cap: usize) -> Node<T> {
 ////////////////////////////////////////////////////////////////////////////////
 //// Test Method
 
+#[cfg(test)]
+macro_rules! impl_trie_test_common {
+    () => {
+        #[allow(unused)]
+        fn debug_print(&self)
+        where
+            T: Debug,
+        {
+            debug_print(&self.root, &self.tail)
+        }
+    };
+}
 
+
+#[cfg(test)]
+fn debug_print<T>(root: &Node<T>, tail: &Node<T>)
+where
+    T: Debug,
+{
+    use common::vecdeq;
+
+    let mut lv = 1usize;
+    let mut cur_q = vecdeq![];
+
+    println!();
+    println!("MAIN TRIE:");
+    println!();
+
+    if root.is_some() {
+        cur_q.push_back(vec![root]);
+    } else {
+        println!("empty.\n");
+    }
+
+    while !cur_q.is_empty() {
+        println!("############ Level: {} #############\n", lv);
+
+        let mut nxt_q = vecdeq![];
+
+        while let Some(group) = cur_q.pop_front() {
+            for (i, child) in group.into_iter().enumerate() {
+                println!("{i:02}. {child:?}");
+
+                if child.is_internal() {
+                    let child_group = children!(child)
+                        .iter()
+                        .filter(|&x| x.is_some())
+                        .collect();
+                    nxt_q.push_back(child_group);
+                }
+            }
+
+            println!();
+        }
+
+        cur_q = nxt_q;
+        lv += 1;
+    }
+
+    // print tail
+    println!("###################################\n");
+    println!("TAIL: \n");
+
+    if tail.is_some() {
+        println!("{:?}", tail);
+    } else {
+        println!("empty.");
+    }
+
+    println!("------------- end --------------");
+}
+
+
+#[cfg(test)]
+impl<T> PTrieVec<T> {
+    impl_trie_test_common!();
+}
 
 
 #[cfg(test)]
 mod tests {
 
     use super::{super::vec::*, *};
+
+    #[test]
+    fn test_ptrievec_case_1() {
+        let mut vec = PTrieVec::new();
+
+        for i in 0..30 {
+            vec = vec.push(i);
+        }
+
+        for _ in 0..7 {
+            vec = vec.pop();
+        }
+
+        vec = vec.pop();
+
+        vec.debug_print();
+
+        for i in 0..22 {
+            println!("nth: {i}");
+            vec.nth(i);
+        }
+    }
 
     #[test]
     fn test_ptrievec_random() {

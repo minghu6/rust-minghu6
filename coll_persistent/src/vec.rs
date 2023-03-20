@@ -1,7 +1,7 @@
 #[cfg(test)]
 macro_rules! test_pvec {
     ($vec:expr) => {
-        let batch_num = 1000;
+        let batch_num = 1_000;
         let mut vec= $vec;
         let get_one = || common::random::<u64>();
 
@@ -39,6 +39,8 @@ macro_rules! test_pvec {
         /* Test Pop */
 
         for i in (0..batch_num).rev() {
+            // println!("{i:03} [pvec pop]");
+
             vec = vec.pop();
 
             for j in 0..i {
@@ -52,7 +54,7 @@ macro_rules! test_pvec {
 #[cfg(test)]
 macro_rules! test_tvec {
     ($vec:expr) => {
-        let batch_num = 1000;
+        let batch_num = 10_000;
         let mut vec = $vec;
         let get_one = || common::random::<u64>();
 

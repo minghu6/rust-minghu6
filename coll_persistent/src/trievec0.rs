@@ -11,7 +11,7 @@ use std::{
 use coll::{boxptr, uuid::Uuid, Array};
 use common::Itertools;
 
-const BIT_WIDTH: u32 = 5;
+const BIT_WIDTH: u32 = 2;
 const NODE_SIZE: usize = 1 << BIT_WIDTH as usize;
 const MASK: usize = NODE_SIZE - 1;
 
@@ -338,9 +338,8 @@ impl<T: Debug + Clone> PTrieVec<T> {
             let leaf = self.tail;
             let shift = self.shift();
 
+            // including height == 1
             if tailoff == NODE_SIZE.pow(self.height() as u32) {
-                debug_assert_eq!(self.height(), 1);
-
                 root = Node::new_br(self.id(), 2);
                 (*root).as_br_mut()[0] = self.root;
                 (*root).as_br_mut()[1] =
@@ -832,7 +831,7 @@ impl<T: Debug + Clone> TTrieVec<T> {
 
                 root = self.pop_tail_from_trie(shift, self.root);
 
-                if shift >= BIT_WIDTH as i32 && (*root).as_br()[1].is_null() {
+                if shift >= BIT_WIDTH && (*root).as_br()[1].is_null() {
                     // remove empty root
                     root = self.ensure_editable((*root).as_br()[0]);
                 }
@@ -941,8 +940,8 @@ impl<T: Debug + Clone> TTrieVec<T> {
     }
 
     /// Indicate the trie structure.
-    fn shift(&self) -> i32 {
-        (self.height() as i32 - 1) * BIT_WIDTH as i32
+    fn shift(&self) -> u32 {
+        (self.height() - 1) * BIT_WIDTH
     }
 
     /// Leaf should be same level
@@ -966,7 +965,7 @@ impl<T: Debug + Clone> TTrieVec<T> {
             while shift > 0 {
                 cur = (*cur).as_br()[(idx >> shift) & MASK];
 
-                shift -= BIT_WIDTH as i32;
+                shift -= BIT_WIDTH;
             }
 
             cur
@@ -976,7 +975,7 @@ impl<T: Debug + Clone> TTrieVec<T> {
     // The Trie isn't full.
     unsafe fn push_tail_into_trie(
         &self,
-        shift: i32,
+        shift: u32,
         paren: *mut Node<T>,
         leaf: *mut Node<T>,
     ) -> *mut Node<T> {
@@ -985,15 +984,15 @@ impl<T: Debug + Clone> TTrieVec<T> {
         let ret = self.ensure_editable(paren);
 
         let node_to_insert;
-        if shift == BIT_WIDTH as i32 {
+        if shift == BIT_WIDTH {
             node_to_insert = leaf;
         } else {
             let child = (*paren).as_br()[sub_idx];
 
             node_to_insert = if !child.is_null() {
-                self.push_tail_into_trie(shift - BIT_WIDTH as i32, child, leaf)
+                self.push_tail_into_trie(shift - BIT_WIDTH, child, leaf)
             } else {
-                new_path(self.id(), shift - BIT_WIDTH as i32, leaf, NODE_SIZE)
+                new_path(self.id(), shift - BIT_WIDTH, leaf, NODE_SIZE)
             };
         }
 
@@ -1017,7 +1016,7 @@ impl<T: Debug + Clone> TTrieVec<T> {
                 cur = (*self.ensure_editable(cur)).as_br()
                     [(idx >> shift) & MASK];
 
-                shift -= BIT_WIDTH as i32;
+                shift -= BIT_WIDTH;
             }
 
             cur
@@ -1026,17 +1025,17 @@ impl<T: Debug + Clone> TTrieVec<T> {
 
     unsafe fn pop_tail_from_trie(
         &self,
-        shift: i32,
+        shift: u32,
         node: *mut Node<T>,
     ) -> *mut Node<T> {
         let node = self.ensure_editable(node);
         let sub_id = ((self.cnt - 2) >> shift) & MASK;
 
-        if shift > BIT_WIDTH as i32 {
+        if shift > BIT_WIDTH {
             debug_assert!((*node).len() > sub_id);
 
             let child = self.pop_tail_from_trie(
-                shift - BIT_WIDTH as i32,
+                shift - BIT_WIDTH,
                 (*node).as_br()[sub_id],
             );
 
@@ -1063,7 +1062,7 @@ impl<T: Debug + Clone> TTrieVec<T> {
 
     unsafe fn do_assoc(
         &self,
-        shift: i32,
+        shift: u32,
         node: *mut Node<T>,
         idx: usize,
         item: T,
@@ -1077,7 +1076,7 @@ impl<T: Debug + Clone> TTrieVec<T> {
             let child = (*node).as_br()[sub_idx];
 
             (*ret).as_br_mut()[sub_idx] =
-                self.do_assoc(shift - BIT_WIDTH as i32, child, idx, item);
+                self.do_assoc(shift - BIT_WIDTH, child, idx, item);
         }
 
         ret
@@ -1175,11 +1174,11 @@ const fn trie_height(trie_size: usize) -> u32 {
 
 fn new_path<T>(
     id: Option<Uuid>,
-    shift: i32,
+    shift: u32,
     node: *mut Node<T>,
     cap: usize,
 ) -> *mut Node<T> {
-    if shift == 0 as i32 {
+    if shift == 0 {
         return node;
     }
 
@@ -1187,7 +1186,7 @@ fn new_path<T>(
 
     unsafe {
         (*ret).as_br_mut()[0] =
-            new_path(id, shift - BIT_WIDTH as i32, node, cap);
+            new_path(id, shift - BIT_WIDTH, node, cap);
     }
 
     ret
