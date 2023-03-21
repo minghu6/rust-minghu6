@@ -8,6 +8,7 @@ impl_node!(pub <T>);
 def_attr_macro!(call | id, children, values);
 
 
+/// Clojure using 5
 const BIT_WIDTH: u32 = 3;
 const NODE_SIZE: usize = 1 << BIT_WIDTH as usize;
 const MASK: usize = NODE_SIZE - 1;
@@ -31,7 +32,7 @@ macro_rules! impl_trie_common {
         }
 
         pub fn id(&self) -> Option<Uuid> {
-            self.root.id()
+            self.tail.id()
         }
 
         pub fn nth(&self, idx: usize) -> &T {
@@ -541,8 +542,8 @@ impl<T> TTrieVec<T> {
         assert!(self.is_editable());
 
         // trie is empty
-        if self.tail.is_none() {
-            self.tail = node!(single - leaf | self.id(), v, NODE_SIZE)
+        if self.cnt == 0 {
+            self.tail = node!(single - leaf | Some(Uuid::new_v4()), v, NODE_SIZE)
         }
         // tail is available
         // WARNING: neq `tail.len` for it's array capcity
@@ -796,7 +797,7 @@ impl<T> TTrieVec<T> {
 
     #[inline(always)]
     fn is_editable(&self) -> bool {
-        self.id().is_some()
+        self.root.is_none() || self.id().is_some()
     }
 }
 
@@ -1037,22 +1038,21 @@ mod tests {
     fn test_ttrievec_case_1() {
         let mut vec = TTrieVec::new();
 
-        for i in 0..2 {
+        for i in 0..30 {
             vec = vec.push(i);
         }
 
-        for _ in 0..1 {
+        for _ in 0..10 {
             vec = vec.pop();
         }
 
-        vec = vec.pop();
+        // vec = vec.pop();
+        // vec.debug_print();
 
-        vec.debug_print();
-
-        // for i in 0..30 {
-        //     // println!("nth: {i}");
-        //     vec.nth(i);
-        // }
+        for i in 0..20 {
+            // println!("nth: {i}");
+            vec.nth(i);
+        }
     }
 
     #[test]
