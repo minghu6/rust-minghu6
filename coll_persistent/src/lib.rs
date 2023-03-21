@@ -4,7 +4,7 @@
 
 #[cfg(test)]
 mod vec;
-pub mod trievec0;
+pub mod obsoleted_trievec;
 
 pub mod trievec;
 

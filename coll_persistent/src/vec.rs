@@ -90,15 +90,15 @@ macro_rules! test_tvec {
             assert_eq!(uvec.nth(i), &uelem_vec[i])
         }
 
-        // let mut vec = uvec;
+        let mut vec = uvec;
 
-        // for i in (0..batch_num).rev() {
-        //     vec = vec.pop();
+        for i in (0..batch_num).rev() {
+            vec = vec.pop();
 
-        //     for j in 0..i {
-        //         assert_eq!(vec.nth(j), &uelem_vec[j]);
-        //     }
-        // }
+            for j in 0..i {
+                assert_eq!(vec.nth(j), &uelem_vec[j]);
+            }
+        }
     }
 
 }

@@ -200,6 +200,22 @@ macro_rules! idx {
 }
 
 
+macro_rules! ensure_editable {
+    ($id:expr, $x:expr) => {{
+        let id = $id;
+        let x = $x;
+
+        if x.is_none() || id == x.id() {
+            x.clone()
+        } else {
+            node!(dup - with | id, x, NODE_SIZE)
+        }
+    }};
+    ($x:expr) => {
+        ensure_editable!(Some(Uuid::new_v4()), $x)
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 //// Structure
 
@@ -330,7 +346,6 @@ impl<T> PTrieVec<T> {
         T: Clone,
     {
         assert!(self.cnt > 0, "Can't pop empty vector");
-        debug_assert!(self.tail.len() > 0);
 
         let cnt = self.cnt - 1;
 
@@ -354,6 +369,17 @@ impl<T> PTrieVec<T> {
         Self { cnt, root, tail }
     }
 
+    pub fn transient(&self) -> TTrieVec<T>
+    where
+        T: Clone
+    {
+        TTrieVec {
+            cnt: self.cnt,
+            root: ensure_editable!(&self.root),
+            tail: ensure_editable!(&self.tail),
+        }
+    }
+
     ////////////////////////////////////////////////////////////////////////////
     //// Assistant Method
 
@@ -361,32 +387,24 @@ impl<T> PTrieVec<T> {
     where
         T: Clone,
     {
-        debug_assert_eq!(self.tail.len(), 1);
+        debug_assert_eq!(self.cnt - tailoff!(self), 1);
 
         // Get empty tail
         let mut lv = h!(self);
         debug_assert!(lv > 0);
 
-        let leaf_i = self.cnt - 1 - 1; // tail size 1
-        let mut p_i = idx!(leaf_i, lv);
-
-        let mut root;
-
         if lv == 1 {
-            root = Node::none();
-
-            return root;
-        } else if lv == 2 && p_i == 1 {
-            root = children!(self.root)[0].clone();
-
-            return root;
+            return Node::none();
         }
 
         debug_assert!(lv >= 2);
 
+        let leaf_i = self.cnt - 1 - 1; // tail size 1
+
+        let mut p_i = idx!(leaf_i, lv);
         let mut p = node!(dup | self.id(), &self.root);
 
-        root = p.clone();
+        let mut root = p.clone();
 
         let mut ps = vec![p.clone()];
         let mut pis = vec![p_i];
@@ -407,22 +425,18 @@ impl<T> PTrieVec<T> {
 
         children_mut!(p)[p_i] = Node::none();
 
+        /* Unnew path */
 
-        if p_i == 0 {
-            /* Unnew path */
-
-            for i in (0..ps.len() - 1).rev() {
-                if pis[i + 1] == 0 {
-                    children_mut!(ps[i])[pis[i]] = Node::none();
-                }
-                else {
-                    break;
-                }
+        for i in (0..ps.len() - 1).rev() {
+            if pis[i + 1] == 0 {
+                children_mut!(ps[i])[pis[i]] = Node::none();
+            } else {
+                break;
             }
+        }
 
-            if children!(root)[1].is_none() {
-                root = children!(root)[0].clone();
-            }
+        if children!(root)[1].is_none() {
+            root = children!(root)[0].clone();
         }
 
         root
@@ -515,7 +529,6 @@ impl<T> PTrieVec<T> {
 
 
 impl<T> TTrieVec<T> {
-
     ////////////////////////////////////////////////////////////////////////////
     //// Public API
 
@@ -525,6 +538,8 @@ impl<T> TTrieVec<T> {
     where
         T: Clone,
     {
+        assert!(self.is_editable());
+
         // trie is empty
         if self.tail.is_none() {
             self.tail = node!(single - leaf | self.id(), v, NODE_SIZE)
@@ -563,6 +578,7 @@ impl<T> TTrieVec<T> {
         T: Clone,
     {
         assert!(self.cnt >= idx);
+        assert!(self.is_editable());
 
         if idx == self.cnt {
             return self.push(v);
@@ -610,8 +626,108 @@ impl<T> TTrieVec<T> {
         }
     }
 
+    pub fn pop(&mut self) -> Self
+    where
+        T: Clone + Default,
+    {
+        assert!(self.cnt > 0, "Can't pop empty vector");
+        assert!(self.is_editable());
+
+        if self.cnt == 1 {
+            self.tail = Node::none();
+        } else if self.cnt - tailoff!(self) > 1 {
+            values_mut!(self.tail)[self.cnt - tailoff!(self) - 1] =
+                Default::default();
+        } else {
+            let tail = self.ensure_editable(&self.down_to_leaf(self.cnt - 2));
+
+            self.pop_tail_from_trie();
+
+            self.tail = tail;
+        }
+
+
+        self.cnt -= 1;
+
+        Self {
+            cnt: self.cnt,
+            root: self.root.clone(),
+            tail: self.tail.clone(),
+        }
+    }
+
+    /// modify root and return PTrieVec head
+    pub fn persistent(&mut self) -> PTrieVec<T>
+    where
+        T: Clone
+    {
+        assert!(self.is_editable());
+
+        if self.root.is_some() {
+            id_mut!(self.root).take();
+        }
+
+        PTrieVec {
+            cnt: self.cnt,
+            root: self.root.clone(),
+            tail: node!(dup| None, &self.tail),
+        }
+    }
+
     ////////////////////////////////////////////////////////////////////////////
     //// Assistant Method
+
+    fn pop_tail_from_trie(&mut self)
+    where
+        T: Clone,
+    {
+        let mut lv = h!(self);
+        debug_assert!(lv > 0);
+
+        if lv == 1 {
+            self.root = Node::none();
+
+            return;
+        }
+
+        debug_assert!(lv >= 2);
+
+        let leaf_i = self.cnt - 1 - 1;
+
+        let mut p_i = idx!(leaf_i, lv);
+        let mut p = self.root.clone();
+
+        let mut ps = vec![p.clone()];
+        let mut pis = vec![p_i];
+
+        while lv > 2 {
+            let cur = self.ensure_editable(&children!(p)[p_i]);
+
+            lv -= 1;
+
+            p_i = idx!(leaf_i, lv);
+            p = cur;
+
+            ps.push(p.clone());
+            pis.push(p_i);
+        }
+
+        children_mut!(p)[p_i] = Node::none();
+
+        /* Unnew path */
+
+        for i in (0..ps.len() - 1).rev() {
+            if pis[i + 1] == 0 {
+                children_mut!(ps[i])[pis[i]] = Node::none();
+            } else {
+                break;
+            }
+        }
+
+        if children!(self.root)[1].is_none() {
+            self.root = children!(self.root)[0].clone();
+        }
+    }
 
     fn push_tail_into_trie(&mut self)
     where
@@ -658,8 +774,7 @@ impl<T> TTrieVec<T> {
 
                 p_i = cur_i;
                 p = cur;
-            }
-            else {
+            } else {
                 children_mut!(p)[p_i] =
                     new_path(self.id(), lv - 1, &self.tail, NODE_SIZE);
 
@@ -668,22 +783,21 @@ impl<T> TTrieVec<T> {
         }
 
         children_mut!(p)[p_i] = self.tail.clone();
-
     }
 
     /// return editable version of node
+    #[inline(always)]
     fn ensure_editable(&self, x: &Node<T>) -> Node<T>
     where
-        T: Clone
+        T: Clone,
     {
-        if x.is_none() || self.id() == x.id() {
-            x.clone()
-        }
-        else {
-            node!(dup-with| Some(Uuid::new_v4()), x, NODE_SIZE)
-        }
+        ensure_editable!(self.id(), x)
     }
 
+    #[inline(always)]
+    fn is_editable(&self) -> bool {
+        self.id().is_some()
+    }
 }
 
 
@@ -721,8 +835,7 @@ impl<T> Node<T> {
     fn id(&self) -> ID {
         if self.is_none() {
             None
-        }
-        else {
+        } else {
             id!(self).clone()
         }
     }
@@ -803,6 +916,8 @@ fn new_path<T>(id: ID, lv: u32, x: &Node<T>, cap: usize) -> Node<T> {
 
     node
 }
+
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -910,10 +1025,10 @@ mod tests {
 
         vec = vec.pop();
 
-        vec.debug_print();
+        // vec.debug_print();
 
         for i in 0..22 {
-            println!("nth: {i}");
+            // println!("nth: {i}");
             vec.nth(i);
         }
     }
@@ -922,25 +1037,22 @@ mod tests {
     fn test_ttrievec_case_1() {
         let mut vec = TTrieVec::new();
 
-        for i in 0..30 {
+        for i in 0..2 {
             vec = vec.push(i);
         }
 
-        // vec = vec.push(1);
-        // vec = vec.push(2);
+        for _ in 0..1 {
+            vec = vec.pop();
+        }
 
-        // for _ in 0..7 {
-        //     vec = vec.pop();
-        // }
-
-        // vec = vec.pop();
+        vec = vec.pop();
 
         vec.debug_print();
 
-        for i in 0..30 {
-            // println!("nth: {i}");
-            vec.nth(i);
-        }
+        // for i in 0..30 {
+        //     // println!("nth: {i}");
+        //     vec.nth(i);
+        // }
     }
 
     #[test]
@@ -952,4 +1064,10 @@ mod tests {
     fn test_ttrievec_random() {
         test_tvec!(TTrieVec::new());
     }
+
+    #[test]
+    fn test_trievec_pttran_random() {
+        test_pttran!(PTrieVec::new());
+    }
+
 }

@@ -874,34 +874,24 @@ impl<T: Debug + Clone> TTrieVec<T> {
         self.clone_head()
     }
 
-    pub fn persistent(&self) -> PTrieVec<T> {
+    pub fn persistent(&mut self) -> PTrieVec<T> {
         unsafe {
-            let root = if self.root.is_null() {
-                self.root
-            } else {
-                (*self.root).duplicate_with(None, (*self.root).len())
-            };
+            let cnt = self.cnt;
 
-            let root_id = if root.is_null() {
-                None
-            } else {
-                (*self.root).id()
-            };
+            if !self.root.is_null() {
+                self.root = (*self.root).duplicate_with(None, (*self.root).len());
+            }
+
+            let root = self.root;
 
             let tail = if self.tail.is_null() {
                 self.tail
             } else {
-                let tail = Node::new_leaf(root_id, self.cnt - self.tailoff());
-
-                (*tail).as_leaf_mut()[..].clone_from_slice(
-                    &(*self.tail).as_leaf()[..(*tail).len()],
-                );
-
-                tail
+                (*self.tail).duplicate_with(self.id(), self.cnt - self.tailoff())
             };
 
             PTrieVec {
-                cnt: self.cnt,
+                cnt,
                 root,
                 tail,
             }
@@ -916,7 +906,7 @@ impl<T: Debug + Clone> TTrieVec<T> {
         if self.id() == (*node).id() {
             node
         } else {
-            Self::editable(node)
+            (*node).duplicate_with(self.id(), NODE_SIZE)
         }
     }
 
@@ -1013,13 +1003,14 @@ impl<T: Debug + Clone> TTrieVec<T> {
             let mut cur = self.root;
 
             while shift > 0 {
-                cur = (*self.ensure_editable(cur)).as_br()
-                    [(idx >> shift) & MASK];
+                // cur = (*self.ensure_editable(cur)).as_br()
+                //     [(idx >> shift) & MASK];
+                cur = (*cur).as_br()[(idx >> shift) & MASK];
 
                 shift -= BIT_WIDTH;
             }
 
-            cur
+            self.ensure_editable(cur)
         }
     }
 
