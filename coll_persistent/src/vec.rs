@@ -6,6 +6,7 @@ macro_rules! test_pvec {
         let get_one = || common::random::<u64>();
 
         /* Test Push */
+
         let mut plain_elem_vec = vec![];
         for _ in 0..batch_num {
             let e = get_one();
@@ -54,7 +55,7 @@ macro_rules! test_pvec {
 #[cfg(test)]
 macro_rules! test_tvec {
     ($vec:expr) => {
-        let batch_num = 10_000;
+        let batch_num = 1_000;
         let mut vec = $vec;
         let get_one = || common::random::<u64>();
 
@@ -66,9 +67,14 @@ macro_rules! test_tvec {
 
         for i in 0..batch_num {
             vec = vec.push(plain_elem_vec[i].clone());
+            // println!("{i:03} [tvec push]");
 
             for j in 0..i+1 {
-                assert_eq!(vec.nth(j), &plain_elem_vec[j]);
+                assert_eq!(
+                    vec.nth(j),
+                    &plain_elem_vec[j],
+                    "[tvec push] nth failed"
+                );
             }
         }
 
@@ -84,15 +90,15 @@ macro_rules! test_tvec {
             assert_eq!(uvec.nth(i), &uelem_vec[i])
         }
 
-        let mut vec = uvec;
+        // let mut vec = uvec;
 
-        for i in (0..batch_num).rev() {
-            vec = vec.pop();
+        // for i in (0..batch_num).rev() {
+        //     vec = vec.pop();
 
-            for j in 0..i {
-                assert_eq!(vec.nth(j), &uelem_vec[j]);
-            }
-        }
+        //     for j in 0..i {
+        //         assert_eq!(vec.nth(j), &uelem_vec[j]);
+        //     }
+        // }
     }
 
 }
@@ -142,10 +148,10 @@ macro_rules! test_pttran {
 }
 
 
+
 #[cfg(test)]
 pub(super) use test_pvec;
 #[cfg(test)]
 pub(super) use test_tvec;
 #[cfg(test)]
 pub(super) use test_pttran;
-

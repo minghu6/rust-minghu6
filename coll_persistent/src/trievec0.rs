@@ -976,7 +976,7 @@ impl<T: Debug + Clone> TTrieVec<T> {
     unsafe fn push_tail_into_trie(
         &self,
         shift: u32,
-        paren: *mut Node<T>,
+        paren: *mut Node<T>,  // from root
         leaf: *mut Node<T>,
     ) -> *mut Node<T> {
         let sub_idx = ((self.cnt - 1) >> shift) & MASK;
