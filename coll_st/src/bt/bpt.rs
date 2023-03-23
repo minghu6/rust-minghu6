@@ -8,7 +8,7 @@ use std::{
     ops::{Bound::*, RangeBounds},
 };
 
-use coll::{def_coll_init, node as aux_node, KVEntry, *};
+use coll::*;
 
 use crate::{
     bst::{Dir, Left, Right},
@@ -40,14 +40,14 @@ macro_rules! node {
         node!(basic-leaf| entries, WeakNode::none(), WeakNode::none())
     }};
     (basic-leaf| $entries:expr, $succ:expr, $paren:expr) => {{
-        aux_node!(FREE-ENUM Leaf {
+        aux_node!(ENUM Leaf {
             entries: $entries,
             succ: $succ,
             paren: $paren
         })
     }};
     (basic-internal| $keys:expr, $children:expr, $paren:expr) => {{
-        aux_node!(FREE-ENUM Internal {
+        aux_node!(ENUM Internal {
             keys: $keys,
             children: $children,
             paren: $paren

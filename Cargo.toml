@@ -55,26 +55,26 @@ members = [
 [profile.release]
 debug = true
 
-# [[bin]]
-# name = "srcstats"
-# path = "tools/lc.rs"
+[[example]]
+name = "srcstats"
+path = "tools/lc.rs"
 
-# [[bin]]
+# [[example]]
 # name = "lca"
 # path = "tools/lca.rs"
 
-# [[bin]]
+# [[example]]
 # name = "lco"
 # path = "tools/lco.rs"
 
-# [[bin]]
+# [[example]]
 # name = "read"
 # path = "tools/read.rs"
 
-# [[bin]]
-# name = "pkcheat"
-# path = "tools/pkcheat.rs"
+[[example]]
+name = "pkcheat"
+path = "tools/pkcheat.rs"
 
-# [[bin]]
+# [[example]]
 # name = "graph"
 # path = "tools/graph.rs"

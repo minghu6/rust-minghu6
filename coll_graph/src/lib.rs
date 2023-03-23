@@ -9,8 +9,11 @@ pub mod sp;
 pub mod toposort;
 pub mod tree;
 pub mod scc;
+#[cfg(test)]
 mod test;
+#[cfg(test)]
 mod debug;
+
 
 use std::{
     collections::{HashMap, HashSet},
@@ -26,8 +29,6 @@ use coll::{
 };
 
 use self::tree::diameter::diameter_dp;
-
-pub use test::*;
 
 
 ////////////////////////////////////////////////////////////////////////////////

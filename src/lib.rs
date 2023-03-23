@@ -24,17 +24,13 @@
 
 
 use proc_macros::{
-    // make_vec_macro_rules,
     make_simple_error_rules
 };
 
-// #[macro_use(mattr)]
-// extern crate macros_gen;
 
 pub mod text;
 pub mod io;
+pub mod path;
 
-
-// make_vec_macro_rules!(vecdeq , std::collections::VecDeque, push_back);
 
 make_simple_error_rules!(XXXError);

@@ -1,11 +1,17 @@
-use std::{cmp::min, fmt::Debug};
+use std::{
+    cmp::min,
+    fmt::Debug,
+    ops::Index,
+    // sync::atomic::{AtomicU64, Ordering::Relaxed},
+};
 
-use coll::{node as aux_node, uuid::Uuid, *};
+use coll::*;
 
 
-impl_node!(pub <T>);
+impl_node!(pub <T>, arc);
 
-def_attr_macro!(call | id, children, values);
+def_attr_macro!(call_unsafe_sync | id, children, values);
+def_coll_init!(seq | ttrievec, crate::trievec::TTrieVec::new(), push);
 
 
 /// Clojure using 5
@@ -16,6 +22,16 @@ const MASK: usize = NODE_SIZE - 1;
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Macro
+
+#[macro_export]
+macro_rules! ptrievec {
+    ($($value:expr),*) => {
+        {
+            ttrievec![$($value),*].persistent()
+        }
+    };
+}
+
 
 macro_rules! impl_trie_common {
     () => {
@@ -31,7 +47,7 @@ macro_rules! impl_trie_common {
             self.cnt
         }
 
-        pub fn id(&self) -> Option<Uuid> {
+        pub fn id(&self) -> ID {
             self.tail.id()
         }
 
@@ -61,6 +77,20 @@ macro_rules! impl_trie_common {
 
             cur.clone()
         }
+    };
+}
+
+
+macro_rules! edit {
+    () => {
+        std::thread::current().id().as_u64().get()
+    };
+}
+
+
+macro_rules! no_edit {
+    () => {
+        0
     };
 }
 
@@ -160,13 +190,13 @@ macro_rules! node {
         node
     }};
     (leaf| $id:expr, $cap:expr) => {{
-        aux_node!(FREE-ENUM Leaf {
+        aux_node!(ENUM Leaf {
             id: $id,
             values: Array::new($cap)
         })
     }};
     (internal| $id:expr, $cap:expr) => {{
-        aux_node!(FREE-ENUM Internal {
+        aux_node!(ENUM Internal {
             id: $id,
             children: Array::new_with_clone(Node::none(), $cap)
         })
@@ -213,8 +243,8 @@ macro_rules! ensure_editable {
         }
     }};
     ($x:expr) => {
-        ensure_editable!(Some(Uuid::new_v4()), $x)
-    }
+        ensure_editable!(edit!(), $x)
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -235,8 +265,8 @@ pub struct TTrieVec<T> {
 }
 
 
-pub type ID = Option<Uuid>;
-
+// pub type AtomicID = AtomicU64;
+pub type ID = u64;
 
 enum Node_<T> {
     Internal { id: ID, children: Array<Node<T>> },
@@ -370,9 +400,9 @@ impl<T> PTrieVec<T> {
         Self { cnt, root, tail }
     }
 
-    pub fn transient(&self) -> TTrieVec<T>
+    pub fn transient(self) -> TTrieVec<T>
     where
-        T: Clone
+        T: Clone,
     {
         TTrieVec {
             cnt: self.cnt,
@@ -528,6 +558,14 @@ impl<T> PTrieVec<T> {
 }
 
 
+impl<T> Index<usize> for PTrieVec<T> {
+    type Output = T;
+
+    fn index(&self, idx: usize) -> &Self::Output {
+        self.nth(idx)
+    }
+}
+
 
 impl<T> TTrieVec<T> {
     ////////////////////////////////////////////////////////////////////////////
@@ -543,7 +581,7 @@ impl<T> TTrieVec<T> {
 
         // trie is empty
         if self.cnt == 0 {
-            self.tail = node!(single - leaf | Some(Uuid::new_v4()), v, NODE_SIZE)
+            self.tail = node!(single - leaf | edit!(), v, NODE_SIZE)
         }
         // tail is available
         // WARNING: neq `tail.len` for it's array capcity
@@ -658,20 +696,20 @@ impl<T> TTrieVec<T> {
     }
 
     /// modify root and return PTrieVec head
-    pub fn persistent(&mut self) -> PTrieVec<T>
+    pub fn persistent(self) -> PTrieVec<T>
     where
-        T: Clone
+        T: Clone,
     {
         assert!(self.is_editable());
 
         if self.root.is_some() {
-            id_mut!(self.root).take();
+            *id_mut!(self.root) = no_edit!();
         }
 
         PTrieVec {
             cnt: self.cnt,
             root: self.root.clone(),
-            tail: node!(dup| None, &self.tail),
+            tail: node!(dup | no_edit!(), &self.tail),
         }
     }
 
@@ -797,10 +835,13 @@ impl<T> TTrieVec<T> {
 
     #[inline(always)]
     fn is_editable(&self) -> bool {
-        self.root.is_none() || self.id().is_some()
+        self.cnt == 0 || self.id() != 0
     }
 }
 
+
+impl<T> !Send for TTrieVec<T> {}
+impl<T> !Sync for TTrieVec<T> {}
 
 
 impl<T> Node_<T> {
@@ -816,11 +857,11 @@ impl<T> Node_<T> {
 
 impl<T> Node<T> {
     fn is_leaf(&self) -> bool {
-        self.is_some() && attr!(self | self).is_leaf()
+        self.is_some() && attr!(self_unsafe_sync | self).is_leaf()
     }
 
     fn is_internal(&self) -> bool {
-        self.is_some() && !attr!(self | self).is_leaf()
+        self.is_some() && !attr!(self_unsafe_sync | self).is_leaf()
     }
 
     fn len(&self) -> usize {
@@ -835,7 +876,7 @@ impl<T> Node<T> {
 
     fn id(&self) -> ID {
         if self.is_none() {
-            None
+            0
         } else {
             id!(self).clone()
         }
@@ -917,8 +958,6 @@ fn new_path<T>(id: ID, lv: u32, x: &Node<T>, cap: usize) -> Node<T> {
 
     node
 }
-
-
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1010,6 +1049,8 @@ impl<T> TTrieVec<T> {
 #[cfg(test)]
 mod tests {
 
+    use std::thread;
+
     use super::{super::vec::*, *};
 
     #[test]
@@ -1056,6 +1097,29 @@ mod tests {
     }
 
     #[test]
+    fn test_ptrievec_sync_case_1() {
+        // let mut vec = vec![1, 2, 3];
+        let vec = ptrievec![1, 2, 3];
+
+        thread::scope(|s| {
+            s.spawn(|| {
+                let vec = &vec;
+                println!("{}", vec[0]);
+                println!("{}", vec[1]);
+                println!("{}", vec[2]);
+            });
+
+            s.spawn(|| {
+                let vec = (&vec).assoc(0, 10);
+
+                println!("{}", vec[0]);
+                println!("{}", vec[1]);
+                println!("{}", vec[2]);
+            });
+        });
+    }
+
+    #[test]
     fn test_ptrievec_random() {
         test_pvec!(PTrieVec::new());
     }
@@ -1070,4 +1134,8 @@ mod tests {
         test_pttran!(PTrieVec::new());
     }
 
+    #[test]
+    fn test_trievec_sync_random() {
+        test_pvec_sync!(PTrieVec::new());
+    }
 }

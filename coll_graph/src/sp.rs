@@ -562,9 +562,9 @@ mod tests {
 
     use super::{SPBellmanFord, SPFloyd};
     use crate::{
-        batch_graph,
+        test:: { batch_graph, GraphGenOptions },
         sp::{SPDijkstra, SPJohnson, SPFA},
-        Graph, GraphGenOptions,
+        Graph,
     };
 
 

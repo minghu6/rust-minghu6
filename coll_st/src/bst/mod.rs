@@ -28,6 +28,22 @@ macro_rules! replace_val {
     }};
 }
 
+
+macro_rules! node {
+    ({ $key:expr, $val:expr $(,$attr:ident : $attr_val:expr)* }) => {
+        aux_node!({
+            left: Node::none(),
+            right: Node::none(),
+            paren: WeakNode::none(),
+            key: $key,
+            val: $val,
+            $(
+                $attr: $attr_val,
+            )*
+        })
+    };
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 //// Basic Operation
 
@@ -487,7 +503,7 @@ macro_rules! bst_build {
 
 
 /// Simple Rotation (return new root)
-/// ```no_run
+/// ```ignore
 ///            left rotate
 ///    x       =========>           z
 ///  /  \                          / \
@@ -527,7 +543,7 @@ macro_rules! rotate {
 
 
 /// Double Rotation (snd rotate dir, return new root)
-/// ```no_run
+/// ```ignore
 ///             rotate [right]-left         rotate right-[left]
 ///    x        =========>         x        =========>       y
 ///  /   \                        /  \                      / \
@@ -995,6 +1011,8 @@ macro_rules! test_dict {
 ////////////////////////////////////////////////////////////////////////////////
 //// ReExport Declarative Macro
 
+use replace_val;
+use node;
 use bst_build;
 use bst_delete;
 use bst_flatten;
@@ -1022,7 +1040,6 @@ use impl_tree;
 use impl_tree_debug;
 use impl_validate;
 use index_of_child;
-use replace_val;
 use rotate;
 #[allow(unused)]
 use sib;

@@ -3,7 +3,7 @@
 
 use std::{borrow::Borrow, fmt::*, mem::swap};
 
-use coll::{node as aux_node, *};
+use coll::*;
 
 use crate::{
     bst::{Left, Right},
@@ -44,7 +44,7 @@ macro_rules! node {
         node!(basic | entries, children, WeakNode::none())
     }};
     (basic| $entries:expr, $children:expr, $paren:expr) => {{
-        aux_node!(FREE {
+        aux_node!({
             entries: $entries,
             children: $children,
             paren: $paren

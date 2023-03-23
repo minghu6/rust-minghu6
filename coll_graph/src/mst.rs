@@ -204,7 +204,7 @@ pub fn mst_boruvka(g: &Graph) -> Vec<(usize, usize)> {
 
 #[cfg(test)]
 mod tests {
-    use super::{super::*, *};
+    use super::{super::test::*, *};
 
 
     #[test]

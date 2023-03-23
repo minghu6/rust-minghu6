@@ -74,7 +74,7 @@ impl<K: Ord, V> Treap <K, V> {
     pub fn insert(&mut self, k: K, v: V) -> Option<V>
     where V: Default
     {
-        let z = node!( BST { k, v, w: random() });
+        let z = node!({ k, v, w: random() });
 
         let popped = bst_insert!(self, z.clone());
 

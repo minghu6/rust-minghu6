@@ -7,8 +7,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use coll::Itertools;
-use minghu6::{error_code::*, etc::path::{syn_walk, FindOptions}, read_dir_wrapper};
+use common::{ Itertools, error_code::*,  };
+use minghu6::{read_dir_wrapper, path::{syn_walk, FindOptions}};
 
 use clap::Parser;
 

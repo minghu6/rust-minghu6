@@ -1,9 +1,14 @@
+
+#[cfg(test)]
+pub(crate) const GET_ONE: fn() -> u64 = common::random::<u64>;
+
+
 #[cfg(test)]
 macro_rules! test_pvec {
     ($vec:expr) => {
         let batch_num = 1_000;
         let mut vec= $vec;
-        let get_one = || common::random::<u64>();
+        let get_one = $crate::vec::GET_ONE;
 
         /* Test Push */
 
@@ -57,7 +62,7 @@ macro_rules! test_tvec {
     ($vec:expr) => {
         let batch_num = 1_000;
         let mut vec = $vec;
-        let get_one = || common::random::<u64>();
+        let get_one = $crate::vec::GET_ONE;
 
         let mut plain_elem_vec = vec![];
         for _ in 0..batch_num {
@@ -109,7 +114,7 @@ macro_rules! test_pttran {
     ($vec:expr) => {
         let batch_num = 1000;
         let mut vec= $vec;
-        let get_one = || common::random::<u64>();
+        let get_one = $crate::vec::GET_ONE;
 
         // Before Transistent (P)
         let mut plain_elem_vec = vec![];
@@ -148,6 +153,25 @@ macro_rules! test_pttran {
 }
 
 
+#[cfg(test)]
+macro_rules! test_pvec_sync {
+    ($vec:expr) => {
+        let vec = $vec;
+
+        thread::scope(|s| {
+            for _ in 0..10 {
+                s.spawn(|| {
+                    test_pttran!((&vec).clone());
+                });
+            }
+
+        });
+
+        test_pttran!((&vec).clone());
+
+    };
+}
+
 
 #[cfg(test)]
 pub(super) use test_pvec;
@@ -155,3 +179,5 @@ pub(super) use test_pvec;
 pub(super) use test_tvec;
 #[cfg(test)]
 pub(super) use test_pttran;
+#[cfg(test)]
+pub(super) use test_pvec_sync;

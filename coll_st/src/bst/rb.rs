@@ -122,7 +122,7 @@ impl<K: Ord, V> RB <K, V> {
             color = Red;
         }
 
-        let z = node!( BST { k, v, color: color });
+        let z = node!({ k, v, color: color });
 
         let popped = bst_insert!(self, z.clone());
 

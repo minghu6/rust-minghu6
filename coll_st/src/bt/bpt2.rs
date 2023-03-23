@@ -12,7 +12,7 @@ use super::{
     bpt::{
         BPT, bpt
     },
-    node as aux_node, *,
+    *,
 };
 
 
@@ -40,14 +40,14 @@ macro_rules! node {
         node!(basic-leaf| entries, WeakNode::none(), WeakNode::none())
     }};
     (basic-leaf| $entries:expr, $succ:expr, $paren:expr) => {{
-        aux_node!(FREE-ENUM Leaf {
+        aux_node!(ENUM Leaf {
             entries: $entries,
             succ: $succ,
             paren: $paren
         })
     }};
     (basic-internal| $children:expr, $paren:expr) => {{
-        aux_node!(FREE-ENUM Internal {
+        aux_node!(ENUM Internal {
             children: $children,
             paren: $paren
         })

@@ -39,7 +39,7 @@ impl<K: Ord, V> AVL<K, V> {
     pub fn insert(&mut self, k: K, v: V) -> Option<V>
     where V: Default
     {
-        let z = node!( BST { k, v, height: 1 });
+        let z = node!({ k, v, height: 1 });
 
         let popped = bst_insert!(self, z.clone());
 

@@ -47,7 +47,7 @@ impl<K: Ord, V> SG <K, V> {
     pub fn insert(&mut self, k: K, v: V) -> Option<V>
     where V: Default
     {
-        let z = node!( BST { k, v });
+        let z = node!({ k, v });
 
         let popped = bst_insert!(self, z.clone());
 

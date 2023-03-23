@@ -11,7 +11,7 @@ use std::{
 
 use common::hashmap;
 
-use coll::{ *, node as aux_node};
+use coll::*;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,7 +34,7 @@ macro_rules! node {
     };
 
     ($i:expr, $k:expr, $rank:expr, $marked:expr) => {{
-        aux_node!(FREE {
+        aux_node!({
             idx: $i,
             val: $k,
             rank: $rank,
@@ -46,7 +46,6 @@ macro_rules! node {
         })
     }};
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Structure

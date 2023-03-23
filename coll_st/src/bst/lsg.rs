@@ -84,7 +84,7 @@ impl<K: Ord, V> LSG <K, V> {
     pub fn insert(&mut self, k: K, v: V) -> Option<V>
     where V: Default
     {
-        let z = node!( BST { k, v, size: 1, deleted: false });
+        let z = node!({ k, v, size: 1, deleted: false });
 
         let popped = bst_insert!(lazy | self, z.clone());
 

@@ -1,6 +1,6 @@
 //! AA tree
 
-use std::{borrow::Borrow, fmt::Debug, cmp::Ordering::*, mem::swap};
+use std::{borrow::Borrow, cmp::Ordering::*, fmt::Debug, mem::swap};
 
 use coll::*;
 
@@ -33,24 +33,16 @@ impl<K: Debug, V> Debug for Node<K, V> {
 }
 
 
-impl<K: Ord, V> AA <K, V> {
-
+impl<K: Ord, V> AA<K, V> {
     ////////////////////////////////////////////////////////////////////////////
     /// Public API
 
     pub fn new() -> Self {
-        Self {
-            root: Node::none()
-        }
+        Self { root: Node::none() }
     }
 
-    pub fn insert(&mut self, k: K, v: V) -> Option<V>
-    {
-        let (root, popped) = self.insert_at(
-            self.root.clone(),
-            k,
-            v
-        );
+    pub fn insert(&mut self, k: K, v: V) -> Option<V> {
+        let (root, popped) = self.insert_at(self.root.clone(), k, v);
 
         self.root = root;
 
@@ -58,7 +50,10 @@ impl<K: Ord, V> AA <K, V> {
     }
 
     pub fn remove<Q>(&mut self, k: &Q) -> Option<V>
-    where K: Borrow<Q> + Debug, Q: Ord + ?Sized, V: Debug
+    where
+        K: Borrow<Q> + Debug,
+        Q: Ord + ?Sized,
+        V: Debug,
     {
         let (root, popped) = self.remove_at(self.root.clone(), k);
 
@@ -71,15 +66,21 @@ impl<K: Ord, V> AA <K, V> {
     ////////////////////////////////////////////////////////////////////////////
     //// Helper Method
 
-    fn insert_at(&mut self, mut t: Node<K, V>, k: K, v: V) -> (Node<K, V>, Option<V>) {
+    fn insert_at(
+        &mut self,
+        mut t: Node<K, V>,
+        k: K,
+        v: V,
+    ) -> (Node<K, V>, Option<V>) {
         if t.is_none() {
-            return (node!(BST { k, v, lv: 1 }), None);
+            return (node!({ k, v, lv: 1 }), None);
         }
 
         let popped;
 
         match k.cmp(key!(t)) {
-            Equal => {  // replace node
+            Equal => {
+                // replace node
                 return (t.clone(), Some(replace_val!(t, v)));
             }
             Less => {
@@ -103,44 +104,45 @@ impl<K: Ord, V> AA <K, V> {
     }
 
 
-    fn remove_at<Q>(&mut self, mut t: Node<K, V>, k: &Q)
-    -> (Node<K, V>, Option<Node<K, V>>)
-    where K: Borrow<Q> + Debug, Q: Ord + ?Sized, V: Debug
+    fn remove_at<Q>(
+        &mut self,
+        mut t: Node<K, V>,
+        k: &Q,
+    ) -> (Node<K, V>, Option<Node<K, V>>)
+    where
+        K: Borrow<Q> + Debug,
+        Q: Ord + ?Sized,
+        V: Debug,
     {
         if t.is_none() {
             return (t, None);
         }
 
-        let popped =
-
-        match k.cmp(key!(t).borrow()) {
+        let popped = match k.cmp(key!(t).borrow()) {
             Less => {
-                let (left, popped_)
-                    = self.remove_at(left!(t), k);
+                let (left, popped_) = self.remove_at(left!(t), k);
                 conn_left!(t, left);
                 popped_
             }
             Greater => {
-                let (right, popped_)
-                    = self.remove_at(right!(t), k);
+                let (right, popped_) = self.remove_at(right!(t), k);
                 conn_right!(t, right);
                 popped_
             }
             Equal => {
-
                 if left!(t).is_none() && right!(t).is_none() {
-                    return (
-                        Node::none(),
-                        Some(t)
-                    );
+                    return (Node::none(), Some(t));
                 }
 
                 let nil_dir = if left!(t).is_none() { Left } else { Right };
-                let l = if nil_dir.is_left()
-                    { bst_successor!(t) } else { bst_predecessor!(t) };
+                let l = if nil_dir.is_left() {
+                    bst_successor!(t)
+                } else {
+                    bst_predecessor!(t)
+                };
 
-                let (child, l_entry)
-                    = self.remove_at(child!(t, nil_dir.rev()), key!(l).borrow());
+                let (child, l_entry) =
+                    self.remove_at(child!(t, nil_dir.rev()), key!(l).borrow());
 
                 conn_child!(t, child, nil_dir.rev());
 
@@ -214,26 +216,22 @@ impl<K: Ord, V> AA <K, V> {
         if right.is_some() && right!(right).lv() == t.lv() {
             t = rotate!(self, t, Left);
 
-            lv!(t, lv!(t) + 1);  // t == right
+            lv!(t, lv!(t) + 1); // t == right
         }
 
         t
     }
-
-
 }
 
 
 impl<K, V> Node<K, V> {
-
     ////////////////////////////////////////////////////////////////////////////
     /// Static Stats
 
     fn lv(&self) -> usize {
         if self.is_none() {
             0
-        }
-        else {
+        } else {
             lv!(self)
         }
     }
@@ -244,7 +242,9 @@ impl<K, V> Node<K, V> {
 
     #[cfg(test)]
     fn validate_balance(&self) {
-        if self.is_none() { return }
+        if self.is_none() {
+            return;
+        }
 
         let left = left!(self);
         let right = right!(self);
@@ -258,10 +258,7 @@ impl<K, V> Node<K, V> {
         assert_eq!(left.lv() + 1, self.lv());
 
         // Invariant-3.: x.right.lv == x.lv || x.right.lv + 1 == x.lv.
-        assert!(
-            right.lv() == self.lv()
-            || right.lv() + 1 == self.lv()
-        );
+        assert!(right.lv() == self.lv() || right.lv() + 1 == self.lv());
 
         // Invariant-4.: x.right.child.lv < x.lv
         if right.is_some() {
@@ -276,9 +273,7 @@ impl<K, V> Node<K, V> {
 
         left.validate_balance();
         right.validate_balance();
-
     }
-
 }
 
 
@@ -334,7 +329,6 @@ mod tests {
         dict.validate();
 
         // dict.debug_print();
-
     }
 
     #[test]

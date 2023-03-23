@@ -262,7 +262,7 @@ mod tests {
     use super::{scc_kosaraju, scc_tarjan};
     use crate::{
         scc::{normalize_comps, scc_path_based},
-        Graph, GraphGenOptions,
+        Graph, test::GraphGenOptions,
     };
 
 

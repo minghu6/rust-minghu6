@@ -3,10 +3,10 @@ uninstall:
 	cargo uninstall
 
 install-lc:
-	cargo install --path . --bin srcstats
+	cargo install --path . --example srcstats
 
 install-pkcheat:
-	cargo install --path . --bin pkcheat
+	cargo install --path . --example pkcheat
 
 clean:
 	@ rm *.dot

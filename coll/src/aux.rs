@@ -20,33 +20,93 @@ macro_rules! impl_node {
         impl_node!(pub(self));
     };
     ($vis:vis) => {
-        impl_node!($vis <K, V>);
+        impl_node!($vis <K, V>, rc);
     };
-    ($vis:vis <$($g:ident),+>) => {
+    ($vis:vis <$($g:ident),+>, rc) => {
+        impl_node!(
+            $vis <$($g),+>,
+            std::rc::Rc<std::cell::RefCell<Node_<$($g),+>>>,
+            std::rc::Weak<std::cell::RefCell<Node_<$($g),+>>>
+        );
+
+        #[allow(unused)]
+        impl<$($g),+> Node<$($g),+> {
+            fn as_ptr(&self) -> *mut Node_<$($g),+> {
+                match self.0 {
+                    Some(ref rc) => rc.as_ptr(),
+                    None => std::ptr::null_mut(),
+                }
+            }
+        }
+
+        #[allow(unused)]
+        macro_rules! aux_node {
+            ({ $$($attr:ident : $attr_val:expr),* $$(,)? }) => {
+                Node(Some(std::rc::Rc::new(std::cell::RefCell::new(Node_ {
+                    $$(
+                        $attr: $attr_val
+                    ),*
+                }))))
+            };
+            (ENUM $ty:ident { $$($attr:ident : $attr_val:expr),* $$(,)? }) => {
+                Node(Some(std::rc::Rc::new(std::cell::RefCell::new(Node_::$ty {
+                    $$(
+                        $attr: $attr_val
+                    ),*
+                }))))
+            };
+        }
+
+        #[allow(unused)]
+        macro_rules! unwrap_into {
+            ($node:expr) => {
+                std::rc::Rc::try_unwrap($node.0.unwrap())
+                    .unwrap()
+                    .into_inner()
+            };
+        }
+    };
+    ($vis:vis <$($g:ident),+>, arc) => {
+        impl_node!(
+            $vis <$($g),+>,
+            std::sync::Arc<UnsafeSendSync<Node_<$($g),+>>>,
+            std::sync::Weak<UnsafeSendSync<Node_<$($g),+>>>
+        );
+        macro_rules! aux_node {
+            ({ $$($attr:ident : $attr_val:expr),* }) => {
+                Node(Some(std::sync::Arc::new(UnsafeSendSync::new(Node_ {
+                    $$(
+                        $attr: $attr_val
+                    ),*
+                }))))
+            };
+            (ENUM $ty:ident { $$($attr:ident : $attr_val:expr),* }) => {
+                Node(Some(std::sync::Arc::new(UnsafeSendSync::new(Node_::$ty {
+                    $$(
+                        $attr: $attr_val
+                    ),*
+                }))))
+            };
+        }
+    };
+    ($vis:vis <$($g:ident),+>, $rc:ty, $wk:ty) => {
         $vis struct Node<$($g),+>(
-            Option<std::rc::Rc<std::cell::RefCell<Node_<$($g),+>>>>,
+            Option<$rc>,
         );
 
         /// Used for reverse reference to avoid circular-reference
         ///
         /// So we can easy auto drop
         struct WeakNode<$($g),+>(
-            Option<std::rc::Weak<std::cell::RefCell<Node_<$($g),+>>>>,
+            Option<$wk>,
         );
 
         #[allow(unused)]
         impl<$($g),+> Node<$($g),+> {
             fn downgrade(&self) -> WeakNode<$($g),+> {
                 WeakNode(
-                    self.0.clone().map(|ref rc| std::rc::Rc::downgrade(rc)),
+                    self.0.clone().map(|ref rc| <$rc>::downgrade(rc)),
                 )
-            }
-
-            fn as_ptr(&self) -> *mut Node_<$($g),+> {
-                match self.0 {
-                    Some(ref rc) => rc.as_ptr(),
-                    None => std::ptr::null_mut(),
-                }
             }
 
             fn none() -> Self {
@@ -65,7 +125,7 @@ macro_rules! impl_node {
                 match self.0 {
                     Some(ref rc1) => {
                         if let Some(ref rc2) = other.0 {
-                            std::rc::Rc::ptr_eq(rc1, rc2)
+                            <$rc>::ptr_eq(rc1, rc2)
                         } else {
                             false
                         }
@@ -128,67 +188,6 @@ macro_rules! impl_node {
     }
 }
 
-
-#[macro_export]
-macro_rules! boxptr {
-    ($v:expr) => {
-        Box::into_raw(Box::new($v))
-    };
-}
-
-
-#[macro_export]
-#[allow(unused)]
-macro_rules! unboxptr {
-    ($ptr:expr) => {
-        unsafe { *Box::from_raw($ptr) }
-    };
-}
-
-
-#[macro_export]
-macro_rules! node {
-    (BST { $key:expr, $val:expr $(,$attr:ident : $attr_val:expr)* }) => {
-        Node(Some(std::rc::Rc::new(std::cell::RefCell::new(Node_ {
-            left: Node::none(),
-            right: Node::none(),
-            paren: WeakNode::none(),
-
-            key: $key,
-            val: $val,
-
-            $(
-                $attr: $attr_val
-            ),*
-        }))))
-    };
-    (FREE { $($attr:ident : $attr_val:expr),* }) => {
-        Node(Some(std::rc::Rc::new(std::cell::RefCell::new(Node_ {
-            $(
-                $attr: $attr_val
-            ),*
-        }))))
-    };
-    (FREE-ENUM $ty:ident { $($attr:ident : $attr_val:expr),* }) => {
-        Node(Some(std::rc::Rc::new(std::cell::RefCell::new(Node_::$ty {
-            $(
-                $attr: $attr_val
-            ),*
-        }))))
-    };
-}
-
-
-#[macro_export]
-macro_rules! unwrap_into {
-    ($node:expr) => {
-        std::rc::Rc::try_unwrap($node.0.unwrap())
-            .unwrap()
-            .into_inner()
-    };
-}
-
-
 ////////////////////////////////////////
 //// Node Implementation
 
@@ -197,6 +196,7 @@ macro_rules! unwrap_into {
 #[macro_export]
 macro_rules! def_node__heap_access {
     (internal, $name:ident, $ret:ty) => {
+        #[inline]
         fn $name(&self) -> &$ret {
             match self {
                 Internal { $name, .. } => $name,
@@ -207,6 +207,7 @@ macro_rules! def_node__heap_access {
             }
         }
         coll::paste!(
+            #[inline]
             fn [<$name _mut>](&mut self) -> &mut $ret {
                 match self {
                     Internal { $name, .. } => $name,
@@ -219,6 +220,7 @@ macro_rules! def_node__heap_access {
         );
     };
     (leaf, $name:ident, $ret:ty) => {
+        #[inline]
         fn $name(&self) -> &$ret {
             match self {
                 Internal {..} => panic!(
@@ -229,6 +231,7 @@ macro_rules! def_node__heap_access {
             }
         }
         coll::paste!(
+            #[inline]
             fn [<$name _mut>](&mut self) -> &mut $ret {
                 match self {
                     Internal {..} => panic!(
@@ -241,6 +244,7 @@ macro_rules! def_node__heap_access {
         );
     };
     (both, $name:ident, $ret:ty) => {
+        #[inline]
         fn $name(&self) -> &$ret {
             match self {
                 Internal { $name, .. } => $name,
@@ -248,6 +252,7 @@ macro_rules! def_node__heap_access {
             }
         }
         coll::paste!(
+            #[inline]
             fn [<$name _mut>](&mut self) -> &mut $ret {
                 match self {
                     Internal { $name, .. } => $name,
@@ -314,7 +319,7 @@ macro_rules! def_node__wn_access {
 #[macro_export]
 macro_rules! attr {
     (ref_mut | $node:expr, $attr:ident, $ty:ty) => {{
-        if let Some(_unr) = $node.clone().0 {
+        if let Some(ref _unr) = $node.0 {
             let _bor = _unr.as_ref().borrow();
             let _attr = (&_bor.$attr) as *const $ty as *mut $ty;
             drop(_bor);
@@ -325,7 +330,7 @@ macro_rules! attr {
         }
     }};
     (ref | $node:expr, $attr:ident, $ty:ty) => {{
-        if let Some(_unr) = $node.clone().0 {
+        if let Some(ref _unr) = $node.0 {
             let _bor = _unr.as_ref().borrow();
             let _attr = (&_bor.$attr) as *const $ty;
             drop(_bor);
@@ -336,7 +341,7 @@ macro_rules! attr {
         }
     }};
     (clone | $node:expr, $attr:ident) => {{
-        if let Some(_unr) = $node.clone().0 {
+        if let Some(ref _unr) = $node.0 {
             let _bor = _unr.as_ref().borrow();
             let _attr = _bor.$attr.clone();
             drop(_bor);
@@ -346,8 +351,16 @@ macro_rules! attr {
             panic!("Access {} on None", stringify!($attr));
         }
     }};
+    ($node:expr, $attr:ident, $val:expr) => {{
+        if let Some(ref _unr) = $node.0 {
+            _unr.as_ref().borrow_mut().$attr = $val
+        }
+        else {
+            panic!("MAccess {} on None", stringify!($attr));
+        }
+    }};
     (self | $node:expr) => {{
-        if let Some(_unr) = $node.clone().0 {
+        if let Some(ref _unr) = $node.0 {
             unsafe { &* _unr.as_ref().as_ptr() }
         }
         else {
@@ -355,16 +368,24 @@ macro_rules! attr {
         }
     }};
     (self_mut | $node:expr) => {{
-        if let Some(_unr) = $node.clone().0 {
+        if let Some(ref _unr) = $node.0 {
             unsafe { &mut * _unr.as_ref().as_ptr() }
         }
         else {
             panic!("Call {} on None", stringify!($attr));
         }
     }};
-    ($node:expr, $attr:ident, $val:expr) => {{
-        if let Some(bor) = $node.clone().0 {
-            bor.as_ref().borrow_mut().$attr = $val
+    (self_unsafe_sync | $node:expr) => {{
+        if let Some(ref _unr) = $node.0 {
+            unsafe { &* _unr.as_ref().as_ptr() }
+        }
+        else {
+            panic!("Call {} on None", stringify!($attr));
+        }
+    }};
+    (self_unsafe_sync_mut | $node:expr) => {{
+        if let Some(ref _unr) = $node.0 {
+            unsafe { &mut* _unr.as_ref().as_ref_mut_ptr() }
         }
         else {
             panic!("MAccess {} on None", stringify!($attr));
@@ -437,6 +458,26 @@ macro_rules! def_attr_macro {
                 }
             );
         )+
+    };
+    (call_unsafe_sync | $($name:ident),+) => {
+        $(
+            coll::paste!(
+                macro_rules! $name {
+                    ($node:expr) => {
+                        attr!(self_unsafe_sync | $$node).$name()
+                    };
+                }
+            );
+
+            coll::paste!(
+                #[allow(unused)]
+                macro_rules! [<$name _mut>] {
+                    ($node:expr) => {
+                        attr!(self_unsafe_sync_mut | $$node).[<$name _mut>]()
+                    };
+                }
+            );
+        )+
     }
 }
 
@@ -454,6 +495,7 @@ macro_rules! mut_self {
     };
 }
 
+
 #[macro_export]
 macro_rules! swap {
     (node | $x:expr, $y:expr, $attr:ident, $ty:ty) => {
@@ -468,6 +510,24 @@ macro_rules! swap {
         }
     };
 }
+
+
+#[macro_export]
+macro_rules! boxptr {
+    ($v:expr) => {
+        Box::into_raw(Box::new($v))
+    };
+}
+
+
+#[macro_export]
+#[allow(unused)]
+macro_rules! unboxptr {
+    ($ptr:expr) => {
+        unsafe { *Box::from_raw($ptr) }
+    };
+}
+
 
 #[allow(unused)]
 #[macro_export]

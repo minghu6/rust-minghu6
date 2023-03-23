@@ -84,12 +84,12 @@ impl<K: Ord, V> Splay <K, V> {
         let splay_at;
 
         if y.is_none() {
-            splay_at = node!( BST { k, v });
+            splay_at = node!({ k, v });
             self.root = splay_at.clone();
         } else {
             match k.cmp(key!(y)) {
                 Less => {
-                    splay_at = node!( BST { k, v });
+                    splay_at = node!({ k, v });
                     conn_left!(y, splay_at);
                 }
                 Equal => {
@@ -97,7 +97,7 @@ impl<K: Ord, V> Splay <K, V> {
                     splay_at = y;
                 },
                 Greater => {
-                    splay_at = node!( BST { k, v });
+                    splay_at = node!({ k, v });
                     conn_right!(y, splay_at);
                 }
             }
