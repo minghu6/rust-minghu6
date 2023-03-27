@@ -14,8 +14,12 @@ def_attr_macro!(call_unsafe_sync | id, children, values);
 def_coll_init!(seq | ttrievec, crate::trievec::TTrieVec::new(), push);
 
 
+#[cfg(test)]
+const BIT_WIDTH: u32 = 2;
 /// Clojure using 5
-const BIT_WIDTH: u32 = 3;
+#[cfg(not(test))]
+const BIT_WIDTH: u32 = 5;
+
 const NODE_SIZE: usize = 1 << BIT_WIDTH as usize;
 const MASK: usize = NODE_SIZE - 1;
 
@@ -437,8 +441,8 @@ impl<T> PTrieVec<T> {
 
         let mut root = p.clone();
 
-        let mut ps = vec![p.clone()];
-        let mut pis = vec![p_i];
+        // let mut ps = vec![p.clone()];
+        // let mut pis = vec![p_i];
 
         while lv > 2 {
             let cur = node!(dup | self.id(), &children!(p)[p_i]);
@@ -450,23 +454,27 @@ impl<T> PTrieVec<T> {
             p_i = idx!(leaf_i, lv);
             p = cur;
 
-            ps.push(p.clone());
-            pis.push(p_i);
+            // ps.push(p.clone());
+            // pis.push(p_i);
         }
 
         children_mut!(p)[p_i] = Node::none();
 
-        /* Unnew path */
+        // /* Unnew path */
 
-        for i in (0..ps.len() - 1).rev() {
-            if pis[i + 1] == 0 {
-                children_mut!(ps[i])[pis[i]] = Node::none();
-            } else {
-                break;
-            }
-        }
+        // for i in (0..ps.len() - 1).rev() {
+        //     if pis[i + 1] == 0 {
+        //         children_mut!(ps[i])[pis[i]] = Node::none();
+        //     } else {
+        //         break;
+        //     }
+        // }
 
-        if children!(root)[1].is_none() {
+        // if children!(root)[1].is_none() {
+        //     root = children!(root)[0].clone();
+        // }
+
+        if self.cnt - 1 - NODE_SIZE == NODE_SIZE.pow(h!(self) - 1) {
             root = children!(root)[0].clone();
         }
 
@@ -577,7 +585,7 @@ impl<T> TTrieVec<T> {
     where
         T: Clone,
     {
-        assert!(self.is_editable());
+        debug_assert!(self.is_editable());
 
         // trie is empty
         if self.cnt == 0 {
@@ -695,21 +703,20 @@ impl<T> TTrieVec<T> {
         }
     }
 
-    /// modify root and return PTrieVec head
     pub fn persistent(self) -> PTrieVec<T>
     where
         T: Clone,
     {
         assert!(self.is_editable());
 
-        if self.root.is_some() {
-            *id_mut!(self.root) = no_edit!();
+        if self.tail.is_some() {
+            *id_mut!(self.tail) = no_edit!();
         }
 
         PTrieVec {
             cnt: self.cnt,
-            root: self.root.clone(),
-            tail: node!(dup | no_edit!(), &self.tail),
+            root: self.root,
+            tail: self.tail,
         }
     }
 
@@ -736,9 +743,6 @@ impl<T> TTrieVec<T> {
         let mut p_i = idx!(leaf_i, lv);
         let mut p = self.root.clone();
 
-        let mut ps = vec![p.clone()];
-        let mut pis = vec![p_i];
-
         while lv > 2 {
             let cur = self.ensure_editable(&children!(p)[p_i]);
 
@@ -746,24 +750,11 @@ impl<T> TTrieVec<T> {
 
             p_i = idx!(leaf_i, lv);
             p = cur;
-
-            ps.push(p.clone());
-            pis.push(p_i);
         }
 
         children_mut!(p)[p_i] = Node::none();
 
-        /* Unnew path */
-
-        for i in (0..ps.len() - 1).rev() {
-            if pis[i + 1] == 0 {
-                children_mut!(ps[i])[pis[i]] = Node::none();
-            } else {
-                break;
-            }
-        }
-
-        if children!(self.root)[1].is_none() {
+        if self.cnt - 1 - NODE_SIZE == NODE_SIZE.pow(h!(self) - 1) {
             self.root = children!(self.root)[0].clone();
         }
     }
