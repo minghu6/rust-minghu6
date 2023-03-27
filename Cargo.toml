@@ -1,6 +1,6 @@
 [package]
 name = "minghu6"
-version = "0.2.0"
+version = "0.1.0"
 authors = ["minghu6 <a19678zy@163.com>"]
 edition = "2021"
 
@@ -32,8 +32,9 @@ futures = "0.3"
 walkdir = "2.3"
 
 
+
 [features]
-tprofile = []
+
 
 [workspace]
 members = [
