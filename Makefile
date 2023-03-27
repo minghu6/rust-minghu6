@@ -7,9 +7,9 @@ install-lc:
 install-pkcheat:
 	cargo install --path . --example pkcheat
 
+# cargo install cargo-workspaces
 bump-version:
-	# cargo install cargo-workspaces
-	cargo ws version --no-git-tag
+	cargo ws version --no-individual-tags
 
 clean:
 	@ rm *.dot

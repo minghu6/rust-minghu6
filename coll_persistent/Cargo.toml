@@ -1,8 +1,11 @@
 [package]
 name = "m6-coll-persistent"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 
 [dependencies]
 common = { package = "m6-common", path = "../common" }
 coll = { package = "m6-coll", path = "../coll" }
+
+[package.metadata.workspaces]
+independent = true

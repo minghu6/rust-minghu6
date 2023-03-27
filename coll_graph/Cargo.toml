@@ -1,6 +1,6 @@
 [package]
 name = "m6-coll-graph"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 
 [dependencies]
@@ -13,3 +13,6 @@ coll_heap = { package = "m6-coll-heap", path = "../coll_heap" }
 [dev-dependencies]
 lazy_static = "1.4.0"
 csv = "1.1"
+
+[package.metadata.workspaces]
+independent = true

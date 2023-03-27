@@ -1,6 +1,6 @@
 [package]
 name = "minghu6"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["minghu6 <a19678zy@163.com>"]
 edition = "2021"
 
@@ -30,10 +30,6 @@ serde_json = "1.0"
 
 futures = "0.3"
 walkdir = "2.3"
-
-
-
-[features]
 
 
 [workspace]

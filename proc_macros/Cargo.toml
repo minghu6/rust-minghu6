@@ -1,6 +1,6 @@
 [package]
 name = "m6-proc-macros"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2018"
 
 
@@ -12,3 +12,6 @@ uuid = { version = "0.8", features = ["v4"] }
 
 [lib]
 proc-macro = true
+
+[package.metadata.workspaces]
+independent = true

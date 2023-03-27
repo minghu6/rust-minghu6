@@ -1,6 +1,6 @@
 [package]
 name = "m6-coll-st"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 
 [dependencies]
@@ -10,3 +10,6 @@ coll = { package = "m6-coll", path = "../coll" }
 [dev-dependencies]
 indexmap = "1"
 lazy_static = "1.4.0"
+
+[package.metadata.workspaces]
+independent = true
