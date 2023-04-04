@@ -1,4 +1,4 @@
-use std::ops::Range;
+use std::ops::{RangeBounds, Bound::*, Add};
 
 use extern_rand::distributions::uniform::{SampleBorrow, SampleUniform};
 
@@ -27,11 +27,28 @@ pub fn hardware_random() -> usize {
 }
 
 
-pub fn random_range<T: SampleUniform, B>(range: Range<B>) -> T
+pub fn random_range<T, B, R>(range: R) -> T
 where
+    T: SampleUniform + Add<usize, Output = T> + Copy,
     B: SampleBorrow<T> + Sized,
+    R: RangeBounds<B>
 {
-    extern_rand::thread_rng().gen_range(range.start, range.end)
+    let start;
+    let end;
+
+    match range.start_bound() {
+        Included(v) => start = *v.borrow(),
+        Excluded(v) => start = *v.borrow() + 1,
+        Unbounded => panic!("Unsupported unbound range"),
+    }
+
+    match range.end_bound() {
+        Included(v) => end = *v.borrow() + 1,
+        Excluded(v) => end = *v.borrow(),
+        Unbounded => panic!("Unsupported unbound range"),
+    }
+
+    extern_rand::thread_rng().gen_range(start, end)
 }
 
 

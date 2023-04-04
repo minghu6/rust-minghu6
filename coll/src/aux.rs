@@ -551,6 +551,19 @@ macro_rules! roadmap {
 }
 
 
+#[macro_export]
+macro_rules! impl_uint {
+    ($e:ident) => {
+        $e(u8);
+        $e(u16);
+        $e(u32);
+        $e(u64);
+        $e(u128);
+        $e(usize);
+    };
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //// Structure
 

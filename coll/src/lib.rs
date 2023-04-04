@@ -3,7 +3,7 @@
 #![feature(is_sorted)]
 
 
-pub mod compact;
+pub mod segment_tree;
 pub mod easycoll;
 pub mod union_find;
 pub mod aux;
