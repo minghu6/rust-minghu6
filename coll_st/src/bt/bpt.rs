@@ -1586,7 +1586,7 @@ pub(crate) mod tests {
             for x in u_range.zip_longest(v_range) {
                 match x {
                     Both(u, v) => {
-                        assert_eq!(u, v, "NEQ {u} vs {v} for {:?}", $r)
+                        assert_eq!(u as usize, v as usize, "NEQ {u} vs {v} for {:?}", $r)
                     }
                     Left(u) => panic!("range remains: {u}"),
                     Right(v) => panic!("select remains: {v}"),
@@ -1598,14 +1598,14 @@ pub(crate) mod tests {
     macro_rules! verify_select {
         ($dict:expr) => {{
             let mut dict = $dict;
-            let get_lo = |hi| common::random_range((0..hi));
+            let get_lo = |hi| common::random_range!((0..hi));
 
             /* fill */
 
-            let batch = 1000;
+            let batch = 1000usize;
 
             for i in 0..batch {
-                dict.insert(i, i);
+                dict.insert(i as u16, i as u16);
             }
 
             /* select verify */
@@ -1615,9 +1615,9 @@ pub(crate) mod tests {
             assert_select_eq!(dict, 0..1000, ..);
 
             loop {
-                let lo = get_lo(batch / 4);
+                let lo = get_lo(batch / 4) as u16;
 
-                assert_select_eq!(dict, lo..lo + len, &lo..&(lo + len));
+                assert_select_eq!(dict, lo..lo + len as u16, &lo..&(lo + len as u16));
 
                 len = len * 3 / 4;
                 if len == 0 {

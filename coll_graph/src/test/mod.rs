@@ -148,7 +148,7 @@ impl Graph {
 
                 dsu.cunion(u, v);
 
-                let w = random_range(wrange.clone());
+                let w = random_range!(wrange.clone());
                 g.insert_edge((u, v), w);
 
                 if !opt.dir {
@@ -157,10 +157,10 @@ impl Graph {
                 else if !opt.weak {
                     let w2;
                     if opt.non_negative_cycle && w < 0 {
-                        w2 = w.abs() + random_range(0..wrange.end);
+                        w2 = w.abs() + random_range!(0..wrange.end);
                     }
                     else {
-                        w2 = random_range(wrange.clone());
+                        w2 = random_range!(wrange.clone());
                     }
 
                     g.insert_edge((v, u), w2);
@@ -181,7 +181,7 @@ impl Graph {
                 let u = comps_iter.next().unwrap();
 
                 for v in comps_iter {
-                    let w = random_range(wrange.clone());
+                    let w = random_range!(wrange.clone());
 
                     g.insert_edge((u, v), w);
                     dsu.cunion(u, v);
@@ -192,10 +192,10 @@ impl Graph {
                     else if !opt.weak {
                         let w2;
                         if opt.non_negative_cycle && w < 0 {
-                            w2 = w.abs() + random_range(0..wrange.end);
+                            w2 = w.abs() + random_range!(0..wrange.end);
                         }
                         else {
-                            w2 = random_range(wrange.clone());
+                            w2 = random_range!(wrange.clone());
                         }
 
                         g.insert_edge((v, u), w2);
@@ -362,7 +362,7 @@ fn gen_scc_graph(vrange: usize, wrange: Range<isize>) -> Graph {
 
     for u in 1..vrange {
         for v in u + 1..=vrange {
-            let w = random_range(wrange.clone());
+            let w = random_range!(wrange.clone());
             edges.push((u, v, w));
             edges.push((v, u, w));
         }

@@ -1,4 +1,3 @@
-#![feature(box_syntax)]
 #![feature(default_free_fn)]
 #![allow(unused_imports)]
 
@@ -241,14 +240,14 @@ fn flat_maybe_nested_cheat(
                 }
 
                 match maybe_nested_cheats {
-                    Value::Array(arr) => Ok(box arr.into_iter()),
+                    Value::Array(arr) => Ok(Box::new(arr.into_iter())),
                     other => Err(ErrorCode::UnmatchedJsonField {
                         expect: format!("subdir for list"),
                         found: format!("{}", value_name!(other)),
                     }),
                 }
             } else if kvmap.contains_key(AIWU_CHEAT_CODE_NAME) {
-                Ok(box std::iter::once(itemv))
+                Ok(Box::new(std::iter::once(itemv)))
             } else {
                 Err(ErrorCode::UnmatchedJsonField {
                     expect: format!("cheat code field"),

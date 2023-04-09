@@ -22,7 +22,7 @@ macro_rules! min {
 macro_rules! max {
     ($($val:expr),+) => {
         {
-            [$($val),+].into_iter().min().unwrap()
+            [$($val),+].into_iter().max().unwrap()
         }
     }
 }

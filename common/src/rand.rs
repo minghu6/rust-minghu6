@@ -1,6 +1,39 @@
-use std::ops::{RangeBounds, Bound::*, Add};
+#[macro_export]
+macro_rules! random_range {
+    ($r:expr) => {{
+        use std::{
+            borrow::Borrow,
+            ops::{Add, Bound::*, RangeBounds},
+        };
 
-use extern_rand::distributions::uniform::{SampleBorrow, SampleUniform};
+        use common::rand::{
+            thread_rng,
+            Rng,
+            distributions::uniform::{
+                SampleBorrow, SampleUniform,
+            }
+        };
+
+        let range = $r;
+
+        let start;
+        let end;
+
+        match range.start_bound() {
+            Included(v) => start = *SampleBorrow::borrow(&v),
+            Excluded(v) => start = *SampleBorrow::borrow(&v) + 1,
+            Unbounded => panic!("Unsupported unbound range"),
+        }
+
+        match range.end_bound() {
+            Included(v) => end = *SampleBorrow::borrow(&v) + 1,
+            Excluded(v) => end = *SampleBorrow::borrow(&v),
+            Unbounded => panic!("Unsupported unbound range"),
+        }
+
+        thread_rng().gen_range(start, end)
+    }};
+}
 
 
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
@@ -27,32 +60,32 @@ pub fn hardware_random() -> usize {
 }
 
 
-pub fn random_range<T, B, R>(range: R) -> T
-where
-    T: SampleUniform + Add<usize, Output = T> + Copy,
-    B: SampleBorrow<T> + Sized,
-    R: RangeBounds<B>
-{
-    let start;
-    let end;
+// pub fn random_range<T, B, R>(range: R) -> T
+// where
+//     T: SampleUniform + Add<usize, Output = T> + Copy,
+//     B: SampleBorrow<T> + Sized,
+//     R: RangeBounds<B>
+// {
+//     let start;
+//     let end;
 
-    match range.start_bound() {
-        Included(v) => start = *v.borrow(),
-        Excluded(v) => start = *v.borrow() + 1,
-        Unbounded => panic!("Unsupported unbound range"),
-    }
+//     match range.start_bound() {
+//         Included(v) => start = *v.borrow(),
+//         Excluded(v) => start = *v.borrow() + 1,
+//         Unbounded => panic!("Unsupported unbound range"),
+//     }
 
-    match range.end_bound() {
-        Included(v) => end = *v.borrow() + 1,
-        Excluded(v) => end = *v.borrow(),
-        Unbounded => panic!("Unsupported unbound range"),
-    }
+//     match range.end_bound() {
+//         Included(v) => end = *v.borrow() + 1,
+//         Excluded(v) => end = *v.borrow(),
+//         Unbounded => panic!("Unsupported unbound range"),
+//     }
 
-    extern_rand::thread_rng().gen_range(start, end)
-}
+//     extern_rand::thread_rng().gen_range(start, end)
+// }
 
 
-pub use extern_rand::{ *, prelude::* };
+pub use extern_rand::{prelude::*, *};
 
 
 

@@ -1,5 +1,4 @@
 #![feature(test)]
-#![feature(box_syntax)]
 
 use lazy_static::lazy_static;
 

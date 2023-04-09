@@ -139,7 +139,7 @@ macro_rules! test_heap_update {
 
             for _ in 0..batch_num / 2 {
                 let newkey = get_one();
-                let i = common::random_range(0..testheap.len());
+                let i = common::random_range!(0..testheap.len());
 
                 testheap.$update(i, newkey.clone());
             }

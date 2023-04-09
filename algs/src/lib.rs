@@ -1,5 +1,4 @@
 #![feature(test)]
-#![feature(box_syntax)]
 #![feature(generator_trait)]
 #![feature(generators)]
 #![feature(is_sorted)]
@@ -9,7 +8,6 @@ use std::cmp::Ordering::{ self, * };
 
 
 pub mod hash;
-pub mod math;
 pub mod sort;
 pub mod spm;
 pub mod bloom_filter;

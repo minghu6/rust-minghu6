@@ -20,7 +20,7 @@ lazy_static! {
         let mut arr = vec![0; ARR_CAP];
 
         for j in 0..ARR_CAP {
-            arr[j] = random_range(0..1000) as i32;
+            arr[j] = random_range!(0..1000) as i32;
         }
 
         arr
@@ -29,8 +29,8 @@ lazy_static! {
         let mut qs = vec![];
 
         for _ in 0..Q_BATCH {
-            let i = random_range(0..ARR_CAP);
-            let len = random_range(Q_BATCH / 10..=Q_BATCH);
+            let i = random_range!(0..ARR_CAP);
+            let len = random_range!(Q_BATCH / 10..=Q_BATCH);
 
             qs.push(i..std::cmp::min(i + len, ARR_CAP));
         }

@@ -7,7 +7,6 @@
 #![feature(is_sorted)]
 #![feature(type_ascription)]
 #![feature(trait_alias)]
-#![feature(box_syntax)]
 #![feature(trait_upcasting)]
 #![feature(int_roundings)]
 #![feature(absolute_path)]
@@ -23,9 +22,7 @@
 #![feature(cell_update)]
 
 
-use proc_macros::{
-    make_simple_error_rules
-};
+use proc_macros::make_simple_error_rules;
 
 
 pub mod text;

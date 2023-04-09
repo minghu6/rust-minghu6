@@ -4,16 +4,17 @@
 #![feature(absolute_path)]
 #![feature(macro_metavar_expr)]
 #![feature(int_roundings)]
+#![feature(negative_impls)]
 
 
 pub mod error_code;
 pub mod timeit;
-mod rand;
+pub mod rand;
 mod r#trait;
 pub mod util;
 
 
-pub use itertools::*;
+pub use itertools::{ Itertools, EitherOrBoth };
 
 pub use r#trait::*;
 pub use rand::*;

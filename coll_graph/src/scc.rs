@@ -277,7 +277,7 @@ mod tests {
         let mut gs = vec![];
 
         for _ in 0..50 {
-            let sparsity = random_range(1..3);
+            let sparsity = random_range!(1..3);
             let g = Graph::gen(&opt, 30, sparsity, 1..2);
             gs.push(g);
         }

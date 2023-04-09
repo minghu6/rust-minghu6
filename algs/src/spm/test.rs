@@ -21,7 +21,7 @@ const DNA_LIST: [char; 4] = ['A', 'C', 'T', 'G'];
 //// Random Char
 
 fn random_char() -> char {
-    let i = random_range(0..CN_ALPHA_LIST.len() + ALPHA_LIST.len());
+    let i = random_range!(0..CN_ALPHA_LIST.len() + ALPHA_LIST.len());
 
     if i < ALPHA_LIST.len() {
         ALPHA_LIST[i]
@@ -32,7 +32,7 @@ fn random_char() -> char {
 
 
 fn random_dna_char() -> char {
-    DNA_LIST[random_range(0..4)]
+    DNA_LIST[random_range!(0..4)]
 }
 
 

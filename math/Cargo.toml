@@ -1,0 +1,16 @@
+[package]
+name = "m6-math"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+common = { package = "m6-common", path = "../common" }
+
+
+[dev-dependencies]
+lazy_static = "1.4.0"
+
+
+[package.metadata.workspaces]
+independent = true

@@ -53,6 +53,6 @@ mod tests {
 
     #[test]
     fn test_hash_collision() {
-        test_hash_collision_randint(|| box XxHash64::default())
+        test_hash_collision_randint(|| Box::new(XxHash64::default()))
     }
 }

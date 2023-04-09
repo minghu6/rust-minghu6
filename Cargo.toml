@@ -13,6 +13,7 @@ m6coll = { path = "../m6coll" }
 proc_macros = { package = "m6-proc-macros", path = "proc_macros" }
 common = { package = "m6-common", path = "common" }
 algs = { package = "m6-algs", path = "algs" }
+math = { package = "m6-math", path = "math" }
 coll = { package = "m6-coll", path = "coll" }
 coll_graph = { package = "m6-coll-graph", path = "coll_graph" }
 coll_persistent = { package = "m6-coll-persistent", path = "coll_persistent" }
@@ -37,11 +38,12 @@ members = [
     "proc_macros",
     "common",
     "algs",
+    "math",
     "coll",
     "coll_graph",
     "coll_persistent",
     "coll_heap",
-    "coll_st"
+    "coll_st",
 ]
 
 

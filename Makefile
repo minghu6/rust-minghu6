@@ -7,8 +7,13 @@ install-lc:
 install-pkcheat:
 	cargo install --path . --example pkcheat
 
+check-synax:
+	cargo build
+	cargo test --no-run --workspace
+	cargo bench --no-run --workspace
+
 # cargo install cargo-workspaces
-bump-version:
+bump-version: check-synax
 	cargo ws version --no-individual-tags
 
 clean:

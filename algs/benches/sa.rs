@@ -1,13 +1,10 @@
 #![feature(test)]
 
-use std::sync::mpsc;
-use std::thread;
+use std::{sync::mpsc, thread};
 
-use m6_algs::{
-    math::*,
-    spm::{
-        gen_random_text, sa::*, sa16::suffix_array_16, sais::suffix_array_sais,
-    },
+use common::util::split_improved;
+use m6_algs::spm::{
+    gen_random_text, sa::*, sa16::suffix_array_16, sais::suffix_array_sais,
 };
 
 extern crate test;

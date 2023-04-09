@@ -10,6 +10,7 @@ m6arr = { path = "../../m6coll/m6arr" }
 m6entry = { path = "../../m6coll/m6entry" }
 
 common = { package = "m6-common", path = "../common" }
+math = { package = "m6-math", path = "../math" }
 
 
 [dev-dependencies]

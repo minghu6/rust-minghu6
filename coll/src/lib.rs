@@ -1,5 +1,4 @@
 #![feature(macro_metavar_expr)]
-#![feature(box_syntax)]
 #![feature(is_sorted)]
 
 
