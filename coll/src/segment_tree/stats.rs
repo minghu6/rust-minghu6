@@ -101,7 +101,7 @@ macro_rules! impl_for_num {
                 gcd!(l.abs(), r.abs()).abs()
             }
 
-            fn zero() -> Self::Stats {
+            fn e() -> Self::Stats {
                 0
             }
         }
@@ -115,7 +115,7 @@ macro_rules! impl_for_num {
                 gcd!(l.clone(), r.clone())
             }
 
-            fn zero() -> Self::Stats {
+            fn e() -> Self::Stats {
                 0
             }
         }
@@ -203,7 +203,7 @@ where
         l.borrow() + r.borrow()
     }
 
-    fn zero() -> Self::Stats {
+    fn e() -> Self::Stats {
         T::default()
     }
 }
@@ -263,7 +263,7 @@ where
         .clone()
     }
 
-    fn zero() -> Self::Stats {
+    fn e() -> Self::Stats {
         Default::default()
     }
 }
@@ -285,7 +285,7 @@ where
         }
     }
 
-    fn zero() -> Self::Stats {
+    fn e() -> Self::Stats {
         (<T as Min<T>>::min(), 0)
     }
 }
@@ -367,7 +367,7 @@ impl Count for ZeroStats {
         *l + *r
     }
 
-    fn zero() -> Self::Stats {
+    fn e() -> Self::Stats {
         0
     }
 }
@@ -424,7 +424,7 @@ where
         }
     }
 
-    fn zero() -> Self::Stats {
+    fn e() -> Self::Stats {
         Default::default()
     }
 }

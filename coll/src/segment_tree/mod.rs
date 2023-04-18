@@ -151,10 +151,6 @@ impl_index!(index|
     impl<T, S: Count<Stats = T>, L: TreeLayout> for UpdaterAdd: Cursor => T
     with tuple (i)
 );
-// impl_index!(index|
-//     impl<T, S: Count<Stats = T>> for UpdaterAssign: Cursor => T
-//     with tuple (i)
-// );
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -172,7 +168,8 @@ pub trait Count {
     type Stats;
 
     fn combine<'a>(l: &'a Self::Stats, r: &'a Self::Stats) -> Self::Stats;
-    fn zero() -> Self::Stats;
+    /// identity element: any stats combine with e results itself
+    fn e() -> Self::Stats;
 }
 
 
@@ -216,21 +213,10 @@ pub struct DFS;
 
 
 #[repr(transparent)]
-pub struct UpdaterAdd<T, S: Count<Stats = T>, L: TreeLayout>(
+pub struct UpdaterAdd<T, C: Count<Stats = T>, L: TreeLayout>(
     Vec<T>,
-    PhantomData<(S, L)>,
+    PhantomData<(C, L)>,
 );
-
-
-// #[repr(transparent)]
-// pub struct UpdaterAssign<T, S: Count<Stats = T>>(Vec<T>, PhantomData<S>);
-
-
-// pub struct Updaters<T, S: Count<Stats = T>> {
-//     add: Vec<T>,
-//     assign: Vec<T>,
-//     node_ : PhantomData<S>
-// }
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -272,14 +258,14 @@ impl TreeLayout for DFS {
 }
 
 
-impl<T: Clone, S: Count<Stats = T>, L: TreeLayout> SegmentTree<T, S, L> {
+impl<T: Clone, C: Count<Stats = T>, L: TreeLayout> SegmentTree<T, C, L> {
     pub fn new<U>(raw: &[U]) -> Self
     where
-        U: Clone + RawIntoStats<S, Stats = T>,
+        U: Clone + RawIntoStats<C, Stats = T>,
     {
         assert!(!raw.is_empty());
 
-        let mut data = vec![S::zero(); L::size(raw.len())];
+        let mut data = vec![C::e(); L::size(raw.len())];
 
         let root = Cursor::init(raw.len());
 
@@ -288,7 +274,7 @@ impl<T: Clone, S: Count<Stats = T>, L: TreeLayout> SegmentTree<T, S, L> {
         Self {
             data,
             root,
-            _note: PhantomData::<(S, L)>,
+            _note: PhantomData::<(C, L)>,
         }
     }
 
@@ -303,8 +289,8 @@ impl<T: Clone, S: Count<Stats = T>, L: TreeLayout> SegmentTree<T, S, L> {
     }
 
     /// Create an batch add updater
-    pub fn create_updater(&self) -> UpdaterAdd<T, S, L> {
-        UpdaterAdd(vec![S::zero(); self.data.len()], PhantomData)
+    pub fn create_updater(&self) -> UpdaterAdd<T, C, L> {
+        UpdaterAdd(vec![C::e(); self.data.len()], PhantomData)
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -312,7 +298,7 @@ impl<T: Clone, S: Count<Stats = T>, L: TreeLayout> SegmentTree<T, S, L> {
 
     fn build<U>(data: &mut [T], arr: &[U], c: Cursor)
     where
-        U: Clone + RawIntoStats<S, Stats = T>,
+        U: Clone + RawIntoStats<C, Stats = T>,
     {
         if c.is_end() {
             data[c.i] = arr[c.tl].clone().raw_into_stats();
@@ -320,19 +306,19 @@ impl<T: Clone, S: Count<Stats = T>, L: TreeLayout> SegmentTree<T, S, L> {
             Self::build(data, arr, left!(c));
             Self::build(data, arr, right!(c));
 
-            data[c.i] = S::combine(&data[L::left_i(c)], &data[L::right_i(c)])
+            data[c.i] = C::combine(&data[left!(c).i], &data[right!(c).i])
         }
     }
 
     fn query_(&self, (l, r): (usize, usize), c: Cursor) -> T {
         if l > r {
-            return S::zero();
+            return C::e();
         }
 
         if c.is_matched((l, r)) {
             self[c].clone()
         } else {
-            S::combine(
+            C::combine(
                 &self.query_((l, min(left!(c).tr, r)), left!(c)),
                 &self.query_((max(right!(c).tl, l), r), right!(c))
             )
@@ -352,7 +338,7 @@ impl<T: Clone, S: Count<Stats = T>, L: TreeLayout> SegmentTree<T, S, L> {
                 self.assoc_(crh, ti, new_val);
             }
 
-            self.data[c.i] = S::combine(&self.data[clf.i], &self.data[crh.i]);
+            self.data[c.i] = C::combine(&self.data[clf.i], &self.data[crh.i]);
         }
     }
 }
@@ -435,7 +421,7 @@ where
     }
 
     fn is_marked(&self, c: Cursor) -> bool {
-        if self[c] != C::zero() {
+        if self[c] != C::e() {
             true
         } else {
             false
@@ -451,7 +437,7 @@ where
             tree[right!(c)] += self[c].clone();
             self[right!(c)] = &self[right!(c)] + &self[c];
 
-            self[c] = C::zero();
+            self[c] = C::e();
         }
     }
 
@@ -498,7 +484,7 @@ where
     ) -> T
     {
         if l > r {
-            return C::zero();
+            return C::e();
         }
 
         if c.is_matched((l, r)) {
