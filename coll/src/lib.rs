@@ -2,6 +2,7 @@
 #![feature(is_sorted)]
 #![feature(exact_size_is_empty)]
 #![feature(let_chains)]
+#![feature(int_roundings)]
 
 
 pub mod frac_casc;
