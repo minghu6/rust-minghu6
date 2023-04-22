@@ -44,6 +44,7 @@ macro_rules! parse_range {
         use std::ops::Bound::*;
 
         let range = $range;
+        let root = $root;
 
         let l;
         let r;
@@ -51,7 +52,7 @@ macro_rules! parse_range {
         match range.start_bound() {
             Included(v) => l = *v,
             Excluded(v) => l = *v + 1,
-            Unbounded => l = 1,
+            Unbounded => l = root.tl,
         }
 
         match range.end_bound() {
@@ -60,7 +61,7 @@ macro_rules! parse_range {
                 assert!(*v > 0, "range upper is invalid (=0)");
                 r = *v - 1
             }
-            Unbounded => r = $root.tr,
+            Unbounded => r = root.tr,
         }
 
         (l, r)

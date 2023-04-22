@@ -5,6 +5,7 @@
 #![feature(int_roundings)]
 
 
+pub mod fenwick_tree;
 pub mod frac_casc;
 pub mod segment_tree;
 pub mod easycoll;
