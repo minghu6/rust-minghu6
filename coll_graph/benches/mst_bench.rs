@@ -1,10 +1,11 @@
+#![feature(test)]
 #![allow(dead_code)]
 
 extern crate test;
 
 use common::random;
 
-use crate::{mst::*, Graph, test::GraphGenOptions};
+use m6_coll_graph::{mst::*, Graph, test::GraphGenOptions};
 
 use test::Bencher;
 

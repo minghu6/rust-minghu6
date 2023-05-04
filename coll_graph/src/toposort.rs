@@ -14,7 +14,7 @@ pub fn toposort_kahn(g: &Graph) -> Option<Vec<usize>> {
     /* build ein map */
     let mut ein = m1!();
 
-    for u in g.bfs(None) {
+    for u in g.vertexs() {
         for v in get!(g.e => u) {
             set!(ein => v => get!(ein => v => 0) + 1);
         }
@@ -95,7 +95,7 @@ pub fn toposort_dfs(g: &Graph) -> Option<Vec<usize>> {
         Ok(())
     }
 
-    for u in g.bfs(None) {
+    for u in g.vertexs() {
         if get!(marks => u) == Mark::UMark {
             if let Err(()) = dfs(g, u, &mut marks, &mut L) {
                 return None;

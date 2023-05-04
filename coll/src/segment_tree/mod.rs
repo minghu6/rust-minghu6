@@ -1,7 +1,7 @@
 mod stats;
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 
 use std::{
@@ -10,6 +10,8 @@ use std::{
     ops::{Add, AddAssign, Index, IndexMut, RangeBounds},
     slice::SliceIndex,
 };
+
+use crate::parse_range;
 
 pub use stats::*;
 
@@ -35,37 +37,6 @@ macro_rules! right {
     ($c:expr) => {
         $c.godown_right::<L>()
     };
-}
-
-
-/// -> (l, r)
-macro_rules! parse_range {
-    ($range:expr, $root:expr) => {{
-        use std::ops::Bound::*;
-
-        let range = $range;
-        let root = $root;
-
-        let l;
-        let r;
-
-        match range.start_bound() {
-            Included(v) => l = *v,
-            Excluded(v) => l = *v + 1,
-            Unbounded => l = root.tl,
-        }
-
-        match range.end_bound() {
-            Included(v) => r = *v,
-            Excluded(v) => {
-                assert!(*v > 0, "range upper is invalid (=0)");
-                r = *v - 1
-            }
-            Unbounded => r = root.tr,
-        }
-
-        (l, r)
-    }};
 }
 
 
@@ -137,8 +108,8 @@ macro_rules! impl_index {
 
 
 use left;
-use parse_range;
 use right;
+
 
 
 impl_index!(slice_index|
@@ -280,7 +251,7 @@ impl<T: Clone, C: Count<Stats = T>, L: TreeLayout> SegmentTree<T, C, L> {
     }
 
     pub fn query<R: RangeBounds<usize>>(&self, range: R) -> T {
-        self.query_(parse_range!(range, self.root), self.root)
+        self.query_(parse_range!(range, self.root.tr + 1), self.root)
     }
 
     pub fn assoc(&mut self, i: usize, new_val: T) {
@@ -402,7 +373,7 @@ where
     ) {
         self.assoc_(
             tree,
-            parse_range!(range, tree.root),
+            parse_range!(range, tree.root.tr + 1),
             addend,
             tree.root,
         )
@@ -416,7 +387,7 @@ where
     {
         self.query_(
             tree,
-            parse_range!(range, tree.root),
+            parse_range!(range, tree.root.tr + 1),
             tree.root,
         )
     }

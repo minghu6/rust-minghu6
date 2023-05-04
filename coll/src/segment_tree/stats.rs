@@ -9,10 +9,10 @@ use common::Min;
 use math::gcd;
 
 use super::{
-    left, parse_range, right, Count, Cursor, RawIntoStats, SegmentTree,
+    left, right, Count, Cursor, RawIntoStats, SegmentTree,
     TreeLayout,
 };
-use crate::max;
+use crate::{max, parse_range};
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Macro
@@ -158,14 +158,19 @@ impl_for_num!(gcd_count_uint | uint);
 ////////////////////////////////////////////////////////////////////////////////
 //// Structure
 
+#[derive(Clone, Copy)]
 pub struct Sum<T>(PhantomData<T>);
 
+#[derive(Clone, Copy)]
 pub struct Max<T>(PhantomData<T>);
 
+#[derive(Clone, Copy)]
 pub struct MaxStats<T>(PhantomData<T>);
 
+#[derive(Clone, Copy)]
 pub struct GCD<T>(PhantomData<T>);
 
+#[derive(Clone, Copy)]
 pub struct ZeroStats;
 
 /// find max positive sum of a range
@@ -188,6 +193,7 @@ pub struct SubSegMaxSumStats<T> {
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Implementation
+
 
 
 
@@ -305,7 +311,7 @@ where
         Self::query_first_gt_1(
             tree,
             x,
-            parse_range!(range, tree.root),
+            parse_range!(range, tree.root.tr + 1),
             tree.root,
         )
     }

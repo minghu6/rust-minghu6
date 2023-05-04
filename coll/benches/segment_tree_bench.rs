@@ -8,7 +8,7 @@ use test::Bencher;
 use lazy_static::lazy_static;
 
 use common::random_range;
-use m6_coll::segment_tree::{SegmentTree, Sum, BFS, DFS};
+use m6_coll::{segment_tree::{SegmentTree, Sum, BFS, DFS}, fenwick_tree::BIT};
 
 
 const ARR_CAP: usize = 0_100_000;
@@ -86,6 +86,18 @@ fn bench_segement_tree_sum_manually(b: &mut Bencher) {
             }
 
             black_box(sum);
+        }
+    })
+}
+
+
+#[bench]
+fn bench_segement_tree_sum_bit(b: &mut Bencher) {
+    let bit = BIT::<i32>::new(&FIXED_ARR);
+
+    b.iter(|| {
+        for q in QS.iter() {
+            black_box(bit.query(q.clone()));
         }
     })
 }

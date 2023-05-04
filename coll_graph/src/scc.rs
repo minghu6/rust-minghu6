@@ -17,7 +17,7 @@ use coll::{
 
 impl Graph {
     pub fn verify_scc(&self, _scc: &[usize]) -> VerifyResult {
-        debug_assert!(self.dir);
+        debug_assert!(self.is_dir);
 
         Ok(())
     }
@@ -268,7 +268,7 @@ mod tests {
 
     fn setup_data() -> Vec<Graph> {
         let opt = GraphGenOptions {
-            dir: true,
+            is_dir: true,
             cyclic: true,
             non_negative_cycle: false,
             weak: true,

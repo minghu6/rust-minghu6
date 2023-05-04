@@ -204,6 +204,7 @@ pub fn mst_boruvka(g: &Graph) -> Vec<(usize, usize)> {
 
 #[cfg(test)]
 mod tests {
+    use crate::tests::setup_ud_g_data;
     use super::{super::test::*, *};
 
 
@@ -215,8 +216,32 @@ mod tests {
     }
 
     #[test]
+    fn test_mst_fixed() {
+        let g = setup_ud_g_data();
+
+        let data =
+            vec![(2, vec![(1, 4), (1, 2), (4, 6), (2, 5), (3, 5), (5, 7)])];
+
+        for (gi, edges) in data {
+            let min = edges.into_iter().map(|x| get!(g[gi].w => x)).sum();
+
+            /* verify krusal (edge) algorithm */
+            let st = mst_kruskal(&g[gi]);
+            assert_eq!(g[gi].verify_mst(min, &st), Ok(()));
+
+            /* verify prim (vertex) algorithm */
+            let st = mst_prim(&g[gi]);
+            assert_eq!(g[gi].verify_mst(min, &st), Ok(()));
+
+            /* verify boruvka algorithm */
+            let st = mst_boruvka(&g[gi]);
+            assert_eq!(g[gi].verify_mst(min, &st), Ok(()));
+        }
+    }
+
+    #[test]
     fn test_mst_random() {
-        for g in batch_graph(100, 100, -10..20, &GraphGenOptions::undir_conn())
+        for g in batch_graph(50, 100, -10..20, &GraphGenOptions::undir_conn())
         {
             /* verify krusal (edge) algorithm */
             let st = mst_kruskal(&g);

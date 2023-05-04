@@ -158,7 +158,7 @@ pub fn furthest_vertex_no_w(g: &Graph, u: usize) -> (isize, Vec<usize>) {
 
         for v in cur_q.into_iter() {
             next_q.extend(
-                get!(g.e => u)
+                get!(g.e => v)
                     .into_iter()
                     .filter(|x| !is_visited.contains(x)),
             );
@@ -184,14 +184,14 @@ pub fn distance(g: &Graph, u: usize) -> M1<usize, isize> {
 
     while let Some((u, tot)) = q.pop() {
         for v in get!(g.e => u) {
-            if visited.contains(&v) {
-                continue;
-            }
-            visited.insert(v);
-            let newtot = tot + get!(g.w => u, v);
-            set!(d => u => newtot);
+            if !visited.contains(&v) {
+                visited.insert(v);
 
-            q.push((v, newtot));
+                let newtot = tot + get!(g.w => u, v);
+
+                set!(d => v => newtot);
+                q.push((v, newtot));
+            }
         }
     }
 
@@ -228,7 +228,7 @@ pub fn center(g: &Graph) -> Center {
     let mut min = g.vertexs().count();
     let mut min_v = vec![];
 
-    for u in g.dfs(None) {
+    for u in g.vertexs() {
         // println!("{u}");
         let w = max_subsize(g, u);
 
@@ -259,19 +259,23 @@ mod tests {
     use common::Itertools;
 
     use crate::{
-        to_undirected_vec,
         tree::{
             center, diameter::*, furthest_vertex_no_w, lca::LCATarjan,
-            lca::LCABL, Center, EulerSeq1, EulerSeq2, hpd::HPD,
+            lca::LCADP, Center, EulerSeq1, EulerSeq2, hpd::HPD,
         },
         Graph,
     };
 
 
-    fn setup_tree_data() -> Vec<Graph> {
+    fn setup_ud_tree_data() -> Vec<Graph> {
         // u->v, w
         let data = vec![
             // 0
+            /*
+                1---2--5
+                 \   \
+                 6--3 4--7
+             */
             vec![
                 (1usize, 6usize, 1isize),
                 (6, 3, 1),
@@ -350,13 +354,13 @@ mod tests {
         ];
 
         data.into_iter()
-            .map(|x| Graph::from_iter(to_undirected_vec(x)))
+            .map(|x| Graph::from_undirected_iter(x))
             .collect::<Vec<Graph>>()
     }
 
     #[test]
     fn test_furthest_vertex_no_w() {
-        let graphs = setup_tree_data();
+        let graphs = setup_ud_tree_data();
 
         // (gindex, startv, res)
         let data = vec![(0usize, 1usize, vec![7]), (0usize, 5, vec![3])];
@@ -367,6 +371,8 @@ mod tests {
             let vs: HashSet<usize> = HashSet::from_iter(vs);
             let res = HashSet::from_iter(res);
 
+            // let _ = graphs[ginx].render_as_file("out.dot");
+
             assert_eq!(vs, res, "INPUT: g{ginx}, {start}");
         }
     }
@@ -374,7 +380,7 @@ mod tests {
     #[test]
     fn test_diameter() {
         /* setup data */
-        let graphs = setup_tree_data();
+        let graphs = setup_ud_tree_data();
 
         let data = vec![(0, 5), (1, 3)];
 
@@ -400,8 +406,7 @@ mod tests {
 
     #[test]
     fn test_lca() {
-        /* setup data */
-        let graphs = setup_tree_data();
+        let graphs = setup_ud_tree_data();
 
         let data = vec![(
             4,
@@ -412,7 +417,7 @@ mod tests {
         for (gin, start, qd) in data {
             let g = &graphs[gin];
 
-            let lcabl = LCABL::new(g, start);
+            let lcabl = LCADP::new(g, start);
             let lca_tarjan = LCATarjan::new(g, start);
 
             for (p, q, res) in qd.clone() {
@@ -438,7 +443,7 @@ mod tests {
 
     #[test]
     fn test_euler_seq() {
-        let graphs = setup_tree_data();
+        let graphs = setup_ud_tree_data();
 
         let data =
             vec![(5, 1, vec![1, 2, 3, 3, 4, 4, 5, 5, 2, 6, 7, 7, 8, 8, 6, 1])];
@@ -461,7 +466,7 @@ mod tests {
 
     #[test]
     fn test_center() {
-        let g = setup_tree_data();
+        let g = setup_ud_tree_data();
 
         let data = vec![(6, Center::One(1)), (7, Center::AdjTwo(2, 3))];
 

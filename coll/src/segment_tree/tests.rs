@@ -29,6 +29,8 @@ macro_rules! gen_arr {
         gen_arr!(200, TEST_CAP_RANGE, 1..TEST_VALUE_UPPER_LIMIT, usize)
     };
     ($batch:expr, $cap_range:expr, $v_range:expr, $ty:ty) => {{
+        use common::random_range;
+
         let mut batch_arr = vec![];
 
         for _ in 0..$batch {
@@ -55,6 +57,8 @@ macro_rules! gen_query {
         gen_query!($batch, 0..$cap, 1..=$cap, $cap)
     };
     ($batch:expr, $i_range:expr, $len_range:expr, $cap:expr) => {{
+        use common::random_range;
+
         let mut batch_vec = vec![];
 
         for _ in 0..$batch {
@@ -85,7 +89,22 @@ macro_rules! gen_update {
             i32
         )
     };
+    (range|$batch:expr, $cap:expr, $v_range:expr, $ty:ty) => {{
+        use common::random_range;
+
+        let mut batch_vec = vec![];
+
+        for q in gen_query!($batch, $cap) {
+            let v = random_range!($v_range) as $ty;
+
+            batch_vec.push((q, v));
+        }
+
+        batch_vec
+    }};
     ($batch:expr, $i_range:expr, $v_range:expr, $ty:ty) => {{
+        use common::random_range;
+
         let mut batch_vec = vec![];
 
         for _ in 0..$batch {
@@ -99,6 +118,10 @@ macro_rules! gen_update {
     }};
 }
 
+
+pub(crate) use gen_arr;
+pub(crate) use gen_query;
+pub(crate) use gen_update;
 
 
 #[test]
@@ -178,27 +201,20 @@ fn test_segment_tree_sum_nth() {
 
 #[test]
 fn test_segment_tree_max_nth_updater() {
-    for mut arr in gen_arr!(N-i64) {
+    for mut arr in gen_arr!(N - i64) {
         let mut st = SegmentTree::<i64, Max<_>>::new(&arr);
 
         /* update */
 
-        for (i, v) in gen_update!(N-i64 | arr.len()) {
+        for (i, v) in gen_update!(N - i64 | arr.len()) {
             arr[i] = v;
-            st.assoc(
-                i,
-                <i64 as RawIntoStats<Max<_>>>::raw_into_stats(v),
-            );
+            st.assoc(i, <i64 as RawIntoStats<Max<_>>>::raw_into_stats(v));
         }
 
         /* query */
 
         for q in gen_query!(arr.len()) {
-            let expect = arr[q.clone()]
-                .into_iter()
-                .max()
-                .cloned()
-                .unwrap();
+            let expect = arr[q.clone()].into_iter().max().cloned().unwrap();
 
             let res = st.query(q.clone());
 
@@ -206,7 +222,8 @@ fn test_segment_tree_max_nth_updater() {
 
             /* verify query_nth_gt */
 
-            let qx = arr[random_range!(0..arr.len())] + arr[random_range!(0..arr.len())];
+            let qx = arr[random_range!(0..arr.len())]
+                + arr[random_range!(0..arr.len())];
 
             let expect = arr[q.clone()]
                 .into_iter()
@@ -222,8 +239,7 @@ fn test_segment_tree_max_nth_updater() {
 
         let mut updater = st.create_updater();
 
-        for (_i, q) in gen_query!(50, arr.len()).into_iter().enumerate()
-        {
+        for (_i, q) in gen_query!(50, arr.len()).into_iter().enumerate() {
             let addend = random_range!(0..100);
 
             // println!("{_i:3} +{addend}");
@@ -235,18 +251,14 @@ fn test_segment_tree_max_nth_updater() {
             updater.assoc(&mut st, q, addend);
 
             for q2 in gen_query!(50, arr.len()) {
-                let expect = arr[q2.clone()]
-                    .into_iter()
-                    .max()
-                    .cloned()
-                    .unwrap();
+                let expect =
+                    arr[q2.clone()].into_iter().max().cloned().unwrap();
 
                 let res = updater.query(&mut st, q2.clone());
 
                 assert_eq!(res, expect, "res / expect");
             }
         }
-
     }
 }
 
@@ -254,8 +266,7 @@ fn test_segment_tree_max_nth_updater() {
 #[test]
 fn test_segment_tree_max_stats() {
     for mut arr in gen_arr!(N) {
-        let mut st
-            = SegmentTree::<(i32, usize), MaxStats<_>>::new(&arr);
+        let mut st = SegmentTree::<(i32, usize), MaxStats<_>>::new(&arr);
 
         /* update */
 
@@ -370,8 +381,6 @@ fn test_segment_tree_zero_nth() {
             assert_eq!(nth_res, nth_expect, "res / expect");
         }
     }
-
-
 }
 
 
@@ -385,17 +394,16 @@ fn test_segment_tree_sub_seg_max_sum() {
 
         for (i, v) in gen_update!(I | arr.len()) {
             arr[i] = v;
-            st.assoc(i, <i32 as RawIntoStats<SubSegMaxSum<_>>>::raw_into_stats(v));
+            st.assoc(
+                i,
+                <i32 as RawIntoStats<SubSegMaxSum<_>>>::raw_into_stats(v),
+            );
         }
 
         /* update-query */
 
         for q in gen_query!(50, arr.len()) {
-            let qarr =
-                arr[q.clone()]
-                .into_iter()
-                .cloned()
-                .collect_vec();
+            let qarr = arr[q.clone()].into_iter().cloned().collect_vec();
 
             let mut expect = 0;
 
@@ -413,14 +421,11 @@ fn test_segment_tree_sub_seg_max_sum() {
                 }
             }
 
-
             let res = st.query(q.clone());
 
             assert_eq!(res.ans, expect, "res / expect {res:#?}");
         }
     }
-
-
 }
 
 

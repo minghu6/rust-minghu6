@@ -1,10 +1,11 @@
 [package]
 name = "m6-coll-graph"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2021"
 
 [dependencies]
 indexmap = "1"
+csv = "1.1"
 
 common = { package = "m6-common", path = "../common" }
 coll = { package = "m6-coll", path = "../coll" }
@@ -12,7 +13,6 @@ coll_heap = { package = "m6-coll-heap", path = "../coll_heap" }
 
 [dev-dependencies]
 lazy_static = "1.4.0"
-csv = "1.1"
 
 [package.metadata.workspaces]
 independent = true

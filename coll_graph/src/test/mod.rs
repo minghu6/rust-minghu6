@@ -1,27 +1,29 @@
-
 use std::{collections::HashSet, ops::Range};
 
-use common::*;
-
-use crate::sp::SPBellmanFord;
-use crate::{sp::{SPFA, SPJohnson, SPFloyd}, to_undirected_vec, Graph, Path};
-
 use coll::{
-    apush,
+    apush, del, set,
     {
         easycoll::MS,
         union_find::{MergeBy, UnionFind},
     },
-    del, set,
+};
+use common::*;
+
+use crate::{
+    to_undirected_vec, Graph,
 };
 
+
+pub mod path;
+mod sp;
+mod verify;
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Structure
 
 #[derive(Debug)]
 pub struct GraphGenOptions {
-    pub dir: bool,
+    pub is_dir: bool,
     /// if it's a tree
     pub cyclic: bool,
     pub non_negative_cycle: bool,
@@ -50,20 +52,20 @@ impl GraphGenOptions {
     /// 无向连通图
     pub fn undir_conn() -> Self {
         Self {
-            dir: false,
+            is_dir: false,
             cyclic: true,
             non_negative_cycle: false,
-            weak: false
+            weak: false,
         }
     }
 
     /// 有向强连通图
     pub fn dir_conn() -> Self {
         Self {
-            dir: true,
+            is_dir: true,
             cyclic: true,
             non_negative_cycle: false,
-            weak: false
+            weak: false,
         }
     }
 }
@@ -93,7 +95,7 @@ impl Graph {
         if sparsity == 10 {
             assert!(opt.cyclic);
             g = gen_scc_graph(vrange, wrange.clone());
-            g.dir = opt.dir;
+            g.is_dir = opt.is_dir;
         } else {
             let mut max = vrange * (vrange - 1);
             let min = vrange - 1;
@@ -105,7 +107,7 @@ impl Graph {
             let edge_limit = min + sparsity * peace;
 
             g = Graph::new();
-            g.dir = opt.dir;
+            g.is_dir = opt.is_dir;
             let mut dsu = UnionFind::new(Some(MergeBy::SZ));
 
             for v in 1..=vrange {
@@ -142,6 +144,7 @@ impl Graph {
 
                 let mut othset = del!(rem_edges => v);
                 othset.remove(&u);
+
                 if !othset.is_empty() {
                     set!(rem_edges => v => othset);
                 }
@@ -149,21 +152,19 @@ impl Graph {
                 dsu.cunion(u, v);
 
                 let w = random_range!(wrange.clone());
-                g.insert_edge((u, v), w);
+                g.insert((u, v), w);
 
-                if !opt.dir {
-                    g.insert_edge((v, u), w);
-                }
-                else if !opt.weak {
+                if !opt.is_dir {
+                    g.insert((v, u), w);
+                } else if !opt.weak {
                     let w2;
                     if opt.non_negative_cycle && w < 0 {
                         w2 = w.abs() + random_range!(0..wrange.end);
-                    }
-                    else {
+                    } else {
                         w2 = random_range!(wrange.clone());
                     }
 
-                    g.insert_edge((v, u), w2);
+                    g.insert((v, u), w2);
                 }
             }
 
@@ -183,22 +184,20 @@ impl Graph {
                 for v in comps_iter {
                     let w = random_range!(wrange.clone());
 
-                    g.insert_edge((u, v), w);
+                    g.insert((u, v), w);
                     dsu.cunion(u, v);
 
-                    if !opt.dir {
-                        g.insert_edge((v, u), w);
-                    }
-                    else if !opt.weak {
+                    if !opt.is_dir {
+                        g.insert((v, u), w);
+                    } else if !opt.weak {
                         let w2;
                         if opt.non_negative_cycle && w < 0 {
                             w2 = w.abs() + random_range!(0..wrange.end);
-                        }
-                        else {
+                        } else {
                             w2 = random_range!(wrange.clone());
                         }
 
-                        g.insert_edge((v, u), w2);
+                        g.insert((v, u), w2);
                     }
                 }
             }
@@ -210,7 +209,7 @@ impl Graph {
             let mut visited = HashSet::new();
             let mut edges = vec![];
 
-            for (u, v, w) in g.into_iter() {
+            for (u, v, w) in g.edges() {
                 if !visited.contains(&u) || !visited.contains(&v) {
                     visited.insert(u);
                     visited.insert(v);
@@ -219,13 +218,16 @@ impl Graph {
                 }
             }
 
-            if !opt.dir {
+            if !opt.is_dir {
                 edges = to_undirected_vec(edges);
             }
 
-            g = Graph::from_iter(edges);
-            g.dir = opt.dir;
-
+            if opt.is_dir {
+                g = Graph::from_directed_iter(edges);
+            }
+            else {
+                g = Graph::from_directed_iter(edges);
+            }
         } else {
             if wrange.start < 0 && opt.non_negative_cycle {
                 g.fix_negative_cycle_spfa(false);
@@ -233,120 +235,6 @@ impl Graph {
         }
 
         g
-    }
-
-    pub(crate) fn fix_one_negative_cycle_johnson(&mut self, g2: &mut Graph, cycle: &[usize], positive: bool) {
-        g2.verify_negative_cycle(cycle).unwrap();
-
-        let p = Path::from_cycle(&g2, cycle).freeze();
-        let mut totw = p.weight();
-        assert!(totw < 0);
-
-        for (u, v, w) in p.iter() {
-            if self.contains_edge((u, v)) {
-                if w < 0 {
-                    // reverse weight
-                    totw += 2 * (-w);
-                    set!(self.w => (u, v) => -w);
-
-                    if !self.dir {
-                        set!(self.w => (v, u) => -w);
-                    }
-
-                    if !positive {
-                        if totw >= 0 {
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    pub(crate) fn fix_one_negative_cycle_normal(&mut self, cycle: &[usize], positive: bool) {
-        self.verify_negative_cycle(cycle).unwrap();
-
-        let p = Path::from_cycle(self, cycle).freeze();
-        let mut totw = p.weight();
-        assert!(totw < 0);
-
-        for (u, v, w) in p.iter() {
-            if w < 0 {
-                // reverse weight
-                totw += 2 * (-w);
-                set!(self.w => (u, v) => -w);
-
-                if !self.dir {
-                    set!(self.w => (v, u) => -w);
-                }
-
-                if !positive {
-                    if totw >= 0 {
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    pub fn fix_negative_cycle_floyd(&mut self, positive: bool) {
-        loop {
-            if let Err(cycle) = SPFloyd::new(&self) {
-                self.fix_one_negative_cycle_normal(&cycle, positive);
-            }
-            else {
-                break;
-            }
-        }
-    }
-
-    pub fn fix_negative_cycle_johnson(&mut self, positive: bool) {
-        loop {
-            if let Err((mut g2, cycle)) = SPJohnson::new(&self) {
-                self.fix_one_negative_cycle_johnson(&mut g2, &cycle, positive);
-            }
-            else {
-                break;
-            }
-        }
-    }
-
-    pub fn fix_negative_cycle_bellmanford(&mut self, positive: bool) {
-        let vs: Vec<usize> = self.vertexs().collect();
-        let n = vs.len();
-        let mut i = 0;
-        loop {
-            if i >= n {
-                break;
-            }
-
-            if let Err(cycle) = SPBellmanFord::new(&self, vs[i]) {
-                self.fix_one_negative_cycle_normal(&cycle, positive);
-
-                continue;
-            } else {
-                i += 1;
-            }
-        }
-    }
-
-    pub fn fix_negative_cycle_spfa(&mut self, positive: bool) {
-        let vs: Vec<usize> = self.vertexs().collect();
-        let n = vs.len();
-        let mut i = 0;
-        loop {
-            if i >= n {
-                break;
-            }
-
-            if let Err(cycle) = SPFA::new(&self, vs[i]) {
-                self.fix_one_negative_cycle_normal(&cycle, positive);
-
-                continue;
-            } else {
-                i += 1;
-            }
-        }
     }
 
 }
@@ -368,9 +256,8 @@ fn gen_scc_graph(vrange: usize, wrange: Range<isize>) -> Graph {
         }
     }
 
-    edges.into_iter().collect()
+    Graph::from_undirected_iter(edges)
 }
-
 
 
 
@@ -399,7 +286,7 @@ mod tests {
     use std::fs::File;
 
     use super::*;
-    use crate::{Graph, debug::graphviz::RenderOptions};
+    use crate::{debug::graphviz::RenderOptions, Graph};
 
 
     #[test]
@@ -424,12 +311,9 @@ mod tests {
 
     #[test]
     fn test_batch_graph() {
-        for _g in batch_graph(
-            100,
-            100,
-            1..50,
-            &GraphGenOptions::undir_conn()
-        ) {}
+        for _g in batch_graph(100, 100, 1..50, &GraphGenOptions::undir_conn())
+        {
+        }
         // for _ in 0..100 {
         //     // let sparsity = random() % 10 + 1;
 

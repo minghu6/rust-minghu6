@@ -552,15 +552,33 @@ macro_rules! roadmap {
 
 
 #[macro_export]
-macro_rules! impl_uint {
-    ($e:ident) => {
-        $e(u8);
-        $e(u16);
-        $e(u32);
-        $e(u64);
-        $e(u128);
-        $e(usize);
-    };
+macro_rules! parse_range {
+    ($range:expr, $len:expr) => {{
+        use std::ops::Bound::*;
+
+        let range = $range;
+        let len = $len;
+
+        let l;
+        let r;
+
+        match range.start_bound() {
+            Included(v) => l = *v,
+            Excluded(v) => l = *v + 1,
+            Unbounded => l = 0,
+        }
+
+        match range.end_bound() {
+            Included(v) => r = *v,
+            Excluded(v) => {
+                assert!(*v > 0, "range upper is invalid (=0)");
+                r = *v - 1
+            }
+            Unbounded => r = len - 1,
+        }
+
+        (l, r)
+    }};
 }
 
 

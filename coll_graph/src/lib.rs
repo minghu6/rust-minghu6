@@ -9,36 +9,34 @@ pub mod sp;
 pub mod toposort;
 pub mod tree;
 pub mod scc;
-#[cfg(test)]
-mod test;
+pub mod test;
 #[cfg(test)]
 mod debug;
 
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     fmt::Debug,
-    iter::once,
 };
 
 use coll::{
-    aux::VerifyResult,
     easycoll::{M1, MV},
     union_find::{UnionFind, SZ},
-    apush, aux::VerifyError, get, getopt, queue, set, stack,
+    apush, get, getopt, set,
 };
 
-use self::tree::diameter::diameter_dp;
 
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Structure
 
-/// Adjacent link formed simple (directed) connected graph
+/// Adjacent list formed simple (directed) connected graph
+///
+/// Just ignore orphan vertex
 #[derive(Default, Clone)]
 pub struct Graph {
     /// If it's directed
-    pub dir: bool,
+    pub is_dir: bool,
     /// Out-edges
     pub e: MV<usize, usize>,
     /// In-edges
@@ -47,89 +45,13 @@ pub struct Graph {
 }
 
 
-pub struct Path<'a> {
-    g: &'a Graph,
-    path: Vec<usize>,
-}
 
-
-/// Freezed path
-pub struct FPath {
-    weight: isize,
-    path: Vec<(usize, usize, isize)>,
-}
-
-
-////////////////////////////////////////////////////////////////////////////////
-//// Implementation
-
-impl FPath {
-    pub fn iter<'a>(
-        &'a self,
-    ) -> impl Iterator<Item = (usize, usize, isize)> + 'a {
-        self.path.iter().cloned()
+impl Graph {
+    pub fn new() -> Self {
+        Default::default()
     }
 
-    #[inline]
-    pub const fn weight(&self) -> isize {
-        self.weight
-    }
-}
-
-
-impl<'a> Path<'a> {
-    pub fn new(g: &'a Graph, path: &[usize]) -> Self {
-        Self {
-            g,
-            path: path.into_iter().cloned().collect(),
-        }
-    }
-
-    pub fn from_cycle(g: &'a Graph, cycle: &[usize]) -> Self {
-        Self {
-            g,
-            path: cycle.into_iter().cloned().chain(once(cycle[0])).collect(),
-        }
-    }
-
-    pub fn from_pre(g: &'a Graph, dst: usize, pre: &M1<usize, usize>) -> Self {
-        let path = sp::pre_to_path!(dst, pre);
-
-        Self { g, path }
-    }
-
-    /// Empty path weight is zero
-    pub fn weight(&self) -> isize {
-        self.iter().map(|x| x.2).sum::<isize>()
-    }
-
-    pub fn iter<'b>(
-        &'b self,
-    ) -> impl Iterator<Item = (usize, usize, isize)> + 'b {
-        std::iter::from_generator(|| {
-            let mut cur = self.path[0];
-
-            for v in self.path[1..].iter().cloned() {
-                yield (cur, v, get!(self.g.w => (cur, v)));
-                cur = v;
-            }
-        })
-    }
-
-    pub fn freeze(&self) -> FPath {
-        FPath {
-            weight: self.weight(),
-            path: self.iter().collect(),
-        }
-    }
-}
-
-
-
-impl FromIterator<(usize, usize, isize)> for Graph {
-    fn from_iter<T: IntoIterator<Item = (usize, usize, isize)>>(
-        iter: T,
-    ) -> Self {
+    pub fn from_directed_iter<T: IntoIterator<Item = (usize, usize, isize)>>(iter: T) -> Self {
         let mut e = MV::new();
         let mut rev = MV::new();
         let mut w = M1::new();
@@ -140,56 +62,35 @@ impl FromIterator<(usize, usize, isize)> for Graph {
             set!(w => (u, v) => _w);
         }
 
-        Self { dir: true, e, rev, w }
+        Self { is_dir: true, e, rev, w }
     }
-}
 
-
-impl IntoIterator for Graph {
-    type Item = (usize, usize, isize);
-    type IntoIter = impl Iterator<Item = Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        let w = self.w;
-
-        self.e
-            .0
+    pub fn from_undirected_iter<T: IntoIterator<Item = (usize, usize, isize)>>(iter: T) -> Self {
+        let mut g = Self::from_directed_iter(iter
             .into_iter()
-            .map(|(u, vs)| vs.into_iter().map(move |v| (u, v)))
+            .map(|(u, v, w)| [
+                (u, v, w),
+                (v, u, w)
+            ])
             .flatten()
-            .map(move |(u, v)| (u, v, get!(w => (u, v))))
-    }
-}
+        );
 
+        g.is_dir = false;
 
-impl Debug for Graph {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if f.alternate() {
-            writeln!(f, "edge: {:#?}", self.e)?;
-            writeln!(f, "weight: {:#?}", self.w)?;
-        } else {
-            writeln!(f, "edge: {:?}", self.e)?;
-            writeln!(f, "weight: {:?}", self.w)?;
-        }
-
-        Ok(())
-    }
-}
-
-
-impl Graph {
-    pub fn new() -> Self {
-        Default::default()
+        g
     }
 
     /// get Transpose
     pub fn t(&self) -> Self {
-        Self::from_iter(
+        debug_assert!(self.is_dir);
+
+        Self::from_directed_iter(
             self.edges().map(|(u, v, w)| (v, u, w))
         )
     }
 
-    pub fn insert_edge(
+    /// Push new edge or update old edge with new weight
+    pub fn insert(
         &mut self,
         edge: (usize, usize),
         w: isize,
@@ -214,11 +115,6 @@ impl Graph {
         *self.e.0.keys().next().unwrap()
     }
 
-    /// The length of the shortest path between the most distanced nodes.
-    pub fn diameter(&self) -> isize {
-        diameter_dp(self)
-    }
-
     /// O(|E|)
     pub fn vertexs(&self) -> impl Iterator<Item = usize> {
         let mut vertexs = HashSet::new();
@@ -234,76 +130,12 @@ impl Graph {
     pub fn edges<'a>(
         &'a self,
     ) -> impl Iterator<Item = (usize, usize, isize)> + 'a {
-        let mut edges = self.e.0.iter();
-        let mut subedges = vec![];
-
-        std::iter::from_fn(move || loop {
-            if let Some((u, v)) = subedges.pop() {
-                return Some((u, v, get!(self.w => (u, v))));
-            } else {
-                if let Some((from, tos)) = edges.next() {
-                    subedges = tos
-                        .into_iter()
-                        .cloned()
-                        .map(|v| (*from, v))
-                        .rev()
-                        .collect::<Vec<(usize, usize)>>();
-                } else {
-                    return None;
+        std::iter::from_generator(|| {
+            for (u, tos) in self.e.0.iter() {
+                for v in tos {
+                    yield (*u, *v, get!(self.w => (*u, *v)))
                 }
             }
-        })
-    }
-
-    /// Preorder
-    pub fn dfs<'a>(
-        &'a self,
-        start: Option<usize>,
-    ) -> impl Iterator<Item = usize> + 'a {
-        let start = start.unwrap_or(self.anypoint());
-
-        let mut stack = stack![(start, start)];
-
-        std::iter::from_fn(move || {
-            while let Some((u, p)) = stack.pop() {
-                stack.extend(
-                    get!(self.e => u)
-                        .into_iter()
-                        .filter(|v| *v != p)
-                        .map(|v| (v, u))
-                        .rev(),
-                );
-
-                return Some(u);
-            }
-
-            None
-        })
-    }
-
-    pub fn bfs<'a>(
-        &'a self,
-        start: Option<usize>,
-    ) -> impl Iterator<Item = usize> + 'a {
-        let start = start.unwrap_or(self.anypoint());
-
-        let mut q = queue![(start, start)];
-        // let mut visited = HashSet::new();
-
-        std::iter::from_fn(move || {
-            while let Some((u, p)) = q.deq() {
-                for v in get!(self.e => u) {
-                    if v == p {
-                        continue;
-                    }
-
-                    q.enq((v, u));
-                }
-
-                return Some(u);
-            }
-
-            None
         })
     }
 
@@ -324,7 +156,7 @@ impl Graph {
 
     /// O(|E|) for undirected graph
     pub fn components(&self) -> Vec<Vec<usize>> {
-        if self.dir {
+        if self.is_dir {
             unimplemented!()
         }
 
@@ -349,124 +181,6 @@ impl Graph {
         comps.0.into_iter().map(|(_k, vs)| vs).collect()
     }
 
-
-    ////////////////////////////////////////////////////////////////////////////
-    /// Verify
-
-    /// verify spanning tree
-    pub fn verify_st(&self, st: &[(usize, usize)]) -> VerifyResult {
-        let mut vertx = self
-            .vertexs()
-            .map(|v| (v, ()))
-            .collect::<HashMap<usize, ()>>();
-
-        for (u, v) in st {
-            if !self.contains_edge((*u, *v)) {
-                return Err(VerifyError::Inv(format!("No edge {u}->{v}")));
-            }
-
-            vertx.remove(u);
-            vertx.remove(v);
-        }
-
-        if vertx.is_empty() {
-            Ok(())
-        } else {
-            Err(VerifyError::Fail(format!("remains vertex: {vertx:?}",)))
-        }
-    }
-
-
-    /// verify minimal spanning tree
-    pub fn verify_mst(
-        &self,
-        min: isize,
-        st: &[(usize, usize)],
-    ) -> VerifyResult {
-        self.verify_st(st)?;
-
-        let tot: isize = st.into_iter().map(|x| get!(self.w => x)).sum();
-
-        if tot == min {
-            Ok(())
-        } else if tot < min {
-            Err(VerifyError::Inv(format!("cur_tot: {tot} < min: {min}")))
-        } else {
-            Err(VerifyError::Fail(format!("too big")))
-        }
-    }
-
-    pub fn verify_path(
-        &self,
-        src: usize,
-        dst: usize,
-        path: &[usize],
-    ) -> VerifyResult {
-        let mut u = src;
-
-        for v in path {
-            if self.contains_edge((u, *v)) {
-                u = *v;
-            } else {
-                return Err(VerifyError::Inv(format!(
-                    "No edge {u}-{v} for {path:?} src: {src} dst: {dst}"
-                )));
-            }
-        }
-
-        if u == dst {
-            Ok(())
-        } else {
-            Err(VerifyError::Inv(format!("Not end in {dst}, found {u}")))
-        }
-    }
-
-    pub fn verify_cycle(&self, cycle: &[usize]) -> VerifyResult {
-        if cycle.len() == 0 {
-            return Err(VerifyError::Inv(format!("Empty negative cycle")));
-        }
-        if cycle.len() == 1 {
-            return Err(VerifyError::Inv(format!("Self loop")));
-        }
-        if cycle.len() == 2 && !self.dir {
-            return Err(VerifyError::Fail(format!("Single edge cycle for undirected graph")));
-        }
-
-        let src = *cycle.first().unwrap();
-        let dst = *cycle.last().unwrap();
-
-        self.verify_path(src, dst, &cycle[1..])?;
-
-        if self.contains_edge((dst, src)) {
-            Ok(())
-        } else {
-            Err(VerifyError::Fail(format!("{dst} can't goback to {src}")))
-        }
-    }
-
-    pub fn verify_negative_cycle(
-        &self,
-        cycle: &[usize],
-    ) -> VerifyResult {
-        self.verify_cycle(cycle)?;
-
-        /* verify negative weights sumeration */
-
-        let sumw: isize = cycle
-            .iter()
-            .cloned()
-            .zip(cycle[1..].iter().cloned().chain(once(cycle[0])))
-            .map(|(u, v)| get!(self.w => (u, v)))
-            .sum();
-
-        if sumw < 0 {
-            Ok(())
-        } else {
-            Err(VerifyError::Fail(format!("weight sum: {sumw} >= 0, for cycle {cycle:?}")))
-        }
-    }
-
-
     ////////////////////////////////////////////////////////////////////////////
     /// Introspection
 
@@ -483,7 +197,7 @@ impl Graph {
         let n = self.vertexs().count();
         let m = self.edges().count();
 
-        if self.dir {
+        if self.is_dir {
             let max = n * (n - 1);
             let min = n - 1;
             let peace = (max - min) / 10;
@@ -497,6 +211,8 @@ impl Graph {
             (m / 2 - min) / peace
         }
     }
+
+
 }
 
 
@@ -517,20 +233,31 @@ pub fn to_undirected_vec<T: IntoIterator<Item = (usize, usize, isize)>>(
     res
 }
 
+impl Debug for Graph {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if f.alternate() {
+            writeln!(f, "edge: {:#?}", self.e)?;
+            writeln!(f, "weight: {:#?}", self.w)?;
+        } else {
+            writeln!(f, "edge: {:?}", self.e)?;
+            writeln!(f, "weight: {:?}", self.w)?;
+        }
+
+        Ok(())
+    }
+}
+
 
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
 
-    use common::Itertools;
-    use coll::get;
     use crate::{
-        mst::{mst_boruvka, mst_kruskal, mst_prim},
-        to_undirected_vec, Graph,
+         Graph,
     };
 
 
-    fn setup_g_data() -> Vec<Graph> {
+    pub(crate) fn setup_ud_g_data() -> Vec<Graph> {
         // u->v, w
         let data = vec![
             // no0
@@ -578,53 +305,7 @@ mod tests {
         ];
 
         data.into_iter()
-            .map(|x| Graph::from_iter(to_undirected_vec(x)))
+            .map(|x| Graph::from_undirected_iter(x))
             .collect::<Vec<Graph>>()
-    }
-
-    #[test]
-    fn test_g_dfs() {
-        let g = setup_g_data();
-
-        let data = vec![(0, 1, vec![1, 2, 5, 4, 7, 6, 3])];
-
-        for (gi, start, seq) in data {
-            assert_eq!(g[gi].dfs(Some(start)).collect_vec(), seq);
-        }
-    }
-
-    #[test]
-    fn test_g_bfs() {
-        let g = setup_g_data();
-
-        let data = vec![(0, 1, vec![1, 2, 6, 5, 4, 3, 7])];
-
-        for (gi, start, seq) in data {
-            assert_eq!(g[gi].bfs(Some(start)).collect_vec(), seq);
-        }
-    }
-
-    #[test]
-    fn test_mst_fixed() {
-        let g = setup_g_data();
-
-        let data =
-            vec![(2, vec![(1, 4), (1, 2), (4, 6), (2, 5), (3, 5), (5, 7)])];
-
-        for (gi, edges) in data {
-            let min = edges.into_iter().map(|x| get!(g[gi].w => x)).sum();
-
-            /* verify krusal (edge) algorithm */
-            let st = mst_kruskal(&g[gi]);
-            assert_eq!(g[gi].verify_mst(min, &st), Ok(()));
-
-            /* verify prim (vertex) algorithm */
-            let st = mst_prim(&g[gi]);
-            assert_eq!(g[gi].verify_mst(min, &st), Ok(()));
-
-            /* verify boruvka algorithm */
-            let st = mst_boruvka(&g[gi]);
-            assert_eq!(g[gi].verify_mst(min, &st), Ok(()));
-        }
     }
 }

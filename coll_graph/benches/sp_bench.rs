@@ -1,8 +1,10 @@
+#![feature(test)]
+
 extern crate test;
 
 use test::Bencher;
 
-use crate::{
+use m6_coll_graph::{
     test::{ batch_graph, GraphGenOptions },
     sp::{sp_fa, sp_fa_early_termination, SPDijkstra, SPFA},
     Graph,

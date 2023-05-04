@@ -1,13 +1,14 @@
 use std::collections::HashSet;
 
-use super::{Graph, hpd::HPD};
 use coll::{
+    apush, get, getopt, m1, mv, set,
     {
-        easycoll::{M1, M2, MV},
+        easycoll::{M1, MV},
         union_find::UnionFind,
     },
-    get, getopt, m1, m2, set, mv, apush,
 };
+
+use super::{hpd::HPD, Graph};
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Structure
@@ -15,21 +16,23 @@ use coll::{
 /// Binary lifting, (improved version of native) 对数(2)式跳转
 ///
 /// Obviously, it's online algorithm.
-pub struct LCABL {
-    data: LCABLD,
+pub struct LCADP {
+    data: LCADPD,
 }
 
-/// LCA Binaru Lifting Data
-struct LCABLD {
-    acs: M2<usize, usize, usize>,
-    d: M1<usize, usize>,
+/// LCA Binary Lifting Data
+struct LCADPD {
+    /// u, 2^(idx) th ancestor, ancestor id
+    acs: MV<usize, usize>,
+    /// depth
+    depth: M1<usize, usize>,
 }
 
 
-/// LCA Tarjan [tray jn] using
+/// LCA Tarjan using
 pub struct LCATarjan<'a> {
     g: &'a Graph,
-    start: usize,
+    root: usize,
     dsu: UnionFind<usize>,
 }
 
@@ -37,57 +40,107 @@ pub struct LCATarjan<'a> {
 ////////////////////////////////////////////////////////////////////////////////
 //// Implementation
 
-impl LCABL {
+impl LCADP {
     /// O(n*log(n))
-    pub fn new(g: &Graph, start: usize) -> Self {
-        let data = lca_bl_setup(g, start);
+    pub fn new(g: &Graph, root: usize) -> Self {
+        /// Recursive version of LCA setup data
+        fn setup_dfs_r(g: &Graph, u: usize, p: usize, data: LCADPD) -> LCADPD {
+            let LCADPD { mut acs, mut depth } = data;
+
+            for v in get!(g.e => u) {
+                if v == p {
+                    continue;
+                }
+
+                let v_depth = get!(depth => u => 0) + 1;
+
+                set!(depth => v => v_depth);
+                apush!(acs => v => u);
+
+                for j in 1..=v_depth.ilog2() as usize {
+                    // acs[i][j] = acs[acs[i][j-1]][j-1]
+                    let oldstate
+                    = get!(acs =>
+                        get!(acs =>
+                            v,
+                            j-1
+                        ),
+                        j-1
+                    );
+                    apush!(acs => v => oldstate);
+                }
+
+                let data = setup_dfs_r(g, v, u, LCADPD { acs, depth });
+
+                acs = data.acs;
+                depth = data.depth;
+            }
+
+            LCADPD { acs, depth }
+        }
+
+        let data = setup_dfs_r(
+            g,
+            root,
+            root,
+            LCADPD {
+                acs: mv![root => 0 => root],
+                depth: m1![root => 0],
+            },
+        );
 
         Self { data }
     }
 
     /// O(logn) + online
     pub fn query(&self, mut p: usize, mut q: usize) -> usize {
-        let d = &self.data.d;
+        let depth = &self.data.depth;
         let acs = &self.data.acs;
 
         /* swap p to the depthest node */
-        if get!(d => q) > get!(d => p) {
+
+        if get!(depth => q) > get!(depth => p) {
             (p, q) = (q, p);
         }
 
         /* binary lift q to the same depth of p */
-        let mut diff = get!(d => p) - get!(d => q);
+
+        let mut diff = get!(depth => p) - get!(depth => q);
         let mut j = 0;
+
+        /* binary decomposition of `diff`
+            accumulate from low bit to high bit
+        */
+
         while diff > 0 {
-            // move base if the latest number is 1
-            // So we can arrive at specific dsiatnce by 2 power
+
             if diff & 1 > 0 {
-                p = get!(acs =>p, j);
+                p = get!(acs => p, j);
             }
 
             j += 1;
             diff >>= 1
         }
 
-        debug_assert_eq!(get!(d => p), get!(d => q));
+        debug_assert_eq!(get!(depth => p), get!(depth => q));
 
-        /* same path vertex return to avoid eval too big CA later */
         if p == q {
             return p;
         }
 
-        /* binary lift p and q from high to low */
+        /* binary decomposition of unknown x depth before lca */
 
-        for j in (0..get!(d => p).ilog2() as usize).rev() {
-            // depth overflow or too big
-            if getopt!(acs => p,j) != getopt!(acs => q,j) {
+        for j in (1..=get!(depth => p).ilog2() as usize).rev() {
+            if get!(acs => p,j) != get!(acs => q,j) {
                 p = get!(acs => p,j);
                 q = get!(acs => q,j);
             }
         }
 
-        p = get!(acs => p,0);
-        q = get!(acs => q,0);
+        if p != q {
+            p = get!(acs => p, 0);
+            q = get!(acs => q, 0);
+        }
 
         debug_assert_eq!(p, q);
 
@@ -98,14 +151,14 @@ impl LCABL {
 
 
 impl<'a> LCATarjan<'a> {
-    pub fn new(g: &'a Graph, start: usize) -> Self {
+    pub fn new(g: &'a Graph, root: usize) -> Self {
         let mut dsu = UnionFind::new(None);
 
         for n in g.vertexs() {
             dsu.insert(n);
         }
 
-        Self { dsu, g, start }
+        Self { dsu, g, root: root }
     }
 
     /// O((n+m) / m) + offline, 处理大量查询时有优势
@@ -132,8 +185,7 @@ impl<'a> LCATarjan<'a> {
             dsu: &mut UnionFind<usize>,
             q: &MV<usize, (usize, usize)>,
             res: &mut Vec<usize>,
-        )
-        {
+        ) {
             visited.insert(u);
 
             /* dfs */
@@ -157,7 +209,7 @@ impl<'a> LCATarjan<'a> {
             }
         }
 
-        tarjan(self.g, self.start, &mut visited, &mut dsu, &q, &mut res);
+        tarjan(self.g, self.root, &mut visited, &mut dsu, &q, &mut res);
 
         res
     }
@@ -165,7 +217,6 @@ impl<'a> LCATarjan<'a> {
 
 
 impl HPD {
-
     /// O(log(n))
     ///
     /// 同重链， O(1); 不同重链，O(log2(n))
@@ -193,62 +244,4 @@ impl HPD {
 
         y
     }
-
 }
-
-
-////////////////////////////////////////////////////////////////////////////////
-//// Function
-
-
-
-/// -> (depth map, ancestors map)
-fn lca_bl_setup(g: &Graph, start: usize) -> LCABLD {
-    /// Recursive version of LCA setup data
-    fn setup_dfs_r(g: &Graph, u: usize, p: usize, data: LCABLD) -> LCABLD {
-        let LCABLD { mut acs, mut d } = data;
-
-        // println!("-> {u}");
-
-        for v in get!(g.e => u) {
-            if v == p {
-                // println!("skip-{v}, ");
-                continue;
-            }
-            // println!("{v}, ");
-
-            let curd = get!(d => u => 0) + 1;
-            set!(d => v => curd);
-
-            let mut i = curd >> 1;
-            let mut j = 1;
-            set!(acs => v, 0 => u);
-
-            while i > 0 {
-                // acs[i][j] = acs[acs[i][j-1]][j-1]
-                let oldstate = get!(acs => get!(acs => v, j-1), j-1);
-                set!(acs => v, j => oldstate);
-
-                i >>= 1;
-                j += 1;
-            }
-
-            let data = setup_dfs_r(g, v, u, LCABLD { acs, d });
-            acs = data.acs;
-            d = data.d;
-        }
-
-        LCABLD { acs, d }
-    }
-
-    setup_dfs_r(
-        g,
-        start,
-        start,
-        LCABLD {
-            acs: m2![start => 0 => start,],
-            d: m1![start => 0,],
-        },
-    )
-}
-
