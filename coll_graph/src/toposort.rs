@@ -1,9 +1,10 @@
 //! Can used for detect ring
 //!
 
+use std::collections::HashMap;
+
 use coll::{
-    easycoll::M1,
-    get, m1, queue, set,
+    get, queue, set,
 };
 
 use crate::Graph;
@@ -12,7 +13,7 @@ use crate::Graph;
 /// Kahn (pronounce can) algorithm (assume a DIRECTED graph) O(E + V)
 pub fn toposort_kahn(g: &Graph) -> Option<Vec<usize>> {
     /* build ein map */
-    let mut ein = m1!();
+    let mut ein = HashMap::new();
 
     for u in g.vertexs() {
         for v in get!(g.e => u) {
@@ -29,7 +30,7 @@ pub fn toposort_kahn(g: &Graph) -> Option<Vec<usize>> {
     #[allow(non_snake_case)]
     let mut S = queue!();
 
-    for u in ein.0.keys().cloned() {
+    for u in ein.keys().cloned() {
         if get!(ein => u) == 0 {
             S.enq(u);
         }
@@ -62,7 +63,7 @@ pub fn toposort_kahn(g: &Graph) -> Option<Vec<usize>> {
 #[allow(non_snake_case)]
 pub fn toposort_dfs(g: &Graph) -> Option<Vec<usize>> {
     let mut L = vec![];
-    let mut marks = m1!();
+    let mut marks = HashMap::new();
 
     #[derive(PartialEq, Clone, Copy)]
     enum Mark {
@@ -74,7 +75,7 @@ pub fn toposort_dfs(g: &Graph) -> Option<Vec<usize>> {
     fn dfs(
         g: &Graph,
         u: usize,
-        marks: &mut M1<usize, Mark>,
+        marks: &mut HashMap<usize, Mark>,
         L: &mut Vec<usize>,
     ) -> Result<(), ()> {
         match get!(marks => u) {

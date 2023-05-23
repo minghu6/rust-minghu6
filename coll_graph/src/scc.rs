@@ -4,139 +4,171 @@
 
 use std::{
     cmp::min,
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
 };
 
-use super::Graph;
 use coll::{
-    apush,
-    {aux::VerifyResult, easycoll::MS},
-    get, set,
+    aux::{VerifyError, VerifyResult},
+    get, ordered_insert, set,
 };
+use common::{hashset, Itertools};
+
+use super::Graph;
 
 
 impl Graph {
-    pub fn verify_scc(&self, _scc: &[usize]) -> VerifyResult {
+    pub fn verify_sccs(&self, sccs: &[Vec<usize>]) -> VerifyResult {
         debug_assert!(self.is_dir);
+
+        /* vertexs are disjoint and complete */
+
+        let vertexs_origin = self.vertexs().sorted().collect::<Vec<usize>>();
+        let mut vertexs_scc = vec![];
+
+        for scc in sccs {
+            vertexs_scc.extend(scc.iter().cloned());
+        }
+
+        vertexs_scc.sort();
+
+        if vertexs_scc != vertexs_origin {
+            return Err(VerifyError::Fail(
+                "Unmatched scc vertexs set".to_owned(),
+            ));
+        }
+
+        /* each scc */
+
+        for scc in sccs {
+            self.verify_scc(scc)?;
+        }
+
+        Ok(())
+    }
+
+    fn verify_scc(&self, scc: &[usize]) -> VerifyResult {
+        if scc.is_empty() {
+            return Err(VerifyError::Inv("Invalid empty scc".to_owned()));
+        }
+
+        let scc_vertexs = scc.iter().cloned().sorted().collect::<Vec<usize>>();
+
+        let mut acc: HashSet<usize> = scc.into_iter().cloned().collect();
+
+        for u in scc.iter().cloned() {
+            let mut visited = hashset![u];
+            let mut stack = vec![u];
+
+            while let Some(u) = stack.pop() {
+                for v in get!(self.e => u => vec![]) {
+                    if !visited.contains(&v) {
+                        visited.insert(v);
+                        stack.push(v);
+                    }
+                }
+            }
+
+            acc = acc.intersection(&visited).cloned().collect();
+        }
+
+        let visited_vertexs = acc.into_iter().sorted().collect::<Vec<usize>>();
+
+        if visited_vertexs != scc_vertexs {
+            return Err(
+                VerifyError::Fail(
+                    format!("Wrong scc: \nscc    : {scc_vertexs:?} \nvisited: {visited_vertexs:?}\n")
+                )
+            );
+        }
 
         Ok(())
     }
 }
 
 
-pub fn scc_tarjan(g: &Graph) -> Vec<HashSet<usize>> {
-    let mut stack = vec![];
-    let mut index = 0;
-
-    #[derive(Default)]
-    struct Meta {
+pub fn scc_tarjan(g: &Graph) -> Vec<Vec<usize>> {
+    #[derive(Default, Clone, Copy)]
+    struct DFSMeta {
         index: Option<usize>,
-        lowlink: Option<usize>,
-        on_stack: bool,
+        lowlink: usize,
+        on_stack: bool
     }
 
-    let mut vertexs = g
-        .vertexs()
-        .map(|u| (u, Meta::default()))
-        .collect::<HashMap<usize, Meta>>();
-
-    let mut comps: Vec<HashSet<usize>> = Vec::new();
-
-    for u in g.vertexs() {
-        if get!(vertexs => u).index.is_none() {
-            find_comp(g, u, &mut stack, &mut index, &mut vertexs, &mut comps)
-        }
-    }
-
-    fn find_comp(
+    fn dfs_scc(
         g: &Graph,
         u: usize,
+        comps: &mut Vec<Vec<usize>>,
         stack: &mut Vec<usize>,
         index: &mut usize,
-        vertexs: &mut HashMap<usize, Meta>,
-        comps: &mut Vec<HashSet<usize>>,
+        vertexs: &mut Vec<DFSMeta>,
     ) {
-        set!(vertexs => u => Meta {
+        vertexs[u] = DFSMeta {
             index: Some(*index),
-            lowlink: Some(*index),
-            on_stack: true
-        });
+            lowlink: *index,
+            on_stack: true,
+        };
 
         *index += 1;
         stack.push(u);
 
-
         for v in get!(g.e => u => vec![]) {
-            if get!(vertexs => v).index.is_none() {
-                find_comp(g, v, stack, index, vertexs, comps);
+            if vertexs[v].index.is_none() {
+                dfs_scc(g, v, comps, stack, index, vertexs);
 
-                vertexs.get_mut(&u).unwrap().lowlink = Some(min(
-                    get!(vertexs => u).lowlink.unwrap(),
-                    get!(vertexs => v).lowlink.unwrap(),
-                ));
-            } else if get!(vertexs => v).on_stack {
-                vertexs.get_mut(&u).unwrap().lowlink = Some(min(
-                    get!(vertexs => u).lowlink.unwrap(),
-                    // It says v.index not v.lowlink;
-                    // that is deliberate and from the original paper
-                    get!(vertexs => v).index.unwrap(),
-                ));
+                vertexs[u].lowlink =
+                    min(vertexs[u].lowlink, vertexs[v].lowlink);
+            } else if vertexs[v].index < vertexs[u].index
+                && vertexs[v].on_stack
+            {
+                vertexs[u].lowlink =
+                    min(vertexs[u].lowlink, vertexs[v].index.unwrap());
             }
         }
 
-        if get!(vertexs => u).lowlink.unwrap()
-            == get!(vertexs => u).index.unwrap()
-        {
-            /* start a new scc */
-            let mut set = HashSet::new();
+        /* start a new scc */
+
+        if vertexs[u].lowlink == vertexs[u].index.unwrap() {
+            let mut new_comp = Vec::new();
 
             while let Some(s) = stack.pop() {
-                set.insert(s);
-                vertexs.get_mut(&s).unwrap().on_stack = false;
+                ordered_insert!(&mut new_comp, s);
+                vertexs[s].on_stack = false;
 
                 if s == u {
                     break;
                 }
             }
 
-            comps.push(set);
+            ordered_insert!(comps, new_comp, |x: &Vec<usize>| x[0]);
         }
     }
 
+
+    let mut comps = Vec::new();
+
+    if g.e.is_empty() {
+        return comps;
+    }
+
+    let mut stack = vec![];
+    let mut index = 0;
+
+    let max_v = g.vertexs().max().unwrap();
+
+    let mut vertexs = vec![DFSMeta::default(); max_v + 1];
+
+    for u in g.vertexs() {
+        if vertexs[u].index.is_none() {
+            dfs_scc(g, u, &mut comps, &mut stack, &mut index, &mut vertexs)
+        }
+    }
 
     comps
 }
 
 
 /// or Gabow
-pub fn scc_path_based(g: &Graph) -> Vec<HashSet<usize>> {
-    let mut stack = vec![];
-    let mut path = vec![];
-    let mut index = 0;
-    let mut vertexs = g
-        .vertexs()
-        .map(|u| (u, None))
-        .collect::<HashMap<usize, Option<usize>>>();
-
-    let mut assigned = HashSet::new();
-    let mut comps: Vec<HashSet<usize>> = Vec::new();
-
-    for u in g.vertexs() {
-        if get!(vertexs => u).is_none() {
-            find_comp(
-                g,
-                u,
-                &mut stack,
-                &mut path,
-                &mut index,
-                &mut vertexs,
-                &mut assigned,
-                &mut comps,
-            );
-        }
-    }
-
-
+pub fn scc_path_based(g: &Graph) -> Vec<Vec<usize>> {
     fn find_comp(
         g: &Graph,
         u: usize,
@@ -145,7 +177,7 @@ pub fn scc_path_based(g: &Graph) -> Vec<HashSet<usize>> {
         index: &mut usize,
         vertexs: &mut HashMap<usize, Option<usize>>,
         assigned: &mut HashSet<usize>,
-        comps: &mut Vec<HashSet<usize>>,
+        comps: &mut Vec<Vec<usize>>,
     ) {
         set!(vertexs => u => Some(*index));
         *index += 1;
@@ -165,17 +197,44 @@ pub fn scc_path_based(g: &Graph) -> Vec<HashSet<usize>> {
         }
 
         if let Some(p) = path.last() && *p == u {
-            let mut new_comp = HashSet::new();
+            let mut new_comp = Vec::new();
 
             while let Some(s) = stack.pop() {
-                new_comp.insert(s);
+                ordered_insert!(&mut new_comp, s);
                 assigned.insert(s);
 
                 if s == u { break }
             }
 
-            comps.push(new_comp);
+            ordered_insert!(comps, new_comp, |x: &Vec<usize>| x[0]);
             path.pop();
+        }
+    }
+
+
+    let mut stack = vec![];
+    let mut path = vec![];
+    let mut index = 0;
+    let mut vertexs = g
+        .vertexs()
+        .map(|u| (u, None))
+        .collect::<HashMap<usize, Option<usize>>>();
+
+    let mut assigned = HashSet::new();
+    let mut comps: Vec<Vec<usize>> = Vec::new();
+
+    for u in g.vertexs() {
+        if get!(vertexs => u).is_none() {
+            find_comp(
+                g,
+                u,
+                &mut stack,
+                &mut path,
+                &mut index,
+                &mut vertexs,
+                &mut assigned,
+                &mut comps,
+            );
         }
     }
 
@@ -184,24 +243,7 @@ pub fn scc_path_based(g: &Graph) -> Vec<HashSet<usize>> {
 
 
 /// 大概读作 'kao ser ra zhu'
-pub fn scc_kosaraju(g: &Graph) -> Vec<HashSet<usize>> {
-    /* DFS 1 */
-
-    let mut vis = HashSet::new();
-    let mut l: Vec<usize> = vec![];
-    let mut comps: MS<usize, usize> = MS::new();
-
-    for u in g.vertexs() {
-        visit(g, u, &mut vis, &mut l);
-    }
-
-    let gt = g.t();
-    vis.clear();
-
-    while let Some(u) = l.pop() {
-        assign(&gt, u, u, &mut comps, &mut vis);
-    }
-
+pub fn scc_kosaraju(g: &Graph) -> Vec<Vec<usize>> {
     /// Visit each Vertexs in Postfix order
     fn visit(
         g: &Graph,
@@ -225,12 +267,17 @@ pub fn scc_kosaraju(g: &Graph) -> Vec<HashSet<usize>> {
         g: &Graph,
         u: usize,
         root: usize,
-        comps: &mut MS<usize, usize>,
+        comps: &mut BTreeMap<usize, Vec<usize>>,
         vis: &mut HashSet<usize>,
     ) {
         if !vis.contains(&u) {
             vis.insert(u);
-            apush!(comps => root => u);
+
+            let new_comp = comps
+                .entry(root)
+                .or_insert(Vec::new());
+
+            ordered_insert!(new_comp, u);
 
             for v in get!(g.e => u => vec![]) {
                 assign(g, v, root, comps, vis);
@@ -238,40 +285,58 @@ pub fn scc_kosaraju(g: &Graph) -> Vec<HashSet<usize>> {
         }
     }
 
-    comps.0.into_iter().map(|x| x.1).collect()
+    /* DFS 1 */
+
+    let mut vis = HashSet::new();
+    let mut l: Vec<usize> = vec![];
+    let mut comps: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+
+    for u in g.vertexs() {
+        visit(g, u, &mut vis, &mut l);
+    }
+
+    let gt = g.t();
+    vis.clear();
+
+    while let Some(u) = l.pop() {
+        assign(&gt, u, u, &mut comps, &mut vis);
+    }
+
+    comps
+        .into_iter()
+        .map(|x| x.1)
+        .sorted_unstable_by_key(|x| x[0])
+        .collect()
 }
 
 
-pub fn normalize_comps(mut a: Vec<HashSet<usize>>) -> Vec<HashSet<usize>> {
-    a.sort_unstable_by_key(|set| *set.iter().min().unwrap());
+pub fn normalize_vertexs_comps(
+    a: Vec<Vec<usize>>,
+) -> Vec<Vec<usize>> {
     a
+    .into_iter()
+    .map(|mut vs| { vs.sort_unstable(); vs })
+    .sorted_unstable_by_key(|vs| vs[0])
+    .collect()
 }
-
-
-// pub fn comps_eq(a: Vec<HashSet<usize>>, oth: Vec<HashSet<usize>>) -> bool {
-//     normalize_comps(a) == normalize_comps(oth)
-// }
 
 
 
 #[cfg(test)]
 mod tests {
 
+    use coll::aux::VerifyError::*;
     use common::random_range;
 
-    use super::{scc_kosaraju, scc_tarjan};
-    use crate::{
-        scc::{normalize_comps, scc_path_based},
-        Graph, test::GraphGenOptions,
-    };
+    use super::*;
+    use crate::{test::GraphGenOptions, Graph};
 
-
-    fn setup_data() -> Vec<Graph> {
+    fn setup_dir_data() -> Vec<Graph> {
         let opt = GraphGenOptions {
             is_dir: true,
-            cyclic: true,
+            allow_cycle: true,
             non_negative_cycle: false,
-            weak: true,
+            weak_conn: false,
         };
 
         let mut gs = vec![];
@@ -285,20 +350,55 @@ mod tests {
         gs
     }
 
+    fn setup_undir_data() -> Vec<Graph> {
+        let opt = GraphGenOptions {
+            is_dir: false,
+            allow_cycle: true,
+            non_negative_cycle: false,
+            weak_conn: false,
+        };
+
+        let mut gs = vec![];
+
+        for _ in 0..50 {
+            let g = Graph::gen(&opt, 50, 0, 1..2);
+            gs.push(g);
+        }
+
+        gs
+    }
+
 
     #[test]
     fn test_find_scc() {
-        for g in setup_data() {
+        for g in setup_dir_data() {
             let comps_kosaraju = scc_kosaraju(&g);
             let comps_tarjan = scc_tarjan(&g);
             let comps_path_based = scc_path_based(&g);
 
-            let comps_kosaraju = normalize_comps(comps_kosaraju);
-            let comps_tarjan = normalize_comps(comps_tarjan);
-            let comps_path_based = normalize_comps(comps_path_based);
+            // println!("{}", comps_kosaraju.len());
+
+            if let Err(err) = g.verify_sccs(&comps_tarjan) {
+                match err {
+                    Inv(inv) => panic!("Invalid {inv}"),
+                    Fail(fail) => panic!("Fail {fail}"),
+                }
+            }
 
             assert_eq!(comps_kosaraju, comps_tarjan);
             assert_eq!(comps_kosaraju, comps_path_based);
         }
     }
+
+    #[test]
+    fn test_find_undir_cc() {
+        for g in setup_undir_data() {
+            let comps_msu = g.components();
+            let comps_tarjan = scc_tarjan(&g);
+
+            // println!("{}", comps_msu.len());
+            assert_eq!(comps_msu, comps_tarjan);
+        }
+    }
+
 }

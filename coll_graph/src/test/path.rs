@@ -1,6 +1,6 @@
-use std::iter::once;
+use std::{iter::once, collections::HashMap};
 
-use coll::{easycoll::M1, get};
+use coll::get;
 
 use crate::{Graph, sp};
 
@@ -54,7 +54,7 @@ impl<'a> Path<'a> {
         }
     }
 
-    pub fn from_pre(g: &'a Graph, dst: usize, pre: &M1<usize, usize>) -> Self {
+    pub fn from_pre(g: &'a Graph, dst: usize, pre: &HashMap<usize, usize>) -> Self {
         let path = sp::pre_to_path!(dst, pre);
 
         Self { g, path }

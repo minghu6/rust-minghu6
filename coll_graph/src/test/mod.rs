@@ -1,12 +1,6 @@
 use std::{collections::HashSet, ops::Range};
 
-use coll::{
-    apush, del, set,
-    {
-        easycoll::MS,
-        union_find::{MergeBy, UnionFind},
-    },
-};
+use coll::union_find::{MergeBy, UnionFind};
 use common::*;
 
 use crate::{
@@ -24,10 +18,9 @@ mod verify;
 #[derive(Debug)]
 pub struct GraphGenOptions {
     pub is_dir: bool,
-    /// if it's a tree
-    pub cyclic: bool,
+    pub allow_cycle: bool,
     pub non_negative_cycle: bool,
-    pub weak: bool,
+    pub weak_conn: bool,
 }
 
 
@@ -41,8 +34,8 @@ impl GraphGenOptions {
         self
     }
 
-    pub fn weak(mut self) -> Self {
-        self.weak = true;
+    pub fn weak_conn(mut self) -> Self {
+        self.weak_conn = true;
         self
     }
 }
@@ -53,9 +46,9 @@ impl GraphGenOptions {
     pub fn undir_conn() -> Self {
         Self {
             is_dir: false,
-            cyclic: true,
+            allow_cycle: true,
             non_negative_cycle: false,
-            weak: false,
+            weak_conn: true,
         }
     }
 
@@ -63,9 +56,9 @@ impl GraphGenOptions {
     pub fn dir_conn() -> Self {
         Self {
             is_dir: true,
-            cyclic: true,
+            allow_cycle: true,
             non_negative_cycle: false,
-            weak: false,
+            weak_conn: true,
         }
     }
 }
@@ -73,13 +66,13 @@ impl GraphGenOptions {
 
 
 impl Graph {
-    /// Generate simple connected graph
+    /// Generate simple graph
     ///
     /// vertex in 1..=vrange
     ///
     /// weight in wrange
     ///
-    /// sparsity: 1-10,
+    /// sparsity: 0-10,
     ///
     ///
     /// it ranges exponentially
@@ -89,11 +82,11 @@ impl Graph {
         sparsity: usize,
         wrange: Range<isize>,
     ) -> Graph {
-        debug_assert!(1 <= sparsity && sparsity <= 10);
+        debug_assert!(sparsity <= 10);
         let mut g;
 
         if sparsity == 10 {
-            assert!(opt.cyclic);
+            assert!(opt.allow_cycle);
             g = gen_scc_graph(vrange, wrange.clone());
             g.is_dir = opt.is_dir;
         } else {
@@ -102,102 +95,78 @@ impl Graph {
             // 无向图 or 强连通有向图
             max /= 2;
 
-            let peace = (max - min) / 10;
+            let piece = (max - min) / 10;
 
-            let edge_limit = min + sparsity * peace;
+            let edge_limit = min + sparsity * piece;
 
             g = Graph::new();
             g.is_dir = opt.is_dir;
+
             let mut dsu = UnionFind::new(Some(MergeBy::SZ));
 
-            for v in 1..=vrange {
-                dsu.insert(v);
+            for i in 1..=vrange {
+                dsu.insert(i);
             }
 
-            let mut rem_edges = MS::new();
-            for u in 1..=vrange {
-                for v in 1..=vrange {
-                    if u != v {
-                        apush!(rem_edges => u => v);
-                    }
+            let mut rem_edges = HashSet::new();
+
+            for u in 1..=vrange-1 {
+                for v in u+1..=vrange {
+                    rem_edges.insert((u, v));
+                    rem_edges.insert((v, u));
                 }
             }
 
             for _ in 0..edge_limit {
-                let u = *rem_edges
-                    .0
-                    .keys()
-                    .choose(&mut common::thread_rng())
-                    .unwrap();
-
-                let mut rem_vertexs = del!(rem_edges => u);
-
-                let v = *rem_vertexs
+                let (u, v) = rem_edges
                     .iter()
                     .choose(&mut common::thread_rng())
+                    .cloned()
                     .unwrap();
-
-                rem_vertexs.remove(&v);
-                if !rem_vertexs.is_empty() {
-                    set!(rem_edges => u => rem_vertexs);
-                }
-
-                let mut othset = del!(rem_edges => v);
-                othset.remove(&u);
-
-                if !othset.is_empty() {
-                    set!(rem_edges => v => othset);
-                }
-
-                dsu.cunion(u, v);
-
                 let w = random_range!(wrange.clone());
+
                 g.insert((u, v), w);
+                rem_edges.remove(&(u, v));
+                dsu.cunion(u, v);
 
                 if !opt.is_dir {
                     g.insert((v, u), w);
-                } else if !opt.weak {
-                    let w2;
-                    if opt.non_negative_cycle && w < 0 {
-                        w2 = w.abs() + random_range!(0..wrange.end);
-                    } else {
-                        w2 = random_range!(wrange.clone());
-                    }
-
-                    g.insert((v, u), w2);
+                    rem_edges.remove(&(v, u));
                 }
             }
 
-            /* ensure connected */
+            if opt.weak_conn {
+                /* ensure weak connected */
 
-            let mut comps = HashSet::new();
+                let mut comps = HashSet::new();
 
-            for v in 1..=vrange {
-                comps.insert(dsu.cfind(v));
-            }
+                for v in 1..=vrange {
+                    comps.insert(dsu.cfind(v));
+                }
 
-            if comps.len() > 1 {
-                let mut comps_iter = comps.into_iter();
+                if comps.len() > 1 {
+                    let mut comps_iter = comps.into_iter();
 
-                let u = comps_iter.next().unwrap();
+                    let u = comps_iter.next().unwrap();
 
-                for v in comps_iter {
-                    let w = random_range!(wrange.clone());
+                    for v in comps_iter {
+                        let w = random_range!(wrange.clone());
 
-                    g.insert((u, v), w);
-                    dsu.cunion(u, v);
+                        g.insert((u, v), w);
+                        dsu.cunion(u, v);
 
-                    if !opt.is_dir {
-                        g.insert((v, u), w);
-                    } else if !opt.weak {
-                        let w2;
-                        if opt.non_negative_cycle && w < 0 {
-                            w2 = w.abs() + random_range!(0..wrange.end);
+                        if !opt.is_dir {
+                            g.insert((v, u), w);
                         } else {
-                            w2 = random_range!(wrange.clone());
-                        }
+                            let w2;
+                            if opt.non_negative_cycle && w < 0 {
+                                w2 = w.abs() + random_range!(0..wrange.end);
+                            } else {
+                                w2 = random_range!(wrange.clone());
+                            }
 
-                        g.insert((v, u), w2);
+                            g.insert((v, u), w2);
+                        }
                     }
                 }
             }
@@ -205,7 +174,7 @@ impl Graph {
 
         /* gen spanning tree */
 
-        if !opt.cyclic {
+        if !opt.allow_cycle {
             let mut visited = HashSet::new();
             let mut edges = vec![];
 

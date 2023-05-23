@@ -582,6 +582,40 @@ macro_rules! parse_range {
 }
 
 
+#[macro_export]
+macro_rules! ordered_insert {
+    ($vec:expr, $x:expr) => {{
+        let vec = $vec;
+        let x = $x;
+
+        match vec.binary_search(&x) {
+            Ok(oldidx) => {
+                Some(std::mem::replace(&mut vec[oldidx], x))
+            },
+            Err(inseridx) => {
+                vec.insert(inseridx, x);
+                None
+            },
+        }
+    }};
+    ($vec:expr, $x:expr, $f:expr) => {{
+        let vec = $vec;
+        let x = $x;
+        let f = $f;
+
+        match vec.binary_search_by_key(&f(&x), f) {
+            Ok(oldidx) => {
+                Some(std::mem::replace(&mut vec[oldidx], x))
+            },
+            Err(inseridx) => {
+                vec.insert(inseridx, x);
+                None
+            },
+        }
+    }};
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //// Structure
 
@@ -653,19 +687,6 @@ impl Index<usize> for RoadMap {
 
     fn index(&self, index: usize) -> &Self::Output {
         &self.data[index]
-    }
-}
-
-
-pub fn vec_ordered_insert<T: Ord>(vec: &mut Vec<T>, x: T) -> Option<T> {
-    match vec.binary_search(&x) {
-        Ok(oldidx) => {
-            Some(std::mem::replace(&mut vec[oldidx], x))
-        },
-        Err(inseridx) => {
-            vec.insert(inseridx, x);
-            None
-        },
     }
 }
 

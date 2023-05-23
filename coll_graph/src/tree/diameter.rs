@@ -12,7 +12,7 @@ use crate::Graph;
 /// Two pass bfs (depth)
 pub fn diameter_2bfs_no_w(g: &Graph) -> isize {
     /* select entry point */
-    let v0 = *g.e.0.keys().next().unwrap();
+    let v0 = g.anypoint();
 
     /* find the furthest vertex from v0 */
     let (_d, v1) = furthest_vertex_no_w(g, v0);
@@ -24,12 +24,12 @@ pub fn diameter_2bfs_no_w(g: &Graph) -> isize {
 
 /// Save the extra distance array, can't handle negtive weight
 pub fn diameter_2dfs(g: &Graph) -> isize {
-    let v0 = g.e.0.keys().next().unwrap().clone();
+    let v0 = g.anypoint();
     let d = distance(g, v0);
-    let (v1, _d_v1) = d.0.into_iter().max_by_key(|x| x.1).unwrap();
+    let (v1, _d_v1) = d.into_iter().max_by_key(|x| x.1).unwrap();
 
     let d = distance(g, v1);
-    let (_v2, d_v2) = d.0.into_iter().max_by_key(|x| x.1).unwrap();
+    let (_v2, d_v2) = d.into_iter().max_by_key(|x| x.1).unwrap();
 
     d_v2
 }
@@ -47,7 +47,7 @@ pub fn diameter_dp(g: &Graph) -> isize {
     let mut d1: HashMap<usize, isize> = hashmap! {};
     let mut d2: HashMap<usize, isize> = hashmap! {};
     let mut res = zpw; //
-    let v0 = g.e.0.keys().next().unwrap().clone();
+    let v0 = g.anypoint();
 
     let mut stack = vec![(v0, v0)]
         .into_iter()

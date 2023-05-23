@@ -127,7 +127,7 @@ pub fn mst_prim(g: &Graph) -> Vec<(usize, usize)> {
         for v in adjs.into_iter().filter(|v| rest.contains(v)) {
             let w_uv: isize = get!(g.w => (u, v));
 
-            if w_uv < *get!(dis => v) {
+            if w_uv < get!(dis => v) {
                 dis.decrease_key(v, w_uv);
                 dis_edge.insert(v, Some(u));
             }
@@ -204,8 +204,59 @@ pub fn mst_boruvka(g: &Graph) -> Vec<(usize, usize)> {
 
 #[cfg(test)]
 mod tests {
-    use crate::tests::setup_ud_g_data;
     use super::{super::test::*, *};
+
+    pub(crate) fn setup_ud_g_data() -> Vec<Graph> {
+        // u->v, w
+        let data = vec![
+            // no0
+            //      1
+            //    /   \
+            //   2    6
+            //  / \   |
+            // 5  4   3
+            //    |
+            //    7
+            vec![
+                (6, 3, 1),
+                (1, 2, 1),
+                (1, 6, 1),
+                (2, 5, 1),
+                (2, 4, 1),
+                (4, 7, 1),
+            ],
+            /*
+            no1
+
+            1
+            |
+            2
+            |
+            4
+            |
+            3
+            */
+            vec![(1, 2, 1), (2, 4, 1), (4, 3, 1)],
+            // no-2
+            vec![
+                (1, 2, 7),
+                (1, 4, 5),
+                (4, 2, 9),
+                (2, 3, 8),
+                (2, 5, 7),
+                (3, 5, 5),
+                (4, 5, 15),
+                (4, 6, 6),
+                (6, 5, 8),
+                (6, 7, 11),
+                (5, 7, 9),
+            ],
+        ];
+
+        data.into_iter()
+            .map(|x| Graph::from_undirected_iter(x))
+            .collect::<Vec<Graph>>()
+    }
 
 
     #[test]

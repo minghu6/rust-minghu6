@@ -3,11 +3,11 @@
 ////////////////////////////////////////////////////////////////////////////////
 //// Structure
 
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
 
 use coll::{
     apush,
-    easycoll::{M1, M2},
+    easycoll::M2,
     get, getopt, set, stack,
 };
 use coll_heap::dary::DaryHeap5;
@@ -43,7 +43,7 @@ pub(crate) use pre_to_path;
 pub struct SPFloyd<'a> {
     g: &'a Graph,
     /// shortest path weight
-    spw: M1<(usize, usize), isize>,
+    spw: HashMap<(usize, usize), isize>,
     //// shortest path paths
     next: M2<usize, usize, usize>,
 }
@@ -54,9 +54,9 @@ pub struct SPBellmanFord<'a> {
     g: &'a Graph,
     /// shortest path weight
     src: usize,
-    spw: M1<usize, isize>,
+    spw: HashMap<usize, isize>,
     //// shortest path paths
-    pre: M1<usize, usize>,
+    pre: HashMap<usize, usize>,
 }
 
 
@@ -65,9 +65,9 @@ pub struct SPFA<'a> {
     g: &'a Graph,
     /// shortest path weight
     src: usize,
-    spw: M1<usize, isize>,
+    spw: HashMap<usize, isize>,
     //// shortest path paths
-    pre: M1<usize, usize>,
+    pre: HashMap<usize, usize>,
 }
 
 
@@ -77,16 +77,16 @@ pub struct SPDijkstra<'a> {
     g: &'a Graph,
     /// shortest path weight
     src: usize,
-    spw: M1<usize, isize>,
+    spw: HashMap<usize, isize>,
     //// shortest path paths
-    pre: M1<usize, usize>,
+    pre: HashMap<usize, usize>,
 }
 
 
 #[allow(unused)]
 pub struct SPJohnson<'a> {
     g: &'a Graph,
-    h: M1<usize, isize>,
+    h: HashMap<usize, isize>,
     spw: M2<usize, usize, isize>,
     //// shortest path paths
     sppre: M2<usize, usize, usize>,
@@ -177,12 +177,12 @@ impl<'a> SPJohnson<'a> {
 
 fn sp_floyd(
     g: &Graph,
-) -> Result<(M1<(usize, usize), isize>, M2<usize, usize, usize>), Vec<usize>> {
+) -> Result<(HashMap<(usize, usize), isize>, M2<usize, usize, usize>), Vec<usize>> {
     let mut vertexs: Vec<usize> = g.vertexs().collect();
     vertexs.sort_unstable();
 
     let n = vertexs.len();
-    let mut spw = M1::<(usize, usize), isize>::new();
+    let mut spw = HashMap::<(usize, usize), isize>::new();
     let mut next = M2::<usize, usize, usize>::new();
 
     /* init sp */
@@ -238,9 +238,9 @@ fn sp_floyd(
 fn sp_bellman_ford(
     g: &Graph,
     src: usize,
-) -> Result<(M1<usize, isize>, M1<usize, usize>), Vec<usize>> {
-    let mut pre = M1::new();
-    let mut dis = M1::new();
+) -> Result<(HashMap<usize, isize>, HashMap<usize, usize>), Vec<usize>> {
+    let mut pre = HashMap::new();
+    let mut dis = HashMap::new();
     let n = g.vertexs().count();
 
     set!(dis => src => 0);
@@ -283,10 +283,10 @@ fn sp_bellman_ford(
 pub fn sp_fa(
     g: &Graph,
     src: usize,
-) -> Result<(M1<usize, isize>, M1<usize, usize>), Vec<usize>> {
-    let mut pre = M1::new();
-    let mut dis = M1::new();
-    let mut cnt: M1<usize, usize> = M1::new(); // 穿过的边数
+) -> Result<(HashMap<usize, isize>, HashMap<usize, usize>), Vec<usize>> {
+    let mut pre = HashMap::new();
+    let mut dis = HashMap::new();
+    let mut cnt: HashMap<usize, usize> = HashMap::new(); // 穿过的边数
     let n = g.vertexs().count();
 
     set!(dis => src => 0);
@@ -354,9 +354,9 @@ pub fn sp_fa(
 pub fn sp_fa_early_termination(
     g: &Graph,
     src: usize,
-) -> Result<(M1<usize, isize>, M1<usize, usize>), Vec<usize>> {
-    let mut pre = M1::new();
-    let mut dis = M1::new();
+) -> Result<(HashMap<usize, isize>, HashMap<usize, usize>), Vec<usize>> {
+    let mut pre = HashMap::new();
+    let mut dis = HashMap::new();
     let n = g.vertexs().count();
 
     set!(dis => src => 0);
@@ -406,9 +406,9 @@ pub fn sp_fa_early_termination(
 }
 
 
-fn sp_dijkstra(g: &Graph, src: usize) -> (M1<usize, isize>, M1<usize, usize>) {
-    let mut pre = M1::new();
-    let mut dis_m1 = M1::new();
+fn sp_dijkstra(g: &Graph, src: usize) -> (HashMap<usize, isize>, HashMap<usize, usize>) {
+    let mut pre = HashMap::new();
+    let mut dis_m1 = HashMap::new();
 
     let mut dis = DaryHeap5::new();
     let mut rest = HashSet::new();
@@ -431,7 +431,7 @@ fn sp_dijkstra(g: &Graph, src: usize) -> (M1<usize, isize>, M1<usize, usize>) {
         for v in get!(g.e => u) {
             if rest.contains(&v) {
                 let w = dis_u + get!(g.w => (u, v));
-                if w < *get!(dis => v) {
+                if w < get!(dis => v) {
                     dis.decrease_key(v, w);
                     set!(pre => v => u);
                 }
@@ -447,7 +447,7 @@ fn sp_johnson(
     g: &Graph,
 ) -> Result<
     (
-        M1<usize, isize>,
+        HashMap<usize, isize>,
         M2<usize, usize, isize>,
         M2<usize, usize, usize>,
     ),
@@ -510,7 +510,7 @@ fn next_to_path(
 }
 
 
-fn install_cycle(c: usize, pre: &M1<usize, usize>) -> Vec<usize> {
+fn install_cycle(c: usize, pre: &HashMap<usize, usize>) -> Vec<usize> {
     let mut cycle = vec![c];
     let mut cur = get!(pre => c);
 
@@ -528,7 +528,7 @@ fn install_cycle(c: usize, pre: &M1<usize, usize>) -> Vec<usize> {
 fn detect_negative_cycle(
     n: usize,
     mut cur: usize,
-    pre: &M1<usize, usize>,
+    pre: &HashMap<usize, usize>,
 ) -> Option<Vec<usize>> {
     let mut i = 0;
 
@@ -645,14 +645,14 @@ mod tests {
             .into_iter()
             .filter(|g| {
                 let negative_edges =
-                    g.w.0.values().filter(|&&w| w < 0).count();
+                    g.w.values().filter(|&&w| w < 0).count();
                 negative_edges > 0
             })
             .collect();
 
         for (i, g) in graphs.iter().enumerate() {
             // assert!(g.is_connected());
-            let negative_edges = g.w.0.values().filter(|&&w| w < 0).count();
+            let negative_edges = g.w.values().filter(|&&w| w < 0).count();
 
             println!("g {i:03} sparisity {:02}, negative edges: {negative_edges:02}",
                 g.sparisity()

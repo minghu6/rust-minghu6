@@ -9,21 +9,24 @@ pub mod sp;
 pub mod toposort;
 pub mod tree;
 pub mod scc;
+pub mod bcc;
 pub mod test;
 #[cfg(test)]
 mod debug;
 
 
 use std::{
-    collections::HashSet,
+    collections::{BTreeSet, HashMap, hash_map::Entry},
     fmt::Debug,
 };
 
 use coll::{
-    easycoll::{M1, MV},
     union_find::{UnionFind, SZ},
-    apush, get, getopt, set,
+    apush, get, getopt, set, ordered_insert,
 };
+use common::Itertools;
+
+use crate::scc::scc_tarjan;
 
 
 
@@ -38,10 +41,10 @@ pub struct Graph {
     /// If it's directed
     pub is_dir: bool,
     /// Out-edges
-    pub e: MV<usize, usize>,
+    pub e: Vec<Vec<usize>>,
     /// In-edges
-    pub rev: MV<usize, usize>,
-    pub w: M1<(usize, usize), isize>,
+    pub rev: Vec<Vec<usize>>,
+    pub w: HashMap<(usize, usize), isize>,
 }
 
 
@@ -52,14 +55,14 @@ impl Graph {
     }
 
     pub fn from_directed_iter<T: IntoIterator<Item = (usize, usize, isize)>>(iter: T) -> Self {
-        let mut e = MV::new();
-        let mut rev = MV::new();
-        let mut w = M1::new();
+        let mut e = Vec::new();
+        let mut rev = Vec::new();
+        let mut w = HashMap::new();
 
-        for (u, v, _w) in iter {
+        for (u, v, w_) in iter {
             apush!(e => u => v);
             apush!(rev => v => u);
-            set!(w => (u, v) => _w);
+            set!(w => (u, v) => w_);
         }
 
         Self { is_dir: true, e, rev, w }
@@ -112,12 +115,18 @@ impl Graph {
     }
 
     pub fn anypoint(&self) -> usize {
-        *self.e.0.keys().next().unwrap()
+        for i in 0..self.e.len() {
+            if !self.e[i].is_empty() {
+                return i;
+            }
+        }
+
+        unreachable!("There is no edge.")
     }
 
     /// O(|E|)
     pub fn vertexs(&self) -> impl Iterator<Item = usize> {
-        let mut vertexs = HashSet::new();
+        let mut vertexs = BTreeSet::new();
 
         for (u, v, _w) in self.edges() {
             vertexs.insert(u);
@@ -131,9 +140,9 @@ impl Graph {
         &'a self,
     ) -> impl Iterator<Item = (usize, usize, isize)> + 'a {
         std::iter::from_generator(|| {
-            for (u, tos) in self.e.0.iter() {
+            for (u, tos) in self.e.iter().cloned().enumerate() {
                 for v in tos {
-                    yield (*u, *v, get!(self.w => (*u, *v)))
+                    yield (u, v, get!(self.w => (u, v)))
                 }
             }
         })
@@ -145,19 +154,17 @@ impl Graph {
 
         let (u, v) = edge;
 
-        let tos = getopt!(self.e => u);
-
-        if let Some(tos) = tos {
+        if let Some(tos) = getopt!(self.e => u) {
             tos.into_iter().find(|&x| x == v).is_some()
         } else {
             false
         }
     }
 
-    /// O(|E|) for undirected graph
+    /// O(|E|) for undirected graph or directed graph
     pub fn components(&self) -> Vec<Vec<usize>> {
         if self.is_dir {
-            unimplemented!()
+            return scc_tarjan(self);
         }
 
         let mut dsu = UnionFind::new(Some(SZ));
@@ -171,14 +178,26 @@ impl Graph {
             dsu.cunion(u, v);
         }
 
-        let mut comps = MV::new();
+        let mut comps: HashMap<usize, Vec<usize>> = HashMap::new();
 
         for v in vertexs.iter().cloned() {
             let p = dsu.cfind(v);
-            apush!(comps => p => v);
+
+            match comps.entry(p) {
+                Entry::Occupied(mut ent) => {
+                    ordered_insert!(ent.get_mut(), v);
+                }
+                Entry::Vacant(ent) => {
+                    ent.insert(vec![v]);
+                }
+            };
         }
 
-        comps.0.into_iter().map(|(_k, vs)| vs).collect()
+        comps
+            .into_iter()
+            .map(|(_p, v)| v)
+            .sorted_unstable_by_key(|v| v[0])
+            .collect()
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -244,68 +263,5 @@ impl Debug for Graph {
         }
 
         Ok(())
-    }
-}
-
-
-
-#[cfg(test)]
-pub(crate) mod tests {
-
-    use crate::{
-         Graph,
-    };
-
-
-    pub(crate) fn setup_ud_g_data() -> Vec<Graph> {
-        // u->v, w
-        let data = vec![
-            // no0
-            //      1
-            //    /   \
-            //   2    6
-            //  / \   |
-            // 5  4   3
-            //    |
-            //    7
-            vec![
-                (6, 3, 1),
-                (1, 2, 1),
-                (1, 6, 1),
-                (2, 5, 1),
-                (2, 4, 1),
-                (4, 7, 1),
-            ],
-            /*
-            no1
-
-            1
-            |
-            2
-            |
-            4
-            |
-            3
-            */
-            vec![(1, 2, 1), (2, 4, 1), (4, 3, 1)],
-            // no-2
-            vec![
-                (1, 2, 7),
-                (1, 4, 5),
-                (4, 2, 9),
-                (2, 3, 8),
-                (2, 5, 7),
-                (3, 5, 5),
-                (4, 5, 15),
-                (4, 6, 6),
-                (6, 5, 8),
-                (6, 7, 11),
-                (5, 7, 9),
-            ],
-        ];
-
-        data.into_iter()
-            .map(|x| Graph::from_undirected_iter(x))
-            .collect::<Vec<Graph>>()
     }
 }

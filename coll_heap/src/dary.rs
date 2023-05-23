@@ -11,6 +11,8 @@ use std::{
 
 use m6arr::Array;
 
+use coll::easycoll::EasyCollGet;
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Macro
@@ -379,6 +381,19 @@ where
         self.len -= 1;
 
         (i, v)
+    }
+}
+
+
+impl<const E: usize, I, T> EasyCollGet<I, T> for DaryHeap<E, I, T>
+where
+    I: Hash + Eq + Ord + Clone,
+    T: Ord + Clone
+{
+    type Target = T;
+
+    fn get<Q: Borrow<I>>(&self, k: &Q) -> Option<Self::Target> {
+        DaryHeap::get(self, k.borrow()).cloned()
     }
 }
 

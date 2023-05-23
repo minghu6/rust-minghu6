@@ -1,10 +1,8 @@
-use std::{fmt::Debug, hash::Hash};
-
-use crate::{set, get};
-
-use super::easycoll::M1;
+use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
 pub use MergeBy::*;
+
+use crate::{get, set};
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -15,22 +13,22 @@ pub use MergeBy::*;
 /// T should be cheap to clone for example integer
 #[derive(Debug, Clone)]
 pub struct UnionFind<T> {
-    paren: M1<T, T>,
+    paren: HashMap<T, T>,
     data: DSUData<T>,
-    merge_by: Option<MergeBy>
+    merge_by: Option<MergeBy>,
 }
 
 
 #[derive(Debug, Clone)]
 enum DSUData<T> {
-    SZ(M1<T, usize>),
-    Empty
+    SZ(HashMap<T, usize>),
+    Empty,
 }
 
 
 #[derive(Debug, Clone)]
 pub enum MergeBy {
-    SZ
+    SZ,
 }
 
 
@@ -39,17 +37,17 @@ pub enum MergeBy {
 
 impl<T> DSUData<T> {
     #[allow(unused)]
-    fn as_sz(&self) -> &M1<T, usize> {
+    fn as_sz(&self) -> &HashMap<T, usize> {
         match self {
             Self::SZ(sz) => sz,
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 
-    fn as_sz_mut(&mut self) -> &mut M1<T, usize> {
+    fn as_sz_mut(&mut self) -> &mut HashMap<T, usize> {
         match self {
             Self::SZ(sz) => sz,
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 }
@@ -58,24 +56,21 @@ impl<T> DSUData<T> {
 
 impl<T> UnionFind<T> {
     pub fn new(merge_by: Option<MergeBy>) -> Self {
-        let paren = M1::new();
+        let paren = HashMap::new();
 
         if let Some(by) = merge_by {
             match by {
-                MergeBy::SZ => {
-                    Self {
-                        paren,
-                        merge_by: Some(by),
-                        data: DSUData::SZ(M1::new()),
-                    }
-                }
+                MergeBy::SZ => Self {
+                    paren,
+                    merge_by: Some(by),
+                    data: DSUData::SZ(HashMap::new()),
+                },
             }
-        }
-        else {
+        } else {
             Self {
                 paren,
                 merge_by: None,
-                data: DSUData::Empty
+                data: DSUData::Empty,
             }
         }
     }
@@ -131,8 +126,8 @@ where
                 MergeBy::SZ => {
                     let sz = self.data.as_sz_mut();
 
-                    let xsz = get!(sz => x => 1);
-                    let ysz = get!(sz => y => 1);
+                    let xsz = get!(*sz => x => 1);
+                    let ysz = get!(*sz => y => 1);
 
                     // let x to be the root
                     if ysz < xsz {
@@ -141,14 +136,11 @@ where
 
                     set!(self.paren => y => x.clone());
                     set!(sz => x => xsz + ysz);
-
-                },
+                }
             }
-        }
-        else {
+        } else {
             set!(self.paren => y => x.clone());
         }
-
     }
 
     /// Union same with punion except extra path compression
@@ -175,14 +167,10 @@ where
 
                     set!(self.paren => y => x.clone());
                     set!(sz => x => xsz + ysz);
-
-                },
+                }
             }
-        }
-        else {
+        } else {
             set!(self.paren => y => x.clone());
         }
     }
-
-
 }

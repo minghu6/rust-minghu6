@@ -1,11 +1,11 @@
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
 
 use coll::{
-    apush, get, getopt, m1, mv, set,
+    apush, get, getopt, mv, set,
     {
-        easycoll::{M1, MV},
+        easycoll::MV,
         union_find::UnionFind,
-    },
+    }, hashmap,
 };
 
 use super::{hpd::HPD, Graph};
@@ -25,7 +25,7 @@ struct LCADPD {
     /// u, 2^(idx) th ancestor, ancestor id
     acs: MV<usize, usize>,
     /// depth
-    depth: M1<usize, usize>,
+    depth: HashMap<usize, usize>,
 }
 
 
@@ -85,7 +85,7 @@ impl LCADP {
             root,
             LCADPD {
                 acs: mv![root => 0 => root],
-                depth: m1![root => 0],
+                depth: hashmap![root => 0],
             },
         );
 

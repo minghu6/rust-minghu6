@@ -104,11 +104,11 @@ macro_rules! get {
 
             let var = &$var;
 
-            if let Some(v) = var.get(&($($e),+)) {
+            if let Some(v) = EasyCollGet::get(var, &($($e),+)) {
                 v
             }
             else {
-                unreachable!("get None for {:?}", &($($e),+))
+                panic!("get None for {:?}", &($($e),+))
             }
         }
     };
@@ -118,7 +118,13 @@ macro_rules! get {
             use $crate::easycoll::EasyCollGet;
 
             let var = &$var;
-            var.get((&($($e),+))).unwrap_or($default)
+
+            if let Some(v) = EasyCollGet::get(var, &($($e),+)) {
+                v
+            }
+            else {
+                $default
+            }
         }
     };
 }
@@ -132,7 +138,7 @@ macro_rules! getopt {
 
             let var = &$var;
 
-            var.get(&($($e),+))
+            EasyCollGet::get(var, &($($e),+))
         }
     };
 }
@@ -403,7 +409,51 @@ pub struct Queue<T>(pub VecDeque<T>);
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Implementation
+//// Implementation Vec<Vec<T>>
+
+impl<T: Clone> EasyCollGet<(usize, usize), T> for Vec<Vec<T>> {
+    type Target = T;
+
+    fn get<Q: Borrow<(usize, usize)>>(&self, k: &Q) -> Option<Self::Target> {
+        let (idx1, idx2) = k.borrow().clone();
+
+        if idx1 < self.len() && idx2 < self[idx1].len() {
+            Some(self[idx1][idx2].clone())
+        }
+        else {
+            None
+        }
+    }
+}
+
+impl<T: Clone> EasyCollGet<usize, T> for Vec<Vec<T>> {
+    type Target = Vec<T>;
+
+    fn get<Q: Borrow<usize>>(&self, k: &Q) -> Option<Self::Target> {
+        let idx = k.borrow().clone();
+
+        if idx < self.len() {
+            Some(self[idx].clone())
+        }
+        else {
+            None
+        }
+    }
+}
+
+impl<T: Clone> EasyCollAPush<usize, T> for Vec<Vec<T>>
+{
+    fn apush(&mut self, k: usize, v: T) {
+        if k >= self.len() {
+            self.resize(k+1, Default::default());
+        }
+
+        self[k].push(v)
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//// Implementation HashMap
 
 impl<K, V> EasyCollGet<K, V> for HashMap<K, V>
 where
@@ -416,6 +466,31 @@ where
         self.get(k.borrow()).cloned()
     }
 }
+
+impl<K, V> EasyCollGet<K, V> for &mut HashMap<K, V>
+where
+    K: Hash + Eq,
+    V: Clone,
+{
+    type Target = V;
+
+    fn get<Q: Borrow<K>>(&self, k: &Q) -> Option<Self::Target> {
+        EasyCollGet::get(*self, k.borrow())
+    }
+}
+
+impl<K, V> EasyCollGet<K, V> for &HashMap<K, V>
+where
+    K: Hash + Eq,
+    V: Clone,
+{
+    type Target = V;
+
+    fn get<Q: Borrow<K>>(&self, k: &Q) -> Option<Self::Target> {
+        EasyCollGet::get(*self, k.borrow())
+    }
+}
+
 
 ////////////////////////////////////////
 //// Implementation M1
@@ -499,28 +574,31 @@ where
     }
 }
 
-// impl<K1, K2, V> EasyCollGet<K1, M1<K2, V>> for M2<K1, K2, V>
-// where
-//     K1: Hash + Eq + Debug,
-//     K2: Hash + Eq + Debug,
-//     V: Clone,
-// {
-//     type Target<'a> = &'a M1<K2, V> where K2: 'a, V: 'a;
+impl<K1, K2, V> EasyCollGet<(K1, K2), V> for &M2<K1, K2, V>
+where
+    K1: Hash + Eq + Debug,
+    K2: Hash + Eq + Debug,
+    V: Clone,
+{
+    type Target = V;
 
-//     fn get<Q: Borrow<(K1, K2)>>(&'a self, k: &Q) -> Option<Self::Target> {
-//         let (k1, k2) = k.borrow();
+    fn get<Q: Borrow<(K1, K2)>>(&self, k: &Q) -> Option<Self::Target> {
+        EasyCollGet::get(*self, k)
+    }
+}
 
-//         if let Some(map1) = self.0.get(&k1) {
-//             if let Some(v) = map1.get(&k2) {
-//                 Some(v.clone())
-//             } else {
-//                 None
-//             }
-//         } else {
-//             None
-//         }
-//     }
-// }
+impl<K1, K2, V> EasyCollGet<(K1, K2), V> for &mut M2<K1, K2, V>
+where
+    K1: Hash + Eq + Debug,
+    K2: Hash + Eq + Debug,
+    V: Clone,
+{
+    type Target = V;
+
+    fn get<Q: Borrow<(K1, K2)>>(&self, k: &Q) -> Option<Self::Target> {
+        EasyCollGet::get(*self, k)
+    }
+}
 
 impl<K1, K2, V> EasyCollInsert<(K1, K2), V> for M2<K1, K2, V>
 where
@@ -550,6 +628,18 @@ where
     }
 }
 
+impl<K1, K2, V> EasyCollInsert<K1, HashMap<K2, V>> for M2<K1, K2, V>
+where
+    K1: Hash + Eq + Debug,
+    K2: Hash + Eq + Debug,
+    V: Clone,
+{
+    type Target = M1<K2, V>;
+
+    fn insert(&mut self, k: K1, v: HashMap<K2, V>) -> Option<Self::Target> {
+        self.0.insert(k, v).map(|v| M1(v))
+    }
+}
 
 ////////////////////////////////////////
 //// Implementation MV
@@ -578,6 +668,18 @@ where
     }
 }
 
+impl<K, V> EasyCollGet<(K, usize), Vec<V>> for &MV<K, V>
+where
+    K: Hash + Eq,
+    V: Clone,
+{
+    type Target = V;
+
+    fn get<Q: Borrow<(K, usize)>>(&self, k: &Q) -> Option<Self::Target> {
+        EasyCollGet::get(*self, k)
+    }
+}
+
 impl<K, V> EasyCollGet<K, Vec<V>> for MV<K, V>
 where
     K: Hash + Eq,
@@ -587,6 +689,18 @@ where
 
     fn get<Q: Borrow<K>>(&self, k: &Q) -> Option<Self::Target> {
         self.0.get(k.borrow()).cloned()
+    }
+}
+
+impl<K, V> EasyCollGet<K, Vec<V>> for &MV<K, V>
+where
+    K: Hash + Eq,
+    V: Clone,
+{
+    type Target = Vec<V>;
+
+    fn get<Q: Borrow<K>>(&self, k: &Q) -> Option<Self::Target> {
+        EasyCollGet::get(*self, k)
     }
 }
 

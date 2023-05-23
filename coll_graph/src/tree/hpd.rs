@@ -1,9 +1,10 @@
 //! Heavy path decomposition (heavy-light decomposition)
 //!
 
+use std::collections::HashMap;
+
 use coll::{
-    easycoll::M1,
-    m1, set, get, contains, getopt,
+    set, get, contains, getopt, hashmap,
 };
 
 use crate::Graph;
@@ -18,22 +19,22 @@ use crate::Graph;
 ///
 pub struct HPD {
     /// depth
-    pub d: M1<usize, usize>,
+    pub d: HashMap<usize, usize>,
 
     /// parent
-    pub p: M1<usize, usize>,
+    pub p: HashMap<usize, usize>,
 
     /// tree node size
-    pub sz: M1<usize, usize>,
+    pub sz: HashMap<usize, usize>,
 
     /// heavy son
-    pub hson: M1<usize, usize>,
+    pub hson: HashMap<usize, usize>,
 
     /// heavy link root
-    pub top: M1<usize, usize>,
+    pub top: HashMap<usize, usize>,
 
     /// id of heavy link
-    pub id: M1<usize, usize>,
+    pub id: HashMap<usize, usize>,
 
     /// rank (rev of id of heavy link)
     pub rk: Vec<usize>,
@@ -50,12 +51,12 @@ impl HPD {
         let start = start.unwrap_or(g.anypoint());
 
         let mut it = Self {
-            d: m1!(),
-            p: m1!(),
-            sz: m1!(),
-            hson: m1!(),
-            top: m1!(),
-            id: m1!(),
+            d: hashmap! {},
+            p: hashmap! {},
+            sz: hashmap! {},
+            hson: hashmap! {},
+            top: hashmap! {},
+            id: hashmap! {},
             rk: vec![0; g.vertexs().count()],
         };
 

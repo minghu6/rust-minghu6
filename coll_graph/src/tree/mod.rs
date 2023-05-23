@@ -1,9 +1,11 @@
 //! Tree like graph
 //!
 
-use common::{ Itertools, hashset };
+use std::collections::HashMap;
 
-use coll::{easycoll::M1, contains, get, m1, set};
+use common::{hashset, Itertools};
+
+use coll::{contains, get, set, hashmap};
 
 use super::Graph;
 
@@ -20,8 +22,8 @@ pub mod hpd;
 /// Kind 1 in-out
 pub struct EulerSeq1 {
     /// vertex-timestamp
-    ein: M1<usize, usize>,
-    eout: M1<usize, usize>,
+    ein: HashMap<usize, usize>,
+    eout: HashMap<usize, usize>,
 }
 
 
@@ -56,8 +58,8 @@ impl PartialEq<Self> for Center {
 impl EulerSeq1 {
     pub fn new(g: &Graph, start: usize) -> Self {
         let mut stack = vec![(start, false)];
-        let mut ein = M1::new();
-        let mut eout = M1::new();
+        let mut ein = HashMap::new();
+        let mut eout = HashMap::new();
         let mut timestamp = 0;
 
         while let Some((u, is_out)) = stack.pop() {
@@ -91,9 +93,8 @@ impl EulerSeq1 {
 
     pub fn as_seq<'a>(&'a self) -> impl Iterator<Item = usize> + 'a {
         self.ein
-            .0
             .iter()
-            .chain(self.eout.0.iter())
+            .chain(self.eout.iter())
             .sorted_by_key(|(_, t)| *t)
             .map(|(x, _t)| *x)
     }
@@ -175,8 +176,8 @@ pub fn furthest_vertex_no_w(g: &Graph, u: usize) -> (isize, Vec<usize>) {
 
 
 /// get further vertex from dfs (can also bfs, but dfs is more easy)
-pub fn distance(g: &Graph, u: usize) -> M1<usize, isize> {
-    let mut d = m1! {};
+pub fn distance(g: &Graph, u: usize) -> HashMap<usize, isize> {
+    let mut d = hashmap! {};
     let mut q = vec![(u, 0)];
     let mut visited = hashset! {u};
 
