@@ -17,7 +17,6 @@ mod debug;
 
 use std::{
     collections::{BTreeSet, HashMap, hash_map::Entry},
-    fmt::Debug,
 };
 
 use coll::{
@@ -250,18 +249,4 @@ pub fn to_undirected_vec<T: IntoIterator<Item = (usize, usize, isize)>>(
     }
 
     res
-}
-
-impl Debug for Graph {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if f.alternate() {
-            writeln!(f, "edge: {:#?}", self.e)?;
-            writeln!(f, "weight: {:#?}", self.w)?;
-        } else {
-            writeln!(f, "edge: {:?}", self.e)?;
-            writeln!(f, "weight: {:?}", self.w)?;
-        }
-
-        Ok(())
-    }
 }

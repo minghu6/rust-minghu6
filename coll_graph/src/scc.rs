@@ -91,7 +91,7 @@ pub fn scc_tarjan(g: &Graph) -> Vec<Vec<usize>> {
     struct DFSMeta {
         index: Option<usize>,
         lowlink: usize,
-        on_stack: bool
+        on_stack: bool,
     }
 
     fn dfs_scc(
@@ -165,6 +165,7 @@ pub fn scc_tarjan(g: &Graph) -> Vec<Vec<usize>> {
 
     comps
 }
+
 
 
 /// or Gabow
@@ -273,9 +274,7 @@ pub fn scc_kosaraju(g: &Graph) -> Vec<Vec<usize>> {
         if !vis.contains(&u) {
             vis.insert(u);
 
-            let new_comp = comps
-                .entry(root)
-                .or_insert(Vec::new());
+            let new_comp = comps.entry(root).or_insert(Vec::new());
 
             ordered_insert!(new_comp, u);
 
@@ -310,17 +309,6 @@ pub fn scc_kosaraju(g: &Graph) -> Vec<Vec<usize>> {
 }
 
 
-pub fn normalize_vertexs_comps(
-    a: Vec<Vec<usize>>,
-) -> Vec<Vec<usize>> {
-    a
-    .into_iter()
-    .map(|mut vs| { vs.sort_unstable(); vs })
-    .sorted_unstable_by_key(|vs| vs[0])
-    .collect()
-}
-
-
 
 #[cfg(test)]
 mod tests {
@@ -343,7 +331,7 @@ mod tests {
 
         for _ in 0..50 {
             let sparsity = random_range!(1..3);
-            let g = Graph::gen(&opt, 30, sparsity, 1..2);
+            let g = Graph::gen(&opt, 50, sparsity, 1..2);
             gs.push(g);
         }
 
@@ -374,6 +362,7 @@ mod tests {
         for g in setup_dir_data() {
             let comps_kosaraju = scc_kosaraju(&g);
             let comps_tarjan = scc_tarjan(&g);
+            // let comps_tarjan2 = scc_tarjan2(&g);
             let comps_path_based = scc_path_based(&g);
 
             // println!("{}", comps_kosaraju.len());
@@ -385,7 +374,15 @@ mod tests {
                 }
             }
 
+            // if let Err(err) = g.verify_sccs(&comps_tarjan2) {
+            //     match err {
+            //         Inv(inv) => panic!("Invalid {inv}"),
+            //         Fail(fail) => panic!("Fail {fail}"),
+            //     }
+            // }
+
             assert_eq!(comps_kosaraju, comps_tarjan);
+            // assert_eq!(comps_kosaraju, comps_tarjan2, "\ng:{g:?}");
             assert_eq!(comps_kosaraju, comps_path_based);
         }
     }
@@ -400,5 +397,4 @@ mod tests {
             assert_eq!(comps_msu, comps_tarjan);
         }
     }
-
 }
