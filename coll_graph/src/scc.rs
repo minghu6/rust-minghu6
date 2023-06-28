@@ -9,9 +9,9 @@ use std::{
 
 use coll::{
     aux::{VerifyError, VerifyResult},
-    get, ordered_insert, set,
+    get, set,
 };
-use common::{hashset, Itertools};
+use common::{hashset, Itertools, ordered_insert};
 
 use super::Graph;
 

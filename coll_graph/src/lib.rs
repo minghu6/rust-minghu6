@@ -21,9 +21,9 @@ use std::{
 
 use coll::{
     union_find::{UnionFind, SZ},
-    apush, get, getopt, set, ordered_insert,
+    apush, get, getopt, set,
 };
-use common::Itertools;
+use common::{Itertools, ordered_insert};
 
 use crate::scc::scc_tarjan;
 

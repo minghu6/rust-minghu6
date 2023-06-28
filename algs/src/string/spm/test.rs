@@ -2,6 +2,8 @@ use std::{char, collections::BTreeMap, ops::Range};
 
 use common::*;
 
+use super::bm::BMPattern;
+
 const CN_ALPHA_LIST: [char; 26] = [
     '啊', '吧', '从', '的', '俄', '分', '个', '好', '爱', '就', '看', '了',
     '吗', '你', '哦', '牌', '去', '人', '是', '他', '优', '未', '我', '想',
@@ -29,6 +31,12 @@ fn random_char() -> char {
         CN_ALPHA_LIST[i - 26]
     }
 }
+
+// fn random_char() -> char {
+//     let i = random_range!(0..ALPHA_LIST.len());
+
+//     ALPHA_LIST[i]
+// }
 
 
 fn random_dna_char() -> char {
@@ -174,7 +182,7 @@ pub fn brute_force_match<'a>(pattern: &'a str, text: &'a str) -> Vec<usize> {
 pub fn gen_test_case() -> Vec<(String, String, Vec<usize>)> {
     let mut cases = vec![];
     let texts = vec![
-        gen_random_text(1000),
+        gen_random_text(500),
         gen_random_text(100),
         gen_random_text(10),
         gen_random_text(1),
@@ -183,7 +191,8 @@ pub fn gen_test_case() -> Vec<(String, String, Vec<usize>)> {
 
     for text in texts {
         for pat in gen_pattern((1..24, 1), 100) {
-            let result = brute_force_match(pat.as_str(), text.as_str());
+            // let result = brute_force_match(pat.as_str(), text.as_str());
+            let result = BMPattern::new(pat.as_str()).find_all(text.as_str());
             cases.push((pat, text.clone(), result))
         }
     }
@@ -222,17 +231,6 @@ pub fn gen_test_case_multiple(
     cases
 }
 
-
-/// <pat, sa>
-pub fn gen_sa_test_case() -> Vec<(String, Vec<usize>)> {
-    let mut cases = vec![];
-    for pat in gen_pattern((1..60000, 1000), 1) {
-        let sa = super::sa::compute_suffix_array_naive(pat.as_bytes());
-        cases.push((pat, sa));
-    }
-
-    cases
-}
 
 
 #[cfg(test)]

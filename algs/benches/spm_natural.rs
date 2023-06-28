@@ -1,6 +1,8 @@
 #![feature(test)]
 
-use m6_algs::spm::{
+use std::hint::black_box;
+
+use m6_algs::string::{
     ac::TrieTree,
     b5s::{B5SSpacePattern, B5STimePattern},
     bm::{BMPattern, SimplifiedBMPattern},
@@ -9,7 +11,9 @@ use m6_algs::spm::{
     horspool::HorspoolPattern,
     kmp::{ComputeNext, KMPPattern},
     sunday::SundayPattern,
+    rk::{ RabinKarpPatten, RabinKarpText }, CommonChinese, create_npows, AlphaBet,
 };
+
 
 extern crate test;
 
@@ -17,11 +21,11 @@ use test::Bencher;
 
 fn gen_tested_text() -> Vec<String> {
     let mut result = vec![];
-    //result.push(gen_random_text(1_000_000));
     // result.push(gen_random_text(1_000_000));
-    result.push(gen_random_text(500_000));
+    // result.push(gen_random_text(1_000_000));
+    result.push(gen_random_text(0_500));
 
-    //result.push(gen_random_text(1_000));
+    // result.push(gen_random_text(1_000));
 
     result
 }
@@ -29,7 +33,7 @@ fn gen_tested_text() -> Vec<String> {
 fn gen_tested_pattern() -> Vec<String> {
     let mut result = vec![];
 
-    for pattern in gen_pattern((1..20, 1), 20) {
+    for pattern in gen_pattern((1..10, 1), 2000) {
         result.push(pattern)
     }
 
@@ -210,7 +214,39 @@ fn ac_automaton(b: &mut Bencher) {
         let trie_tree = TrieTree::new(&tested_patterns);
 
         for text in &tested_texts {
-            trie_tree.index_of(text.as_str());
+            black_box(trie_tree.index_of(text.as_str()));
+        }
+    };
+
+    b.iter(|| gen())
+}
+
+#[bench]
+fn rk_spm(b: &mut Bencher) {
+    let alphabet = CommonChinese;
+    let p = alphabet.prime();
+    let npows = create_npows(p, 1000);
+
+    let gen = || {
+        let tested_texts = gen_tested_text();
+        let tested_patterns = gen_tested_pattern();
+
+        for text in &tested_texts {
+            let rk_text = RabinKarpText::<1>::new(
+                &text,
+                &alphabet
+            ).unwrap();
+
+            for pat in tested_patterns.iter() {
+                let pat = RabinKarpPatten::new(
+                    &pat,
+                    &alphabet
+                ).unwrap();
+
+                // extend_npows(p, &mut npows, pat.len());
+
+                black_box(pat.find(&rk_text, &npows).collect::<Vec<usize>>());
+            }
         }
     };
 

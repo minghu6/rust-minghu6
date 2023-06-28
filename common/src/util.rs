@@ -63,6 +63,103 @@ def_coll_init!(map | hashmap, std::collections::HashMap::new());
 def_coll_init!(map | btreemap, std::collections::BTreeMap::new());
 
 
+#[macro_export]
+macro_rules! parse_range {
+    ($range:expr, $len:expr) => {{
+        use std::ops::Bound::*;
+
+        let range = $range;
+        let len = $len;
+
+        debug_assert!(len > 0, "range len should be greater than 0");
+
+        let l;
+        let mut r;
+
+        match range.start_bound() {
+            Included(v) => l = *v,
+            Excluded(v) => l = *v + 1,
+            Unbounded => l = 0,
+        }
+
+        match range.end_bound() {
+            Included(v) => r = *v,
+            Excluded(v) => {
+                assert!(*v > 0, "range upper is invalid (=0)");
+                r = *v - 1
+            }
+            Unbounded => r = len - 1,
+        }
+
+        if r > len - 1 {
+            r = len - 1
+        }
+
+        (l, r)
+    }};
+}
+
+
+#[macro_export]
+macro_rules! ordered_insert {
+    ($vec:expr, $x:expr) => {{
+        let vec = $vec;
+        let x = $x;
+
+        match vec.binary_search(&x) {
+            Ok(oldidx) => Some(std::mem::replace(&mut vec[oldidx], x)),
+            Err(inseridx) => {
+                vec.insert(inseridx, x);
+                None
+            }
+        }
+    }};
+    ($vec:expr, $x:expr, $f:expr) => {{
+        let vec = $vec;
+        let x = $x;
+        let f = $f;
+
+        match vec.binary_search_by_key(&f(&x), f) {
+            Ok(oldidx) => Some(std::mem::replace(&mut vec[oldidx], x)),
+            Err(inseridx) => {
+                vec.insert(inseridx, x);
+                None
+            }
+        }
+    }};
+}
+
+
+#[macro_export]
+macro_rules! min {
+    ($($val:expr),+) => {
+        {
+            [$($val),+].into_iter().min().unwrap()
+        }
+    }
+}
+
+
+#[macro_export]
+macro_rules! max {
+    ($($val:expr),+) => {
+        {
+            [$($val),+].into_iter().max().unwrap()
+        }
+    }
+}
+
+
+#[macro_export]
+macro_rules! same {
+    ($($val:expr),+) => {
+        {
+            let _arr = [$($val),+];
+            _arr.iter().min().unwrap() == _arr.iter().max().unwrap()
+        }
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 //// Function
 
@@ -194,7 +291,7 @@ pub fn vec_even_up<T>(v0: &mut Vec<T>, v1: &mut Vec<T>) {
 
     debug_assert!(v0_old_len > 0 || v1_old_len > 0);
 
-    use std::ptr::{ copy, copy_nonoverlapping, read };
+    use std::ptr::{copy, copy_nonoverlapping, read};
 
     // V0 is smaller
     if v0_old_len < cnt_lf {
@@ -212,11 +309,7 @@ pub fn vec_even_up<T>(v0: &mut Vec<T>, v1: &mut Vec<T>) {
         });
 
         unsafe {
-            copy(
-                v1_ptr.add(v1_given),
-                v1_ptr,
-                cnt_rh
-            );
+            copy(v1_ptr.add(v1_given), v1_ptr, cnt_rh);
 
             v1.set_len(cnt_rh);
         }
@@ -237,17 +330,9 @@ pub fn vec_even_up<T>(v0: &mut Vec<T>, v1: &mut Vec<T>) {
         let v1_ptr = v1.as_mut_ptr();
 
         unsafe {
-            copy(
-                v1_ptr,
-                v1_ptr.add(v0_given),
-                v1_old_len
-            );
+            copy(v1_ptr, v1_ptr.add(v0_given), v1_old_len);
 
-            copy_nonoverlapping(
-                v0_ptr.add(cnt_lf),
-                v1_ptr,
-                v0_given
-            );
+            copy_nonoverlapping(v0_ptr.add(cnt_lf), v1_ptr, v0_given);
 
             v0.set_len(cnt_lf);
         }
@@ -265,8 +350,7 @@ pub fn vec_even_up_1<T>(v0: &mut Vec<T>, v1: &mut Vec<T>) {
 
     if v0_old_len < v1_old_len {
         v0.push(v1.remove(0));
-    }
-    else {
+    } else {
         v1.insert(0, v0.pop().unwrap());
     }
 }
@@ -295,26 +379,32 @@ pub fn task_split_improved(total: usize, n: usize) -> Vec<usize> {
     let (partial_size, rem) = (total / n, total % n);
 
     [partial_size]
-    .repeat(n)
-    .into_iter()
-    .scan(rem, |rem, x| {
-        Some(if *rem == 0 {
-            x
-        }
-        else {
-            *rem -= 1;
+        .repeat(n)
+        .into_iter()
+        .scan(rem, |rem, x| {
+            Some(if *rem == 0 {
+                x
+            } else {
+                *rem -= 1;
 
-            x + 1
+                x + 1
+            })
         })
-    })
-    .collect_vec()
+        .collect_vec()
 }
 
-fn split_<T: Clone>(plan: impl Fn(usize, usize) -> Vec<usize>, s: &[T], n: usize) -> Vec<Vec<T>> {
+fn split_<T: Clone>(
+    plan: impl Fn(usize, usize) -> Vec<usize>,
+    s: &[T],
+    n: usize,
+) -> Vec<Vec<T>> {
     let split_plan = plan(s.len(), n);
 
     let mut coll = vec![];
-    for (start, end) in ht![0, sum_scan(&split_plan[..])].into_iter().tuple_windows() {
+    for (start, end) in ht![0, sum_scan(&split_plan[..])]
+        .into_iter()
+        .tuple_windows()
+    {
         coll.push(s[start..end].iter().cloned().collect_vec())
     }
 
@@ -340,12 +430,14 @@ pub fn split_improved<T: Clone>(s: &[T], n: usize) -> Vec<Vec<T>> {
 /// ```
 ///
 pub fn sum_scan<T: AddAssign + Default + Clone>(input: &[T]) -> Vec<T> {
-    input.iter().scan(T::default(), |acc, x| {
-        *acc += (*x).clone();
+    input
+        .iter()
+        .scan(T::default(), |acc, x| {
+            *acc += (*x).clone();
 
-        Some(acc.clone())
-    })
-    .collect()
+            Some(acc.clone())
+        })
+        .collect()
 }
 
 

@@ -553,7 +553,7 @@ fn detect_negative_cycle(
 
 #[cfg(test)]
 mod tests {
-    use coll::{ min, same };
+    use common::{ min, same };
 
     use super::{SPBellmanFord, SPFloyd};
     use crate::{

@@ -4,9 +4,9 @@ use std::{cmp::min, collections::HashSet};
 
 use coll::{
     aux::{VerifyError, VerifyResult},
-    get, ordered_insert,
+    get,
 };
-use common::Itertools;
+use common::{ Itertools, ordered_insert };
 
 use crate::Graph;
 

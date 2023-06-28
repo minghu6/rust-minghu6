@@ -5,14 +5,13 @@ use std::{
     ops::{Add, RangeBounds, Sub},
 };
 
-use common::Min;
+use common::{ Min, max, parse_range };
 use math::gcd;
 
 use super::{
     left, right, Count, Cursor, RawIntoStats, SegmentTree,
     TreeLayout,
 };
-use crate::{max, parse_range};
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Macro

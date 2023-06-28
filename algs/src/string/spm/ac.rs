@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 
 use std::collections::{BTreeMap, VecDeque};
 use std::ptr;
@@ -187,6 +186,8 @@ impl<'a> TrieNode<'a> {
         }
     }
 
+    #[allow(unused)]
+    #[cfg(test)]
     fn mark_position(&self) -> String {
         let mut tail = String::new();
         let mut whole_word = &self.word;
@@ -226,6 +227,8 @@ impl<'a> TrieNode<'a> {
 }
 
 
+#[allow(unused)]
+#[cfg(test)]
 fn bfs_trie_tree(tree: &TrieTree) {
     let mut queue: VecDeque<&TrieNode> = VecDeque::new();
     let root = unsafe { &mut *tree.root_ptr };
@@ -362,6 +365,7 @@ mod tests {
 
             assert_eq!(tree.index_of(text.as_str()), res);
         }
-
     }
+
+    
 }

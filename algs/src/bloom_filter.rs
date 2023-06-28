@@ -202,7 +202,7 @@ pub mod tests {
 
     use test::Bencher;
 
-    use crate::spm::gen_random_text;
+    use crate::string::gen_random_text;
 
     #[test]
     fn bloom_filter_fp_rate() {

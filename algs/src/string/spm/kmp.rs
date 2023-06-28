@@ -1,5 +1,3 @@
-use std::ops::Generator;
-
 pub struct KMPPattern {
     t: Vec<char>,
     t_str_len: usize,
@@ -11,6 +9,7 @@ pub enum ComputeNext {
     Naive,
     Improved,
 }
+
 
 impl<'a> KMPPattern {
     pub fn new(t: &'a str, gen_algs: ComputeNext) -> Self {
@@ -58,13 +57,13 @@ impl<'a> KMPPattern {
     pub fn find(
         &self,
         text: &'a str,
-    ) -> impl Generator<Yield = usize, Return = ()> {
+    ) -> impl Iterator<Item = usize> {
         let text = Box::new(String::from(text));
         let next = self.next.clone();
         let t = self.t.clone();
         let t_str_len = self.t_str_len;
 
-        move || {
+        std::iter::from_generator(move || {
             let mut pattern_index = 0;
 
             for (i, c) in text.char_indices() {
@@ -83,7 +82,7 @@ impl<'a> KMPPattern {
                     }
                 }
             }
-        }
+        })
     }
 
     fn calc_next_naive(p: &Vec<char>) -> Vec<isize> {
@@ -155,11 +154,6 @@ impl<'a> KMPPattern {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        ops::{Generator, GeneratorState},
-        pin::Pin,
-    };
-
     use super::{super::*, *};
 
 
@@ -220,14 +214,8 @@ mod tests {
     fn kmp_find_works_fixed() {
         let test = |pattern, text, v| {
             let p = KMPPattern::new(pattern, ComputeNext::Naive);
-            let mut gen_p = p.find(text);
-            let mut myv = vec![];
-            loop {
-                match Pin::new(&mut gen_p).resume(()) {
-                    GeneratorState::Yielded(j) => myv.push(j),
-                    GeneratorState::Complete(_) => break,
-                }
-            }
+
+            let myv: Vec<usize> = p.find(text).collect();
 
             assert_eq!(myv, v)
         };

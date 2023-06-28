@@ -1,7 +1,7 @@
 #![feature(test)]
 #![allow(dead_code)]
 
-use m6_algs::spm::{
+use m6_algs::string::{
     ac::TrieTree,
     b5s::{B5SSpacePattern, B5STimePattern},
     bm::{BMPattern, SimplifiedBMPattern},

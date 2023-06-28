@@ -1,7 +1,7 @@
 #![feature(test)]
 #![allow(dead_code)]
 
-use m6_algs::spm::{
+use m6_algs::string::{
     b5s::B5STimePattern, bm::BMPattern, gen_random_dna_text,
     gen_square_periodic_dna_pattern, sunday::SundayPattern,
 };

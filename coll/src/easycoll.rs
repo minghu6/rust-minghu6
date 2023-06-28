@@ -10,34 +10,6 @@ use std::{
 //// Macro
 
 #[macro_export]
-macro_rules! min {
-    ($($val:expr),+) => {
-        {
-            [$($val),+].into_iter().min().unwrap()
-        }
-    }
-}
-
-#[macro_export]
-macro_rules! max {
-    ($($val:expr),+) => {
-        {
-            [$($val),+].into_iter().max().unwrap()
-        }
-    }
-}
-
-#[macro_export]
-macro_rules! same {
-    ($($val:expr),+) => {
-        {
-            let _arr = [$($val),+];
-            _arr.iter().min().unwrap() == _arr.iter().max().unwrap()
-        }
-    }
-}
-
-#[macro_export]
 macro_rules! slidedown1 {
     ($var:expr, $e:expr) => {{
         use $crate::easycoll::Slide;

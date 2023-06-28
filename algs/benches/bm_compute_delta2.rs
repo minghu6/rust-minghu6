@@ -1,7 +1,7 @@
 #![feature(test)]
 
 
-use m6_algs::spm::{bm::BMPattern, gen_pattern};
+use m6_algs::string::{bm::BMPattern, gen_pattern};
 
 extern crate test;
 

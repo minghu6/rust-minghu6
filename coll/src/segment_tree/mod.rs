@@ -11,7 +11,7 @@ use std::{
     slice::SliceIndex,
 };
 
-use crate::parse_range;
+use common::parse_range;
 
 pub use stats::*;
 
@@ -220,8 +220,8 @@ impl TreeLayout for DFS {
 
     #[inline(always)]
     fn right_i(c: Cursor) -> usize {
-        // left_i + 2(n(left)) - 1
-        Self::left_i(c) + 2 * (tm!(c.tl, c.tr) - c.tl + 1) - 1
+        // i + 2(n(left))
+        c.i + 2 * (tm!(c.tl, c.tr) - c.tl + 1)
     }
 
     fn size(cap: usize) -> usize {

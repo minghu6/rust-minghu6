@@ -3,8 +3,10 @@
 use std::{sync::mpsc, thread};
 
 use common::util::split_improved;
-use m6_algs::spm::{
-    gen_random_text, sa::*, sa16::suffix_array_16, sais::suffix_array_sais,
+use m6_algs::string::{
+    compute_suffix_array_naive, gen_random_text, suffix_array_16,
+    suffix_array_bl, suffix_array_bl_radix, suffix_array_bl_radix_improved,
+    suffix_array_sais,
 };
 
 extern crate test;

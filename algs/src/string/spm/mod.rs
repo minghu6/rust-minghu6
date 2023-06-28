@@ -5,10 +5,7 @@ pub mod bm_badimpl;
 pub mod horspool;
 pub mod sunday;
 pub mod b5s;
-pub mod zfunction;
-pub mod sa;
-pub mod sais;
-pub mod sa16;
+pub mod rk;
 
 mod test;
 
