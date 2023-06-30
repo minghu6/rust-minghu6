@@ -1,4 +1,4 @@
-mod find_longest;
+mod sub_palindromes;
 
-pub use find_longest::*;
+pub use sub_palindromes::*;
 

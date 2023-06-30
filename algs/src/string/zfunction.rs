@@ -1,6 +1,6 @@
 use std::cmp::min;
 
-pub fn compute_z_function_naive<'a>(pat: &'a [u8]) -> Vec<usize> {
+pub fn compute_z_function_naive(pat: &[u8]) -> Vec<usize> {
     let patlen = pat.len();
     let mut vec_z = vec![0; patlen];
 
@@ -13,7 +13,7 @@ pub fn compute_z_function_naive<'a>(pat: &'a [u8]) -> Vec<usize> {
     vec_z
 }
 
-pub fn compute_z_function_improved<'a>(pat: &'a[u8]) -> Vec<usize> {
+pub fn compute_z_function_improved(pat: &[u8]) -> Vec<usize> {
     let patlen = pat.len();
     let mut vec_z = vec![0; patlen];
 
