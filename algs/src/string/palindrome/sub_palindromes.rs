@@ -347,13 +347,17 @@ pub fn find_sub_palindromes_manacher(
 pub fn find_sub_palindromes_manacher_unify(
     chars: &[char],
 ) -> (Vec<usize>, Vec<usize>) {
+    if chars.is_empty() {
+        return (Vec::with_capacity(0), Vec::with_capacity(0));
+    }
+
     let n = chars.len();
 
-    let n2 = n * 2 + 1;
+    let n2 = n * 2 - 1;
     let mut chars2 = vec!['#'; n2];
 
     for (i, c) in chars.into_iter().enumerate() {
-        chars2[i * 2 + 1] = *c;
+        chars2[i * 2] = *c;
     }
 
     let d21 = find_sub_palindromes_manacher_odd(&chars2);
@@ -362,12 +366,12 @@ pub fn find_sub_palindromes_manacher_unify(
     let mut d2 = vec![0; n];
 
     // i=0 is nonsense but the result is ok
-    for (i, v) in d21.into_iter().enumerate().filter(|(i, _)| *i != n2-1) {
-        if i % 2 == 1 {
-            d1[(i - 1) / 2] = v / 2;
+    for (i, v) in d21.into_iter().enumerate() {
+        if i % 2 == 0 {
+            d1[i / 2] = (v + 1) / 2;
         }
         else {
-            d2[i / 2] = (v - 1) / 2;
+            d2[(i + 1) / 2] = v / 2;
         }
     }
 
@@ -383,7 +387,7 @@ mod tests {
 
     #[allow(unused)]
     #[test]
-    fn test_find_the_longest_palindromic_case() {
+    fn test_find_longest_palindromes_case() {
         fn verify_case(text: &str, expect: (Vec<usize>, Vec<usize>)) {
             let chars: Vec<char> = text.chars().collect();
             let alphabet = DigitsLetters;
@@ -411,12 +415,12 @@ mod tests {
     }
 
     #[test]
-    fn test_find_the_longest_palindromic_random() {
+    fn test_find_longest_palindromes_random() {
         let alphabet = DigitsLetters;
         let npows = create_npows::<1>(alphabet.prime(), 1000);
 
         for _ in 0..50 {
-            let texts = [1, 2, 5, 10, 20, 30, 50, 100, 200]
+            let texts = [0, 1, 2, 3, 5, 10, 20, 30, 50, 100, 200]
                 .into_iter()
                 .map(|size| gen_random_dna_text(size));
 
