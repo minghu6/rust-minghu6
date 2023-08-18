@@ -13,11 +13,11 @@ use m6_algs::string::{
 };
 use test::Bencher;
 
-const TEXT_SZ: usize = 100_000;
+const TEXT_SZ: usize = 1_000_000;
 
 lazy_static! {
     static ref TEXTS: Vec<Vec<char>> = {
-        vec![TEXT_SZ; 10]
+        vec![TEXT_SZ; 100]
             .into_iter()
             .map(|size| gen_random_dna_text(size).chars().collect())
             .collect()
@@ -83,6 +83,63 @@ fn bench_find_longest_palindromes_manacher_unify(b: &mut Bencher) {
         for chars in TEXTS.iter() {
             let (d1, d2) = black_box(find_sub_palindromes_manacher_unify(chars));
             black_box(sub_palindromes_to_longest_palindromes((&d1, &d2)));
+        }
+    })
+}
+
+
+fn verify_palindrome_whole_compare(s: &[char]) -> bool {
+    !s.is_empty() && s.iter().eq(s.iter().rev())
+}
+
+
+fn verify_palindrome_two_ptr(s: &[char]) -> bool {
+    if s.is_empty() {
+        return false;
+    }
+
+    let mut i;
+    let mut j;
+
+    if s.len() % 2 == 0 {
+        i = s.len() / 2 - 1;
+        j = i + 1;
+    }
+    else {
+        i = (s.len() + 1) / 2 - 1;
+        j = i;
+    }
+
+    loop {
+        if s[i] != s[j] {
+            break false;
+        }
+
+        if i == 0 {
+            break true;
+        }
+
+        i -= 1;
+        j += 1;
+    }
+}
+
+
+#[bench]
+fn bench_verify_palindrome_whole_compare(b: &mut Bencher) {
+    b.iter(|| {
+        for chars in TEXTS.iter() {
+            black_box(verify_palindrome_whole_compare(&chars));
+        }
+    })
+}
+
+
+#[bench]
+fn bench_verify_palindrome_two_ptr(b: &mut Bencher) {
+    b.iter(|| {
+        for chars in TEXTS.iter() {
+            black_box(verify_palindrome_two_ptr(&chars));
         }
     })
 }

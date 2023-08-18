@@ -129,13 +129,11 @@ macro_rules! impl_for_num {
     (sub_seg_max_sum_stats| $for_ty:ty) => {
         impl_raw_into_stats!(SubSegMaxSum, $for_ty, SubSegMaxSumStats<$for_ty> {
             fn raw_into_stats(self) -> Self::Stats {
-                let non_neg = max(0, self);
-
                 SubSegMaxSumStats {
                     sum: self,
-                    pref: non_neg,
-                    suff: non_neg,
-                    ans: non_neg
+                    pref: self,
+                    suff: self,
+                    ans: self
                 }
             }
         });
@@ -193,8 +191,16 @@ pub struct SubSegMaxSumStats<T> {
 ////////////////////////////////////////////////////////////////////////////////
 //// Implementation
 
-
-
+impl<T: Min<T>> Min<SubSegMaxSumStats<T>> for SubSegMaxSumStats<T> {
+    fn min() -> Self {
+        Self {
+            sum: T::min(),
+            pref: T::min(),
+            suff: T::min(),
+            ans: T::min(),
+        }
+    }
+}
 
 impl<T> Count for Sum<T>
 where
@@ -414,13 +420,22 @@ impl ZeroStats {
 
 impl<T> Count for SubSegMaxSum<T>
 where
-    T: Default + Ord + Clone,
+    T: Default + Ord + Clone + Min<T>,
     for<'a> &'a T: Add<&'a T, Output = T> + Ord + 'a,
     for<'a> T: 'a,
 {
     type Stats = SubSegMaxSumStats<T>;
 
     fn combine(l: &Self::Stats, r: &Self::Stats) -> Self::Stats {
+        let limit_ans = Self::e().ans;
+
+        if l.ans == limit_ans {
+            return r.clone();
+        }
+        else if r.ans == limit_ans {
+            return l.clone();
+        }
+
         SubSegMaxSumStats {
             sum: &l.sum + &r.sum,
             pref: max(&l.pref, &(&l.sum + &r.pref)).clone(),
@@ -430,7 +445,7 @@ where
     }
 
     fn e() -> Self::Stats {
-        Default::default()
+        SubSegMaxSumStats::<T>::min()
     }
 }
 

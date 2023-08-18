@@ -384,8 +384,19 @@ fn test_segment_tree_zero_nth() {
 }
 
 
+
 #[test]
 fn test_segment_tree_sub_seg_max_sum() {
+    let calc_sub_seg_max_sum = |arr: &[i32]| {
+        arr
+        .into_iter()
+        .scan(0, |st, &x| {
+            *st = max(x, x+*st);
+            Some(*st)
+        })
+        .max()
+    };
+
     for mut arr in gen_arr!(I) {
         let mut st =
             SegmentTree::<SubSegMaxSumStats<i32>, SubSegMaxSum<_>>::new(&arr);
@@ -403,24 +414,7 @@ fn test_segment_tree_sub_seg_max_sum() {
         /* update-query */
 
         for q in gen_query!(50, arr.len()) {
-            let qarr = arr[q.clone()].into_iter().cloned().collect_vec();
-
-            let mut expect = 0;
-
-            for i in 0..qarr.len() {
-                if qarr[i] <= 0 {
-                    continue;
-                }
-
-                for j in i..qarr.len() {
-                    if qarr[j] <= 0 {
-                        continue;
-                    }
-
-                    expect = max(expect, qarr[i..=j].into_iter().sum());
-                }
-            }
-
+            let expect = calc_sub_seg_max_sum(&arr[q.clone()]).unwrap();
             let res = st.query(q.clone());
 
             assert_eq!(res.ans, expect, "res / expect {res:#?}");

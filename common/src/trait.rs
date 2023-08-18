@@ -115,7 +115,6 @@ pub trait Min<T> {
     fn min() -> T;
 }
 
-
 pub trait Num<T> {}
 
 pub trait Int<T> {}

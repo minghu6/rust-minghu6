@@ -1,19 +1,14 @@
-#![feature(default_free_fn)]
-#![allow(unused_imports)]
-
 use std::{
-    convert::TryFrom,
-    default::default,
-    fs::{read, File},
-    io::{BufRead, BufReader, Read},
+    fs::File,
+    io::BufReader,
     path::{Path, PathBuf},
 };
 
 use clap::Parser;
-use serde_json::{self, Map, Value};
+use serde_json::{self, Value};
 use configparser::ini::Ini;
 
-use common::{Itertools, error_code::ErrorCode};
+use common::error_code::ErrorCode;
 
 
 macro_rules! value_name {
@@ -200,7 +195,7 @@ impl CheatPeace {
 
                 Ok(CheatPeace {
                     title,
-                    desc: default(),
+                    desc: <_>::default(),
                     code,
                     is_turned: false,
                 })

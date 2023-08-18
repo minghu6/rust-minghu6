@@ -120,7 +120,6 @@ impl<T: Clone, C: Count<Stats = T>> BIT<T, C> {
         self.data.len()
     }
 
-
     fn build<U>(raw: &[U]) -> Vec<T>
     where
         U: Clone + RawIntoStats<C, Stats = T>,
