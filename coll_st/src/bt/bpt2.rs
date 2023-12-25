@@ -152,7 +152,7 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
             }
         }
 
-        std::iter::from_generator(move || {
+        std::iter::from_coroutine(move || {
             while cur.is_some() {
                 let mut entries = entries_mut!(cur).select_mut(range.clone());
 
@@ -293,7 +293,7 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
     // fn nodes(&self) -> impl Iterator<Item = Node<K, V>> {
     //     let mut cur = self.min_node.upgrade();
 
-    //     std::iter::from_generator(move || {
+    //     std::iter::from_coroutine(move || {
     //         while cur.is_some() {
     //             yield cur.clone();
 

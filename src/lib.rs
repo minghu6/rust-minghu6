@@ -1,7 +1,7 @@
 #![allow(incomplete_features)]
 
 #![feature(test)]
-#![feature(generators, generator_trait)]
+#![feature(coroutines, coroutine_trait)]
 #![feature(ptr_internals)]
 #![feature(stmt_expr_attributes)]
 #![feature(is_sorted)]
@@ -14,11 +14,10 @@
 #![feature(macro_metavar_expr)]
 #![feature(rustc_private)]
 #![feature(type_alias_impl_trait)]
-#![feature(iter_from_generator)]
+#![feature(iter_from_coroutine)]
 #![feature(trace_macros)]
 #![feature(result_option_inspect)]
 #![feature(let_chains)]
-#![feature(local_key_cell_methods)]
 #![feature(cell_update)]
 
 

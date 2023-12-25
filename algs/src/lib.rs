@@ -1,9 +1,8 @@
 #![allow(incomplete_features)]
 
 #![feature(test)]
-#![feature(generator_trait)]
-#![feature(generators)]
-#![feature(iter_from_generator)]
+#![feature(iter_from_coroutine)]
+#![feature(coroutines)]
 #![feature(is_sorted)]
 #![feature(exclusive_range_pattern)]
 #![feature(generic_const_exprs)]

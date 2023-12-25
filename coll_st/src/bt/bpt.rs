@@ -232,7 +232,7 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
             idx = 0;
         }
 
-        std::iter::from_generator(move || {
+        std::iter::from_coroutine(move || {
             if cur.is_none() {
                 return;
             }
@@ -260,7 +260,7 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
     }
 
     pub fn entries(&self) -> impl Iterator<Item = (&K, &V)> {
-        std::iter::from_generator(move || {
+        std::iter::from_coroutine(move || {
             for x in self.nodes() {
                 for ent in entries!(x) {
                     yield (&ent.0, &ent.1)
@@ -455,7 +455,7 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
         K: Clone,
         V: Debug,
     {
-        std::iter::from_generator(move || {
+        std::iter::from_coroutine(move || {
             while n > 0 && let Some((k, v)) = self.pop_last() {
                 yield (k, v);
                 n -= 1;
@@ -564,7 +564,7 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
     pub fn into_iter(self) -> impl Iterator<Item = (K, V)> {
         let mut cur = self.min_node.upgrade();
 
-        std::iter::from_generator(move || {
+        std::iter::from_coroutine(move || {
             while cur.is_some() {
                 let nxt = succ!(cur);
 
@@ -583,7 +583,7 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
     pub(crate) fn drain_all(&mut self) -> impl Iterator<Item = (K, V)> {
         let mut cur = self.min_node.upgrade();
 
-        std::iter::from_generator(move || {
+        std::iter::from_coroutine(move || {
             while cur.is_some() {
                 let nxt = succ!(cur);
 
@@ -620,7 +620,7 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
     fn nodes(&self) -> impl Iterator<Item = Node<K, V>> {
         let mut cur = self.min_node.upgrade();
 
-        std::iter::from_generator(move || {
+        std::iter::from_coroutine(move || {
             while cur.is_some() {
                 yield cur.clone();
 

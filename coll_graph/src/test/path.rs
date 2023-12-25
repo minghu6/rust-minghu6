@@ -68,7 +68,7 @@ impl<'a> Path<'a> {
     pub fn iter<'b>(
         &'b self,
     ) -> impl Iterator<Item = (usize, usize, isize)> + 'b {
-        std::iter::from_generator(|| {
+        std::iter::from_coroutine(|| {
             let mut cur = self.path[0];
 
             for v in self.path[1..].iter().cloned() {

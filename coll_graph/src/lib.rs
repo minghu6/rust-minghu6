@@ -1,6 +1,6 @@
-#![feature(iter_from_generator)]
+#![feature(iter_from_coroutine)]
 #![feature(let_chains)]
-#![feature(generators)]
+#![feature(coroutines)]
 #![feature(type_alias_impl_trait)]
 
 
@@ -15,9 +15,7 @@ pub mod test;
 mod debug;
 
 
-use std::{
-    collections::{BTreeSet, HashMap, hash_map::Entry},
-};
+use std::collections::{BTreeSet, HashMap, hash_map::Entry};
 
 use coll::{
     union_find::{UnionFind, SZ},
@@ -138,7 +136,7 @@ impl Graph {
     pub fn edges<'a>(
         &'a self,
     ) -> impl Iterator<Item = (usize, usize, isize)> + 'a {
-        std::iter::from_generator(|| {
+        std::iter::from_coroutine(|| {
             for (u, tos) in self.e.iter().cloned().enumerate() {
                 for v in tos {
                     yield (u, v, get!(self.w => (u, v)))

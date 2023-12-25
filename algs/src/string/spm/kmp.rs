@@ -63,7 +63,7 @@ impl<'a> KMPPattern {
         let t = self.t.clone();
         let t_str_len = self.t_str_len;
 
-        std::iter::from_generator(move || {
+        std::iter::from_coroutine(move || {
             let mut pattern_index = 0;
 
             for (i, c) in text.char_indices() {
