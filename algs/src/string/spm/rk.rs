@@ -58,7 +58,7 @@ impl<const N: usize> RabinKarpPatten<N> {
         text: &'a RabinKarpText<N>,
         npows: &'a [[u64; N]],
     ) -> impl Iterator<Item = usize> + 'a {
-        std::iter::from_coroutine(|| {
+        std::iter::from_coroutine(#[coroutine] || {
             if text.len() < self.pat_len {
                 return;
             }

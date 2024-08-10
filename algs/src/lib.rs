@@ -4,17 +4,10 @@
 #![feature(iter_from_coroutine)]
 #![feature(coroutines)]
 #![feature(is_sorted)]
-#![feature(exclusive_range_pattern)]
 #![feature(generic_const_exprs)]
-#![feature(inline_const)]
 #![feature(maybe_uninit_uninit_array)]
 #![feature(generic_arg_infer)]
 #![feature(associated_const_equality)]
-// #![feature(const_for)]
-// #![feature(const_trait_impl)]
-// #![feature(const_iter)]
-// #![feature(const_intoiterator_identity)]
-// #![feature(const_mut_refs)]
 
 
 use std::cmp::Ordering::{ self, * };

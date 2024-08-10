@@ -1,7 +1,6 @@
 #![feature(stmt_expr_attributes)]
 #![feature(trait_alias)]
 #![feature(test)]
-#![feature(absolute_path)]
 #![feature(macro_metavar_expr)]
 #![feature(int_roundings)]
 #![feature(negative_impls)]

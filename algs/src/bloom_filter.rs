@@ -90,12 +90,12 @@ impl BloomFilter<u8> for BytesBloomFilter64 {
 }
 
 
-#[cfg(any(bench, test))]
+#[cfg(any(test))]
 pub use tests::FastBloomFilter;
 
 
 
-#[cfg(any(bench, test))]
+#[cfg(test)]
 pub mod tests {
     use super::*;
     use std::{
