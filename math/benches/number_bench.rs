@@ -1,14 +1,14 @@
 #![feature(test)]
+#![feature(isqrt)]
 
 extern crate test;
 
 use std::{hint::black_box, ops::Range};
-use test::Bencher;
-
-use lazy_static::lazy_static;
 
 use common::random_range;
-use m6_math::gcd;
+use lazy_static::lazy_static;
+use m6_math::{gcd, is_prime, number::*};
+use test::Bencher;
 
 
 const GCD_PAIRS_LEN: usize = 1_000;
@@ -18,6 +18,7 @@ const GCD_U_RANGE: Range<u64> = 0x000F_FFFF_FFFF_FFFF..0x00FF_FFFF_FFFF_FFFF;
 const GCD_V_RANGE: Range<u64> = 0x0000_0FFF_FFFF_FFFF..0x0000_FFFF_FFFF_FFFF;
 // const GCD_V_RANGE: Range<u64> = 0x0000_0000_0000_FFFF..0x0000_0000_00FF_FFFF;
 
+const PRIME_N: usize = 10usize.pow(6);
 
 lazy_static! {
     static ref GCD_PAIRS: Vec<(u64, u64)> = {
@@ -32,7 +33,6 @@ lazy_static! {
 
         arr
     };
-
 }
 
 
@@ -50,7 +50,7 @@ fn bench_gcd_mod(b: &mut Bencher) {
 fn bench_gcd_sub(b: &mut Bencher) {
     b.iter(|| {
         for (m, n) in GCD_PAIRS.iter().cloned() {
-            black_box(gcd!(sub| m, n));
+            black_box(gcd!(sub | m, n));
         }
     })
 }
@@ -60,7 +60,61 @@ fn bench_gcd_sub(b: &mut Bencher) {
 fn bench_gcd_smart(b: &mut Bencher) {
     b.iter(|| {
         for (m, n) in GCD_PAIRS.iter().cloned() {
-            black_box(gcd!(u64| m, n));
+            black_box(gcd!(u64 | m, n));
         }
+    })
+}
+
+#[ignore = "slow"]
+#[bench]
+fn bench_pri_brute(b: &mut Bencher) {
+    b.iter(|| {
+        black_box(
+            (0..PRIME_N)
+                .filter_map(
+                    |v| if is_prime!(v; usize) { Some(v) } else { None },
+                )
+                .collect::<Vec<usize>>(),
+        );
+    })
+}
+
+#[bench]
+fn bench_pri_e_sieve(b: &mut Bencher) {
+    b.iter(|| {
+        black_box(
+                e_sieve(PRIME_N)
+                .collect::<Vec<usize>>(),
+        );
+    })
+}
+
+#[bench]
+fn bench_pri_e_seg_sieve(b: &mut Bencher) {
+    b.iter(|| {
+        black_box(
+                e_seg_sieve(PRIME_N)
+                .collect::<Vec<usize>>(),
+        );
+    })
+}
+
+#[bench]
+fn bench_pri_wheel_sieve(b: &mut Bencher) {
+    b.iter(|| {
+        black_box(
+                wheel_sieve(PRIME_N)
+                .collect::<Vec<usize>>(),
+        );
+    })
+}
+
+#[bench]
+fn bench_pri_mairson_sieve(b: &mut Bencher) {
+    b.iter(|| {
+        black_box(
+                mairson_sieve(PRIME_N)
+                .collect::<Vec<usize>>(),
+        );
     })
 }

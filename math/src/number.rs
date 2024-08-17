@@ -1,7 +1,10 @@
-////////////////////////////////////////////////////////////////////////////////
-//// Macro
+use std::{cmp::min, iter::once, pin::Pin, rc::Rc};
 
 use bit_vec::BitVec;
+
+
+////////////////////////////////////////////////////////////////////////////////
+//// Macro
 
 /// replacement for
 ///
@@ -12,7 +15,7 @@ use bit_vec::BitVec;
 macro_rules! ilog2 {
     ($x:expr) => {{
         let mut x = $x;
-        assert!(x > 0);
+        debug_assert!(x > 0);
 
         let mut i = 0;
 
@@ -209,158 +212,382 @@ macro_rules! is_prime {
     }};
 }
 
+macro_rules! e_sieve_spec_case {
+    ($n: ident) => {
+        let n = $n;
+
+        if n < 2 {
+            return
+        }
+        else if n == 2 {
+            return std::iter::from_coroutine(
+                #[coroutine]
+                move || {
+
+                })
+            return
+        }
+        else if n == 3 {
+            yield 3;
+            return
+        }
+    };
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 //// Function
 
-pub fn e_sive(n: usize) -> ESive {
-    let mut bits = BitVec::from_elem(n + 1, true);
+pub fn e_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
+    if n < 2 {
+        return Box::new(std::iter::empty());
+    }
+    else if n == 2 {
+        return Box::new(std::iter::once(2));
+    }
 
-    bits.set(0, false);
-    bits.set(1, false);
+    let mut bits = BitVec::from_elem(n + 1, true);
 
     for i in 2..=n.isqrt() {
         if bits[i] {
-            for j in (i * i..=n).step_by(i) {
+            for j in (i*i..=n).step_by(i) {
                 bits.set(j, false);
             }
         }
     }
 
-    ESive { bits }
+    Box::new(bits.into_iter().enumerate().skip(2).flat_map(|(i, flag)| if flag { Some(i) } else { None }))
 }
 
 /// Space: O(\sqrt{n})
-pub fn e_seg_sieve(n: usize) -> impl Iterator<Item = usize> {
-    std::iter::from_coroutine(#[coroutine] move || {
-        let delta = n.isqrt();
+pub fn e_seg_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
+    if n < 2 {
+        return Box::new(std::iter::empty());
+    }
+    else if n == 2 {
+        return Box::new(std::iter::once(2));
+    }
+    else if n == 3 {
+        return Box::new([2, 3].into_iter());
+    }
 
-        let p = e_sive(delta).bits;
+    Box::new(std::iter::from_coroutine(
+        #[coroutine]
+        move || {
+            let delta = n.isqrt();
 
-        for i in 1..=delta {
-            if p[i] {
-                yield i;
+            let pris = Rc::new(e_sieve(delta).collect::<Vec<usize>>());
+
+            for i in 0..pris.len() {
+                yield pris.as_ref()[i];
             }
-        }
 
-        let mut seg = BitVec::from_elem(delta+1, true);
-        let mut l = delta;
+            let mut l = delta;
 
-        loop {
-            for i in 1..=delta {
-                if p[i] {
-                    for j in (i - l % i..=delta).step_by(i) {
-                        seg.set(j, false);
+            while l + 1 <= n {
+                for p in e_sieve_reentrant(pris.clone(), l, min(delta, n-l)) {
+                    yield p;
+                }
+
+                l += delta;
+            }
+        },
+    ))
+}
+
+/// 1. pris from 0..x, no empty.
+/// 2. return (l, l+delta]
+fn e_sieve_reentrant(
+    pris: Rc<Vec<usize>>,
+    l: usize,
+    delta: usize,
+) -> impl Iterator<Item = usize> {
+    debug_assert!(!pris.is_empty());
+
+    std::iter::from_coroutine(
+        #[coroutine]
+        move || {
+            let mut seg = BitVec::from_elem(delta + 1, true);
+
+            for &p in pris.iter() {
+                for i in (p - l % p..=delta).step_by(p) {
+                    seg.set(i, false);
+                }
+            }
+
+            for (i, flag) in seg.into_iter().enumerate().skip(1) {
+                if flag {
+                    yield l + i
+                }
+            }
+        },
+    )
+}
+
+
+#[deprecated = "This is a failed design demo"]
+pub fn spiral_wheel() -> impl Iterator<Item = usize> {
+    std::iter::from_coroutine(
+        #[coroutine]
+        || {
+            // linear wheel, w_1
+            let mut wheel = vec![2];
+            let mut l = 2;
+            let mut miles = 1;
+            let mut rotation = 0;
+            // p_{k+1}
+            let mut p1 = 3usize;
+
+            yield 2;
+
+            loop {
+                /* Roll infinite */
+
+                let mut acc = 1;
+                let mut wheel_aux = vec![acc];
+
+                for v in wheel[..wheel.len() - 1].iter() {
+                    wheel_aux.push(acc + v);
+                    acc += v;
+                }
+
+                while miles + wheel[rotation] < p1.pow(2) {
+                    yield miles + wheel[rotation];
+
+                    miles += wheel[rotation];
+                    rotation = (rotation + 1) % wheel.len();
+
+                    if miles >= 800 {
+                        dbg!(&wheel_aux);
                     }
                 }
-            }
 
-            for i in 1..=delta {
-                if seg[i] {
-                    if l + i > n {
-                        return;
+                /* Expand to next level wheel */
+
+                // NOTE: wheel would expand too large as p! grow faster than p^2
+                // lim(n->infi): p!/p^2 = infi
+
+                let mut wheel1 = Vec::with_capacity((wheel.len() - 1) * p1);
+                let mut acc = 1;
+                let mut rem = 0;
+
+                for i in 0..wheel.len() * p1 {
+                    if (acc + rem + wheel[i % wheel.len()]) % p1 != 0 {
+                        acc += rem + wheel[i % wheel.len()];
+                        wheel1.push(rem + wheel[i % wheel.len()]);
+                        rem = 0;
+                    } else {
+                        // remove the marked point from w_k -> w_{k+1}
+                        rem = wheel[i % wheel.len()];
                     }
-
-                    yield l + i;
                 }
+
+                rotation = ((miles / l) * wheel.len() + rotation + 1 - 1 - 1)
+                    % ((p1 - 1) * wheel.len());
+                l *= p1;
+
+                wheel = wheel1;
+                p1 = 1 + wheel[0];
+            }
+        },
+    )
+}
+
+pub fn mairson_sieve(n: usize) -> impl Iterator<Item = usize> {
+    std::iter::from_coroutine(
+        #[coroutine]
+        move || {
+            if n == 0 {
+                return;
             }
 
-            seg.set_all();
-            l += delta;
+            let mut forward: Vec<usize> = (1..=n).chain(once(0)).collect();
+            let mut backward: Vec<usize> = once(0).chain(0..=n - 1).collect();
+
+            // lpf (least prime factor)
+            let mut p = 2usize;
+
+            while p.pow(2) <= n {
+                /* collected andthen remove all number which lpf is p from S. */
+
+                let mut c = vec![];
+                let mut f = p;
+
+                while p * f <= n {
+                    // remove p*f from S
+                    c.push(p * f);
+                    f = forward[f];
+                }
+
+                for i in c {
+                    forward[backward[i]] = forward[i];
+                    backward[forward[i]] = backward[i];
+                }
+
+                p = forward[p];
+            }
+
+            let mut i = 1;
+
+            while forward[i] != 0 {
+                yield forward[i];
+
+                i = forward[i];
+            }
+        },
+    )
+}
+
+/// Sublinear additive sieve by Paul Pritchard
+pub fn wheel_sieve(n: usize) -> impl Iterator<Item = usize> {
+    /// saving 1/3 time compared with vector (each turn create new vector).
+    ///
+    /// space cost about 3/5 N.
+    struct CompactDoubleArrayList {
+        /// 0 for nil
+        tail: usize,
+        /// [value, forward, backward]
+        arr: Vec<[usize; 3]>,
+    }
+
+    impl CompactDoubleArrayList {
+        fn new() -> Self {
+            let tail = 0;
+            let list = vec![[0; 3]];
+
+            Self { tail, arr: list }
         }
-    })
-}
 
-pub fn wheel_prime() -> impl Iterator<Item = u64> + {
-    std::iter::from_coroutine(#[coroutine] || {
-        yield 2;
-        yield 3;
-        yield 5;
-        yield 7;
+        fn push(&mut self, v: usize) {
+            self.arr[self.tail][1] = self.tail + 1;
 
-        let mut ptr = 7u64;
-        let mut po = 6u64;  // primorial
-        let mut pnth = 3;
-        let mut pris = vec![2, 3, 5, 7];
-        let mut w_inc = vec![4, 2];
+            let new_node = [v, 0, self.tail];
 
-        // valid upper bound
-        let mut bound = po.pow(2);
-
-
-        while let Some(ptr_nxt) = ptr.checked_add(w_inc[(pnth+1) % w_inc.len()]) {
-            // shift geers
-            if ptr_nxt >= bound {
-                po *= pris[pnth+1];
-                bound = (po * pris[w_inc.len()]).pow(2);
-
-                w_inc[0] = pris[w_inc.len()] - 1;
-                w_inc.push(pris[w_inc.len()+1] - pris[w_inc.len()]);
-
-                continue;
+            if self.tail == self.arr.len() - 1 {
+                self.arr.push(new_node);
+            } else {
+                self.arr[self.tail + 1] = new_node;
             }
 
-            pnth += 1;
-            ptr = ptr_nxt;
-
-            if po < 1 << 32 {
-                pris.push(ptr);
-            }
-
-            yield ptr;
+            self.tail += 1;
         }
 
-    })
+        fn filter<P: Fn(usize) -> bool>(&mut self, pred: P) {
+            let mut i = self.arr[0][1];
+
+            while i != 0 {
+                if !pred(self.arr[i][0]) {
+                    let prev = self.arr[i][2];
+                    let next = self.arr[i][1];
+
+                    self.arr[prev][1] = next;
+                    self.arr[next][2] = prev;
+                }
+
+                i = self.arr[i][1];
+            }
+        }
+
+        fn nth(&self, index: usize) -> usize {
+            let mut i = self.arr[0][1];
+            let mut c = 0;
+
+            while i != 0 {
+                if c == index {
+                    return self.arr[i][0];
+                }
+
+                i = self.arr[i][1];
+                c += 1;
+            }
+
+            unreachable!("{index} > {c}");
+        }
+
+        fn into_iter(self) -> impl Iterator<Item = usize> {
+            std::iter::from_coroutine(
+                #[coroutine]
+                move || {
+                    let mut i = self.arr[0][1];
+
+                    while i != 0 {
+                        yield self.arr[i][0];
+                        i = self.arr[i][1];
+                    }
+                },
+            )
+        }
+
+        fn rolling(&mut self, l: usize, n: usize) {
+            let mut i = self.arr[0][1];
+
+            debug_assert!(i != 0);
+
+            while l + self.arr[i][0] <= n {
+                self.push(l + self.arr[i][0]);
+                i = self.arr[i][1];
+            }
+        }
+
+        fn delete_multiple_p(&mut self, p: usize) {
+            self.filter(|v| v % p != 0)
+        }
+    }
+
+
+    std::iter::from_coroutine(
+        #[coroutine]
+        move || {
+            if n < 2 {
+                return;
+            }
+
+            let mut p = 3usize;
+            // let mut w = vec![1];  // w_1
+            let mut w = CompactDoubleArrayList::new();
+            w.push(1);
+
+            let mut l = 2;
+            yield 2;
+
+            while p.pow(2) <= n {
+                w.rolling(l, min(p * l, n));
+                w.delete_multiple_p(p);
+
+                yield p;
+
+                l = min(p * l, n);
+                p = w.nth(1);
+            }
+
+            w.rolling(l, n);
+
+            dbg!(&w.arr.len());
+
+            for v in w.into_iter().skip(1) {
+                yield v;
+            }
+        },
+    )
 }
 
-////////////////////////////////////////////////////////////////////////////////
-//// Structure
 
-pub struct ESive {
-    /// true for prime; false for composite
-    bits: BitVec,
-}
-
-
-////////////////////////////////////////////////////////////////////////////////
-//// Implementation
-
-
-impl ESive {
-    pub fn is_prime(&self, n: usize) -> bool {
-        assert!(n < self.bits.len());
-
-        self.bits[n]
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = usize> + '_ {
-        std::iter::from_coroutine(#[coroutine] || {
-            for (i, flag) in self.bits.iter().enumerate() {
-                if flag {
-                    yield i;
-                }
-            }
-        })
-    }
-
-    pub fn into_iter(self) -> impl Iterator<Item = usize> {
-        std::iter::from_coroutine(#[coroutine] || {
-            for (i, flag) in self.bits.into_iter().enumerate() {
-                if flag {
-                    yield i;
-                }
-            }
-        })
-    }
+/// AKA SFWS (segmented fixed-wheel sieve)
+pub fn wheel_seg_sieve(_n: usize) -> impl Iterator<Item = usize> {
+    std::iter::from_coroutine(
+        #[coroutine]
+        move || {},
+    )
 }
 
 
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
+    use std::collections::BTreeSet;
 
-    use super::e_seg_sieve;
-    use crate::number::{e_sive, wheel_prime};
+    use common::same;
+
+    use super::*;
 
     #[test]
     fn test_gcd() {
@@ -395,22 +622,71 @@ mod tests {
         }
     }
 
+    #[ignore = "for debug"]
+    #[allow(deprecated)]
+    #[test]
+    fn test_wheel_prime() {
+        let n: usize = 10_0;
+
+        for p in spiral_wheel() {
+            if p > n {
+                break;
+            }
+
+            println!("{p}");
+        }
+    }
+
+    #[test]
+    fn debug() {
+        let n = 40;
+
+        for v in wheel_sieve(10_0000) {}
+    }
+
     #[test]
     fn test_prime() {
         /* co-test */
 
-        let n = 1690;
-
-        let e_sive = e_sive(n);
-        let e_seg_sive: HashSet<usize> = e_seg_sieve(n).collect();
-
-        for i in 1..=n {
-            assert_eq!(is_prime!(i; usize), e_sive.is_prime(i), "{i}");
-            assert_eq!(is_prime!(i; usize), e_seg_sive.contains(&i), "{i}");
+        for n in [0, 1] {
+            assert!(e_sieve(n).collect::<Vec<usize>>().is_empty());
+            assert!(e_seg_sieve(n).collect::<Vec<usize>>().is_empty());
+            assert!(wheel_sieve(n).collect::<Vec<usize>>().is_empty());
+            assert!(mairson_sieve(n).collect::<Vec<usize>>().is_empty());
         }
 
-        for (p0, v0) in e_sive.iter().zip(wheel_prime()) {
-            assert_eq!(p0 as u64, v0);
+        for n in [2] {
+            assert_eq!(e_sieve(n).collect::<Vec<usize>>(), vec![2]);
+            assert_eq!(e_seg_sieve(n).collect::<Vec<usize>>(), vec![2]);
+            assert_eq!(wheel_sieve(n).collect::<Vec<usize>>(), vec![2]);
+            assert_eq!(mairson_sieve(n).collect::<Vec<usize>>(), vec![2]);
+        }
+
+        for n in [3, 4] {
+            assert_eq!(e_sieve(n).collect::<Vec<usize>>(), vec![2, 3]);
+            assert_eq!(e_seg_sieve(n).collect::<Vec<usize>>(), vec![2, 3]);
+            assert_eq!(wheel_sieve(n).collect::<Vec<usize>>(), vec![2, 3]);
+            assert_eq!(mairson_sieve(n).collect::<Vec<usize>>(), vec![2, 3]);
+        }
+
+        let n = 1690;
+
+        let e_sieve: BTreeSet<usize> = e_sieve(n).collect();
+        let e_seg_sive: BTreeSet<usize> = e_seg_sieve(n).collect();
+        let wheel_sieve: BTreeSet<usize> = wheel_sieve(n).collect();
+        let mairson_sieve: BTreeSet<usize> = mairson_sieve(n).collect();
+
+        for i in 1..=n {
+            assert!(
+                same!(
+                    is_prime!(i; usize),
+                    e_sieve.contains(&i),
+                    e_seg_sive.contains(&i),
+                    wheel_sieve.contains(&i),
+                    mairson_sieve.contains(&i)
+                ),
+                "{i}"
+            );
         }
     }
 }
