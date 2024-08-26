@@ -1,4 +1,4 @@
-use std::{cmp::min, iter::once, pin::Pin, rc::Rc};
+use std::{cmp::min, iter::once};
 
 use bit_vec::BitVec;
 
@@ -212,95 +212,92 @@ macro_rules! is_prime {
     }};
 }
 
-macro_rules! e_sieve_spec_case {
-    ($n: ident) => {
+macro_rules! sieve_spec_case {
+    // ($n: ident; [0]) => {{
+    //     let n = $n;
+
+    //     if n == 0 {
+    //         return Box::new(std::iter::empty());
+    //     }
+    // }};
+    ($n: ident; [0, 1]) => {{
         let n = $n;
 
         if n < 2 {
-            return
+            return Box::new(std::iter::empty());
         }
-        else if n == 2 {
-            return std::iter::from_coroutine(
-                #[coroutine]
-                move || {
+    }};
+    ($n: ident; [0, 2]) => {{
+        let n = $n;
 
-                })
-            return
+        sieve_spec_case!(n; [0, 1]);
+
+        if n == 2 {
+            return Box::new(std::iter::once(2));
         }
-        else if n == 3 {
-            yield 3;
-            return
+    }};
+    ($n: ident; [0, 4]) => {{
+        let n = $n;
+
+        sieve_spec_case!($n; [0, 2]);
+
+        if n <= 4 {
+            return Box::new([2, 3].into_iter());
         }
-    };
+    }};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Function
 
 pub fn e_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
-    if n < 2 {
-        return Box::new(std::iter::empty());
-    }
-    else if n == 2 {
-        return Box::new(std::iter::once(2));
-    }
+    sieve_spec_case!(n; [0, 2]);
 
     let mut bits = BitVec::from_elem(n + 1, true);
 
     for i in 2..=n.isqrt() {
         if bits[i] {
-            for j in (i*i..=n).step_by(i) {
+            for j in (i * i..=n).step_by(i) {
                 bits.set(j, false);
             }
         }
     }
 
-    Box::new(bits.into_iter().enumerate().skip(2).flat_map(|(i, flag)| if flag { Some(i) } else { None }))
+    Box::new(
+        bits.into_iter()
+            .enumerate()
+            .skip(2)
+            .filter_map(|(i, flag)| if flag { Some(i) } else { None }),
+    )
 }
 
 /// Space: O(\sqrt{n})
 pub fn e_seg_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
-    if n < 2 {
-        return Box::new(std::iter::empty());
+    sieve_spec_case!(n; [0, 4]);
+
+    let delta = n.isqrt();
+    let pris = e_sieve(delta).collect::<Vec<usize>>();
+
+    let mut acc = vec![];
+    let mut l = delta;
+
+    while l + 1 <= n {
+        acc.extend(e_seg_sieve_0(&pris, l, min(delta, n - l)));
+
+        l += delta;
     }
-    else if n == 2 {
-        return Box::new(std::iter::once(2));
-    }
-    else if n == 3 {
-        return Box::new([2, 3].into_iter());
-    }
 
-    Box::new(std::iter::from_coroutine(
-        #[coroutine]
-        move || {
-            let delta = n.isqrt();
-
-            let pris = Rc::new(e_sieve(delta).collect::<Vec<usize>>());
-
-            for i in 0..pris.len() {
-                yield pris.as_ref()[i];
-            }
-
-            let mut l = delta;
-
-            while l + 1 <= n {
-                for p in e_sieve_reentrant(pris.clone(), l, min(delta, n-l)) {
-                    yield p;
-                }
-
-                l += delta;
-            }
-        },
-    ))
+    Box::new(pris.into_iter().chain(acc.into_iter()))
 }
 
+/// 0. p^2 >= l+delta
 /// 1. pris from 0..x, no empty.
 /// 2. return (l, l+delta]
-fn e_sieve_reentrant(
-    pris: Rc<Vec<usize>>,
+fn e_seg_sieve_0<'a>(
+    pris: &'a [usize],
     l: usize,
     delta: usize,
-) -> impl Iterator<Item = usize> {
+) -> impl Iterator<Item = usize> + 'a {
     debug_assert!(!pris.is_empty());
 
     std::iter::from_coroutine(
@@ -323,6 +320,37 @@ fn e_sieve_reentrant(
     )
 }
 
+/// 1. pris from 0..x, no empty.
+/// 2. return (l, l+delta]
+pub fn e_inc_sieve_reentrant(pris: &mut Vec<usize>, n: usize) {
+    debug_assert!(!pris.is_empty());
+
+    let mut p = pris.last().unwrap().clone();
+
+    while p * p < n {
+        pris.extend(
+            e_seg_sieve_0(pris, p, p * (p - 1))
+                .into_iter()
+                .collect::<Vec<usize>>(),
+        );
+
+        p = pris.last().unwrap().clone();
+    }
+
+    let rem = e_seg_sieve_0(pris, p, n - p).collect::<Vec<usize>>();
+
+    pris.extend(rem);
+}
+
+pub fn e_inc_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
+    sieve_spec_case!(n; [0, 4]);
+
+    let mut pris = vec![2, 3];
+
+    e_inc_sieve_reentrant(&mut pris, n);
+
+    Box::new(pris.into_iter())
+}
 
 #[deprecated = "This is a failed design demo"]
 pub fn spiral_wheel() -> impl Iterator<Item = usize> {
@@ -434,6 +462,46 @@ pub fn mairson_sieve(n: usize) -> impl Iterator<Item = usize> {
                 i = forward[i];
             }
         },
+    )
+}
+
+pub fn mairson_dual_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
+    sieve_spec_case!(n ; [0, 1]);
+
+    let mut bits = BitVec::from_elem(n + 1, true);
+    // bits[0..1] should be skipped
+    let mut pris = vec![];
+
+    for f in 2..=n / 2 {
+        if bits[f] {
+            pris.push(f);
+        }
+
+        for p in pris.iter() {
+            if f * p > n {
+                break;
+            }
+
+            bits.set(f * p, false);
+
+            if f % p == 0 {
+                break;
+            }
+        }
+    }
+
+    Box::new(
+        pris.into_iter().chain(
+            bits.into_iter().enumerate().skip(1 + n / 2).flat_map(
+                |(i, flag)| {
+                    if flag {
+                        Some(i)
+                    } else {
+                        None
+                    }
+                },
+            ),
+        ),
     )
 }
 
@@ -561,8 +629,6 @@ pub fn wheel_sieve(n: usize) -> impl Iterator<Item = usize> {
 
             w.rolling(l, n);
 
-            dbg!(&w.arr.len());
-
             for v in w.into_iter().skip(1) {
                 yield v;
             }
@@ -576,6 +642,172 @@ pub fn wheel_seg_sieve(_n: usize) -> impl Iterator<Item = usize> {
     std::iter::from_coroutine(
         #[coroutine]
         move || {},
+    )
+}
+
+/// Greate Prime Factor Sieve
+///
+/// Space: O(n)
+pub fn gpf_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
+    sieve_spec_case!(n; [0, 4]);
+
+    let mut p = 2;
+    let mut bits = BitVec::from_elem(n + 1, true);
+    let mut factors = vec![];
+
+    let mut i = 2;
+    let mut pris = vec![];
+
+    while p <= n / 2 {
+        pris.push(p);
+
+        factors.push(p);
+
+        let mut f_stack = factors;
+        factors = vec![];
+
+        while let Some(f) = f_stack.pop() {
+            if p * f <= n {
+                bits.set(p * f, false);
+
+                f_stack.push(p * f);
+                factors.push(f);
+            }
+        }
+
+        i += 1;
+
+        while !bits[i] {
+            i += 1
+        }
+
+        p = i;
+    }
+
+    Box::new(
+        pris.into_iter().chain(
+            bits.into_iter()
+                .enumerate()
+                .skip(1 + n / 2)
+                .filter_map(|(i, flag)| if flag { Some(i) } else { None }),
+        ),
+    )
+}
+
+
+////////////////////////////////////////
+//// Infinite Sieve
+
+pub fn e_inc_sieve_inf() -> impl Iterator<Item = usize> {
+    std::iter::from_coroutine(
+        #[coroutine]
+        move || {
+            let mut p0 = 2;
+            let mut pris = vec![2, 3];
+
+            yield 2;
+            yield 3;
+
+            loop {
+                let p1 = pris.last().unwrap().clone(); // ~p0^2
+                let round = e_seg_sieve_0(&pris, p0 * p0, p1 * p1 - p0 * p0)
+                    .collect::<Vec<usize>>();
+
+                for i in 0..round.len() {
+                    yield round[i];
+                }
+
+                pris.extend(round);
+                p0 = p1;
+            }
+        },
+    )
+}
+
+pub fn bengelloun_sieve_inf() -> impl Iterator<Item = usize> {
+    std::iter::from_coroutine(
+        #[coroutine]
+        move || {
+            let mut lastp = 2;
+            let mut lpf = vec![0; 5]; // +1 cap for index start from 1.
+
+            yield lastp;
+
+            for n in 3.. {
+                if n % 2 == 0 {
+                    lpf[n] = 2;
+                    lpf[n / 2 * 3] = 3;
+                } else if lpf[n] == 0 {
+                    lpf[lastp] = n;
+                    lpf[n] = n;
+                    lastp = n;
+
+                    yield n;
+
+                    // => p_next < 2n
+                    // => p1 / p0 < 2
+                    // => (p1 / p0) * p_next < 4n - 2
+                    lpf.resize(n * 4, 0);
+                } else {
+                    let lp0 = lpf[n]; // lp0 > 2
+                    let f = n / lp0;
+
+                    if lp0 < if lpf[f] < f { lpf[f] } else { f } {
+                        let lp1 = lpf[lp0];
+
+                        lpf[lp1 * f] = lp1;
+                    }
+                }
+            }
+        },
+    )
+}
+
+pub fn gpf_sieve_inf() -> impl Iterator<Item = usize> {
+    std::iter::from_coroutine(
+        #[coroutine]
+        move || {
+            let mut lastp = 2;
+            let mut sqp = 2;
+            let mut gpf = vec![0; 2 * 2 + 1];
+            gpf[1] = 2;
+
+            yield 2;
+
+            for n in 3.. {
+                if n == sqp * sqp {
+                    gpf[n] = sqp;  // add starter
+                    sqp = gpf[sqp];
+                }
+
+                if gpf[n] == 0 {
+                    // gpf[n] = n;
+                    // C_max < p_next < 2n => (p1/p0 or 2) * C_max < 4n
+                    gpf[lastp] = n;
+                    lastp = n;
+                    gpf.resize(4 * n, 0);
+
+                    yield n;
+                }
+                else {
+                    let p = gpf[n];
+                    let f = n / p;
+                    let p1 = gpf[p];
+
+                    gpf[p1 * f] = p1;
+
+                    if f == p || gpf[f] == p {  // TODO: refine it on algorithm
+                        let mut f0 = f / p + 1;
+
+                        while f0 > p && gpf[f0] > p {
+                            f0 += 1;
+                        }
+
+                        gpf[f0 * p * p] = p;
+                    }
+                }
+            }
+        }
     )
 }
 
@@ -638,55 +870,65 @@ mod tests {
     }
 
     #[test]
-    fn debug() {
-        let n = 40;
-
-        for v in wheel_sieve(10_0000) {}
-    }
-
-    #[test]
     fn test_prime() {
-        /* co-test */
+        macro_rules! test_prime {
+            ($($fn:ident),+;$($fn_inf:ident),*) => {
+                for n in [0, 1] {
+                    $(assert!($fn(n).collect::<Vec<usize>>().is_empty());)+
+                }
 
-        for n in [0, 1] {
-            assert!(e_sieve(n).collect::<Vec<usize>>().is_empty());
-            assert!(e_seg_sieve(n).collect::<Vec<usize>>().is_empty());
-            assert!(wheel_sieve(n).collect::<Vec<usize>>().is_empty());
-            assert!(mairson_sieve(n).collect::<Vec<usize>>().is_empty());
+                for n in [2] {
+                    $(assert_eq!($fn(n).collect::<Vec<usize>>(), vec![2]);)+
+                }
+
+                for n in [3, 4] {
+                    $(assert_eq!($fn(n).collect::<Vec<usize>>(), vec![2, 3]);)+
+                }
+
+                test_prime!(sub co-check| 1690, $($fn),+);
+                test_prime!(sub check-inf| 16900, $($fn_inf),*);
+            };
+            (sub co-check | $n:expr, $($name:ident),+ ) => {
+                $(let $name: BTreeSet<usize> = $name($n).collect();)+
+
+                for i in 1..=$n {
+                    assert!(
+                        same!(
+                            is_prime!(i; usize),
+                            $($name.contains(&i)),+
+                        ),
+                        "{i}"
+                    );
+                }
+            };
+            (sub check-inf | $n:expr, $($name:ident),+ ) => {
+                let e_sieve: BTreeSet<usize> = e_sieve($n).collect();
+                $(let $name: BTreeSet<usize> = $name().take(e_sieve.len()).collect();)+
+
+                for i in 1..=$n {
+                    assert!(
+                        same!(
+                            e_sieve.contains(&i),
+                            $($name.contains(&i)),+
+                        ),
+                        "{i}"
+                    );
+                }
+            }
         }
 
-        for n in [2] {
-            assert_eq!(e_sieve(n).collect::<Vec<usize>>(), vec![2]);
-            assert_eq!(e_seg_sieve(n).collect::<Vec<usize>>(), vec![2]);
-            assert_eq!(wheel_sieve(n).collect::<Vec<usize>>(), vec![2]);
-            assert_eq!(mairson_sieve(n).collect::<Vec<usize>>(), vec![2]);
-        }
-
-        for n in [3, 4] {
-            assert_eq!(e_sieve(n).collect::<Vec<usize>>(), vec![2, 3]);
-            assert_eq!(e_seg_sieve(n).collect::<Vec<usize>>(), vec![2, 3]);
-            assert_eq!(wheel_sieve(n).collect::<Vec<usize>>(), vec![2, 3]);
-            assert_eq!(mairson_sieve(n).collect::<Vec<usize>>(), vec![2, 3]);
-        }
-
-        let n = 1690;
-
-        let e_sieve: BTreeSet<usize> = e_sieve(n).collect();
-        let e_seg_sive: BTreeSet<usize> = e_seg_sieve(n).collect();
-        let wheel_sieve: BTreeSet<usize> = wheel_sieve(n).collect();
-        let mairson_sieve: BTreeSet<usize> = mairson_sieve(n).collect();
-
-        for i in 1..=n {
-            assert!(
-                same!(
-                    is_prime!(i; usize),
-                    e_sieve.contains(&i),
-                    e_seg_sive.contains(&i),
-                    wheel_sieve.contains(&i),
-                    mairson_sieve.contains(&i)
-                ),
-                "{i}"
-            );
-        }
+        test_prime!(
+            e_sieve,
+            e_seg_sieve,
+            wheel_sieve,
+            mairson_sieve,
+            mairson_dual_sieve,
+            e_inc_sieve,
+            gpf_sieve
+            ;
+            e_inc_sieve_inf,
+            bengelloun_sieve_inf,
+            gpf_sieve_inf
+        );
     }
 }

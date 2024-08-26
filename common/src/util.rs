@@ -152,6 +152,9 @@ macro_rules! max {
 
 #[macro_export]
 macro_rules! same {
+    ($($val:expr),+ ,) => {
+        same!($($val),+)
+    };
     ($($val:expr),+) => {
         {
             let _arr = [$($val),+];

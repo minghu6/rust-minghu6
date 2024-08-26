@@ -99,6 +99,7 @@ fn bench_pri_e_seg_sieve(b: &mut Bencher) {
     })
 }
 
+#[ignore = "a little slow"]
 #[bench]
 fn bench_pri_wheel_sieve(b: &mut Bencher) {
     b.iter(|| {
@@ -114,6 +115,69 @@ fn bench_pri_mairson_sieve(b: &mut Bencher) {
     b.iter(|| {
         black_box(
                 mairson_sieve(PRIME_N)
+                .collect::<Vec<usize>>(),
+        );
+    })
+}
+
+#[bench]
+fn bench_pri_inc_e_sieve(b: &mut Bencher) {
+    b.iter(|| {
+        black_box(
+                e_inc_sieve(PRIME_N)
+                .collect::<Vec<usize>>(),
+        );
+    })
+}
+
+#[bench]
+fn bench_pri_mairson_duel_sieve(b: &mut Bencher) {
+    b.iter(|| {
+        black_box(
+                mairson_dual_sieve(PRIME_N)
+                .collect::<Vec<usize>>(),
+        );
+    })
+}
+
+#[bench]
+fn bench_pri_gpf_sieve(b: &mut Bencher) {
+    b.iter(|| {
+        black_box(
+                gpf_sieve(PRIME_N)
+                .collect::<Vec<usize>>(),
+        );
+    })
+}
+
+#[bench]
+fn bench_pri_inc_e_sieve_inf(b: &mut Bencher) {
+    b.iter(|| {
+        black_box(
+                e_inc_sieve_inf()
+                .take_while(|v| *v < PRIME_N)
+                .collect::<Vec<usize>>(),
+        );
+    })
+}
+
+#[bench]
+fn bench_pri_bengelloun_sieve_inf(b: &mut Bencher) {
+    b.iter(|| {
+        black_box(
+                bengelloun_sieve_inf()
+                .take_while(|v| *v < PRIME_N)
+                .collect::<Vec<usize>>(),
+        );
+    })
+}
+
+#[bench]
+fn bench_pri_gpf_sieve_inf(b: &mut Bencher) {
+    b.iter(|| {
+        black_box(
+                gpf_sieve_inf()
+                .take_while(|v| *v < PRIME_N)
                 .collect::<Vec<usize>>(),
         );
     })
