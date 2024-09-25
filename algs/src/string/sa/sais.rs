@@ -2,7 +2,6 @@ const LTYPE: bool = false;
 const STYPE: bool = true;
 
 // temporary utils for stable version to patch `fill` method
-// #[inline]
 // fn fill<T: Copy>(pat: &mut [T], value: T) {
 //     if let Some((last, elems)) = pat.split_last_mut() {
 //         for el in elems {
@@ -13,7 +12,6 @@ const STYPE: bool = true;
 //     }
 // }
 
-#[inline]
 fn reset_sbucket(sbucket: &mut Vec<usize>, prefix_sum: &Vec<usize>) {
     for i in 1..prefix_sum.len() {
         sbucket[i] = prefix_sum[i] - 1;
@@ -21,7 +19,6 @@ fn reset_sbucket(sbucket: &mut Vec<usize>, prefix_sum: &Vec<usize>) {
     sbucket[0] = 0;
 }
 
-#[inline]
 fn reset_lbucket(lbucket: &mut Vec<usize>, prefix_sum: &Vec<usize>) {
     for i in 1..prefix_sum.len() {
         lbucket[i] = prefix_sum[i - 1];
@@ -29,12 +26,10 @@ fn reset_lbucket(lbucket: &mut Vec<usize>, prefix_sum: &Vec<usize>) {
     lbucket[0] = 0;
 }
 
-#[inline]
 fn is_lms_char(suf_t: &Vec<bool>, x: usize) -> bool {
     x >= 1 && suf_t[x - 1] == LTYPE && suf_t[x] == STYPE
 }
 
-#[inline]
 fn lmssubstr_eq(pat: &[usize], x: usize, y: usize, suf_t: &Vec<bool>) -> bool {
     let mut x = x;
     let mut y = y;

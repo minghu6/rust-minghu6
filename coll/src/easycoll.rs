@@ -7,7 +7,7 @@ use std::{
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Macro
+//// Macros
 
 #[macro_export]
 macro_rules! slidedown1 {
@@ -347,7 +347,7 @@ pub trait EasyCollAPush<K, V> {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Structure
+//// Structures
 
 #[derive(Default, Debug, Clone)]
 #[repr(transparent)]
@@ -387,7 +387,8 @@ impl<T: Clone> EasyCollGet<(usize, usize), T> for Vec<Vec<T>> {
     type Target = T;
 
     fn get<Q: Borrow<(usize, usize)>>(&self, k: &Q) -> Option<Self::Target> {
-        let (idx1, idx2) = k.borrow().clone();
+        let idx1 = k.borrow().0;
+        let idx2 = k.borrow().1;
 
         if idx1 < self.len() && idx2 < self[idx1].len() {
             Some(self[idx1][idx2].clone())

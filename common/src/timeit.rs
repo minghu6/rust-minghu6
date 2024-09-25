@@ -1,4 +1,4 @@
-use std::{cell::Cell, time::Duration};
+use std::{cell::Cell, fmt::Debug, time::{Duration, Instant}};
 
 
 
@@ -70,11 +70,6 @@ macro_rules! stats {
     ($label:ident, $from:ident, $end:ident) => {
         #[cfg(tprofile)]
         {
-            // TPROFILE_STATS.with(|map_cell| {
-
-            // });
-
-
             let d = $end.duration_since($from);
             let key = stringify!($label);
 
@@ -94,11 +89,64 @@ macro_rules! stats {
     };
 }
 
+#[macro_export]
+macro_rules! def_stats {
+    ($struct_name:ident, { $($field:ident),+ }) => {
+        use $crate::timeit::Watch_;
+
+        #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+        struct $struct_name {
+            $($field: Watch_),+
+        }
+
+        impl $struct_name {
+            fn new() -> Self {
+                Self {
+                    $($field: Watch_::new()),+
+                }
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Watch_ {
+    total: Duration,
+    now_: Instant
+}
+
+impl Watch_ {
+    pub fn new() -> Self {
+        Self { total: Duration::ZERO, now_: Instant::now() }
+    }
+
+    pub fn s(&mut self) {
+        self.now_ = Instant::now();
+    }
+
+    pub fn e(&mut self) {
+        self.total += self.now_.elapsed();
+    }
+}
+
+impl Debug for Watch_ {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if f.alternate() {
+            f.write_fmt(format_args!("{:#?}", self.total))
+        }
+        else {
+            f.write_fmt(format_args!("{:?}", self.total))
+        }
+    }
+}
+
 
 thread_local! {
     pub static TPROFILE_STATS: Cell<std::collections::HashMap<&'static str, Duration>>
         = Cell::new(std::collections::HashMap::new());
 }
+
+
 
 
 #[cfg(test)]
@@ -121,4 +169,21 @@ mod tests {
         println!("now: {} ms", now.as_millis())
     }
 
+    #[test]
+    fn test_def_stats() {
+
+        def_stats!(Watch, { a, b, c });
+
+        let mut watch = Watch::new();
+
+        watch.a.s();
+
+        for i in 0..1000 {
+            std::hint::black_box(i * i);
+        }
+
+        watch.a.e();
+
+        println!("{watch:#?}");
+    }
 }

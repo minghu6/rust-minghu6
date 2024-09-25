@@ -3,7 +3,6 @@
 #![feature(test)]
 #![feature(iter_from_coroutine)]
 #![feature(coroutines)]
-#![feature(is_sorted)]
 #![feature(generic_const_exprs)]
 #![feature(maybe_uninit_uninit_array)]
 #![feature(generic_arg_infer)]

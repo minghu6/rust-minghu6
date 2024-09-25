@@ -10,7 +10,7 @@ use common::{ Itertools, error_code::* };
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Macro
+//// Macros
 
 /// Map inner error into ErrorCode
 #[macro_export]
@@ -33,7 +33,7 @@ macro_rules! read_dir_wrapper {
 pub trait Exclude = Fn(&Path) -> bool;
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Structure
+//// Structures
 
 #[derive(Clone)]
 pub struct FindOptions<'a> {
@@ -58,7 +58,7 @@ pub struct ASynCollect<'a, P: AsRef<Path>> {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Implementation
+//// Implementations
 
 impl<'a> FindOptions<'a> {
     pub fn with_pre_exclude<F: Exclude + 'a>(mut self, f: F) -> Self {
@@ -309,7 +309,7 @@ impl<'a, P: AsRef<Path>> ASynCollect<'a, P> {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Function
+//// Functions
 
 pub fn is_dot_file<P: AsRef<Path>>(p: P) -> bool {
     if let Some(name) = p.as_ref().file_name() {

@@ -28,7 +28,7 @@ use crate::scc::scc_tarjan;
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Structure
+//// Structures
 
 /// Adjacent list formed simple (directed) connected graph
 ///
@@ -234,7 +234,7 @@ impl Graph {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Function
+//// Functions
 
 pub fn to_undirected_vec<T: IntoIterator<Item = (usize, usize, isize)>>(
     iter: T,

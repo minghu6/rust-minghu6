@@ -6,7 +6,7 @@ use crate::{Graph, sp};
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Structure
+//// Structures
 
 
 pub struct Path<'a> {
@@ -23,7 +23,7 @@ pub struct FPath {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Implementation
+//// Implementations
 
 impl FPath {
     pub fn iter<'a>(
@@ -32,7 +32,6 @@ impl FPath {
         self.path.iter().cloned()
     }
 
-    #[inline]
     pub const fn weight(&self) -> isize {
         self.weight
     }

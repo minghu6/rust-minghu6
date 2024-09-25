@@ -11,7 +11,7 @@ use coll::{
 use super::{hpd::HPD, Graph};
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Structure
+//// Structures
 
 /// Binary lifting, (improved version of native) 对数(2)式跳转
 ///
@@ -38,7 +38,7 @@ pub struct LCATarjan<'a> {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Implementation
+//// Implementations
 
 impl LCADP {
     /// O(n*log(n))

@@ -2,7 +2,7 @@ use crate::impl_unpack;
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Structure
+//// Structures
 
 #[derive(Default, Clone, Copy)]
 #[repr(transparent)]
@@ -11,7 +11,7 @@ pub struct UnsafeSendSync<T>(T);
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Implementation
+//// Implementations
 
 impl_unpack!(UnsafeSendSync | AsRef, AsMut, Deref, DerefMut, From);
 

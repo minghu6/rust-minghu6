@@ -3,7 +3,7 @@ use std::{fmt::Write, ops::AddAssign};
 use itertools::Itertools;
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Macro
+//// Macros
 
 #[macro_export]
 macro_rules! ht {
@@ -163,8 +163,46 @@ macro_rules! same {
     }
 }
 
+
+/// Make simple (integer / &str) monomorphism struct
+#[macro_export]
+macro_rules! def_monomorphism_struct {
+    ($name:ident, str, { $($field:ident),+ }) => {
+        #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Hash)]
+        struct $name<'a> {
+            $($field: &'a str),+
+        }
+
+        impl<'a> $name<'a> {
+            fn new($($field: &'a str),+) -> Self {
+                Self {
+                    $($field),+
+                }
+            }
+        }
+
+        impl<'a> Copy for $name<'a> {}
+    };
+    ($name:ident, $ty:ty, { $($field:ident),+ }) => {
+        #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Hash)]
+        struct $name {
+            $($field: $ty),+
+        }
+
+        impl $name {
+            fn new($($field: $ty),+) -> Self {
+                Self {
+                    $($field),+
+                }
+            }
+        }
+
+        impl Copy for $name {}
+    };
+}
+
 ////////////////////////////////////////////////////////////////////////////////
-//// Function
+//// Functions
 
 pub fn strshift<T: ToString>(it: T, pad: &str) -> String {
     let mut cache = String::new();
@@ -361,7 +399,7 @@ pub fn vec_even_up_1<T>(v0: &mut Vec<T>, v1: &mut Vec<T>) {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Function - multitask split
+//// Functions - multitask split
 
 /// devide, devide, ... devide + rem
 pub fn task_split_simple(total: usize, n: usize) -> Vec<usize> {
@@ -423,7 +461,7 @@ pub fn split_improved<T: Clone>(s: &[T], n: usize) -> Vec<Vec<T>> {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Function - itertools
+//// Functions - itertools
 
 ///
 /// ```
@@ -467,5 +505,20 @@ mod tests {
 
         println!("{:?}", split_simple(&['a', 'b', 'c', 'd', 'e'], 3));
         println!("{:?}", split_improved(&['a', 'b', 'c', 'd', 'e'], 3));
+    }
+
+    #[test]
+    fn test_make_monomorphism_struct() {
+        def_monomorphism_struct!(AStruct, u64, { a, b, c });
+
+        let a = AStruct::new(1, 2, 3);
+
+        assert_eq!(a, AStruct::new(1, 2, 3));
+
+        def_monomorphism_struct!(BStruct, str, { d, e });
+
+        let b = BStruct::new("abc", "def");
+
+        assert_eq!(b, BStruct::new("abc", "def"));
     }
 }

@@ -1,7 +1,7 @@
 use std::{mem::size_of, ptr::copy_nonoverlapping};
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Macro
+//// Macros
 
 macro_rules! impl_for_num {
     ($name:ident|all) => {

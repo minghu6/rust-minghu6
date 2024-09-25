@@ -24,7 +24,7 @@ impl_tree!(
     /// Panic: M > 2
     ///
     /// Recommend: maybe 60, 90, 250
-    /// (Rust use M=12 (B=6, M=2B-1+1) maybe increase it in the futer)
+    /// (Rust use M=12 (B=6, M=2B-1+1) maybe increase it in the future)
     #[derive(Debug)]
     BT {}
 );
@@ -181,7 +181,7 @@ macro_rules! try_node_redistribution {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Structure
+//// Structures
 
 struct Node_<K, V> {
     entries: Vec<KVEntry<K, V>>,
@@ -193,7 +193,7 @@ struct Node_<K, V> {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Implementation
+//// Implementations
 
 impl<K: Ord, V, const M: usize> BT<K, V, M> {
     ////////////////////////////////////////////////////////////////////////////

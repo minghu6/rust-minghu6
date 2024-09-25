@@ -45,7 +45,7 @@ pub trait AlphaBet {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Structure
+//// Structures
 
 pub struct DigitsLetters;
 
@@ -71,7 +71,7 @@ pub enum ComputeRollingHashError {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Implementation
+//// Implementations
 
 
 /// String Prefix (MSB) Plynomial Rolling Hash
@@ -184,9 +184,8 @@ impl AlphaBet for CommonChinese {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Function
+//// Functions
 
-// #[inline(always)]
 // fn pow(pows: &[u64; 64], m: u64, mut i: usize) -> u64 {
 //     let mut mul = 1;
 //     let mut k = 1;

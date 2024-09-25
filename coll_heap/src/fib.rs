@@ -15,7 +15,7 @@ use coll::*;
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Macro
+//// Macros
 
 def_attr_macro!(clone|
     left, right, child, paren, rank, marked, idx
@@ -48,7 +48,7 @@ macro_rules! node {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Structure
+//// Structures
 
 
 /// [Fibonacci Heap](https://en.wikipedia.org/wiki/Fibonacci_heap)
@@ -86,7 +86,7 @@ struct Node_<I, T> {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Implementation
+//// Implementations
 
 impl<I: Debug, T: Debug> Debug for Node_<I, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

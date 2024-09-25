@@ -29,7 +29,7 @@ const SUB_M: usize = 20;
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Macro
+//// Macros
 
 macro_rules! node {
     (kv| $k:expr, $v:expr) => {{
@@ -66,7 +66,7 @@ macro_rules! min_key {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Implementation
+//// Implementations
 
 impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
     ////////////////////////////////////////////////////////////////////////////
@@ -82,7 +82,6 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
         }
     }
 
-    #[inline(always)]
     pub fn len(&self) -> usize {
         self.cnt
     }
@@ -273,7 +272,6 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
 
 
     /// search to leaf restricted version (with short-circuit evaluation)
-    #[inline(always)]
     fn search_to_leaf_r<Q>(mut x: &Node<K, V>, k: &Q) -> Node<K, V>
     where
         K: Borrow<Q> + Ord,
@@ -301,7 +299,6 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
     //         }
     //     })
     // }
-    #[inline(always)]
     fn update_index(old_k: K, x: &Node<K, V>)
     where
         K: Clone + Debug,
@@ -559,7 +556,7 @@ impl<K: Ord + Debug, V, const M: usize> Debug for BPT2<K, V, M> {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Structure
+//// Structures
 
 enum Node_<K, V> {
     Internal {

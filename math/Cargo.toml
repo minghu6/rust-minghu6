@@ -7,11 +7,13 @@ edition = "2021"
 [dependencies]
 common = { package = "m6-common", path = "../common" }
 bit-vec = "^0.6.2"
+lazy_static = "1.4.0"
 
 
 [dev-dependencies]
-lazy_static = "1.4.0"
-
+bag = { package = "m6bag", path = "../../m6coll/m6bag" }
+derive-where = "1.2.7"
+derive-new = "0.7"
 
 [package.metadata.workspaces]
 independent = true

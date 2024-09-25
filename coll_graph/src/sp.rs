@@ -1,7 +1,7 @@
 //! Shortest paths problem
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Structure
+//// Structures
 
 use std::collections::{HashSet, HashMap};
 
@@ -95,7 +95,7 @@ pub struct SPJohnson<'a> {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Implementation
+//// Implementations
 
 impl<'a> SPFA<'a> {
     pub fn new(g: &'a Graph, src: usize) -> Result<Self, Vec<usize>> {
@@ -173,7 +173,7 @@ impl<'a> SPJohnson<'a> {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Function
+//// Functions
 
 fn sp_floyd(
     g: &Graph,

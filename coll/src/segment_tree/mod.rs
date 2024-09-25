@@ -17,7 +17,7 @@ pub use stats::*;
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Macro
+//// Macros
 
 macro_rules! tm {
     ($tl:expr, $tr:expr) => {
@@ -161,7 +161,7 @@ mod private {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Structure
+//// Structures
 
 pub struct SegmentTree<T, C: Count, L: TreeLayout = DFS> {
     data: Vec<T>,
@@ -192,15 +192,13 @@ pub struct UpdaterAdd<T, C: Count<Stats = T>, L: TreeLayout>(
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Implementation
+//// Implementations
 
 impl TreeLayout for BFS {
-    #[inline(always)]
     fn left_i(c: Cursor) -> usize {
         c.i * 2
     }
 
-    #[inline(always)]
     fn right_i(c: Cursor) -> usize {
         c.i * 2 + 1
     }
@@ -213,12 +211,10 @@ impl TreeLayout for BFS {
 
 
 impl TreeLayout for DFS {
-    #[inline(always)]
     fn left_i(c: Cursor) -> usize {
         c.i + 1
     }
 
-    #[inline(always)]
     fn right_i(c: Cursor) -> usize {
         // i + 2(n(left))
         c.i + 2 * (tm!(c.tl, c.tr) - c.tl + 1)
@@ -328,17 +324,14 @@ impl Cursor {
         }
     }
 
-    #[inline(always)]
     fn is_end(&self) -> bool {
         self.tl == self.tr
     }
 
-    #[inline(always)]
     fn is_matched(&self, (l, r): (usize, usize)) -> bool {
         self.tl == l && self.tr == r
     }
 
-    #[inline(always)]
     fn godown_left<L: TreeLayout>(self) -> Self {
         Self {
             i: L::left_i(self),
@@ -347,7 +340,6 @@ impl Cursor {
         }
     }
 
-    #[inline(always)]
     fn godown_right<L: TreeLayout>(self) -> Self {
         Self {
             i: L::right_i(self),
@@ -484,4 +476,4 @@ where
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Function
+//// Functions

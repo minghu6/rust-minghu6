@@ -9,14 +9,13 @@
 pub mod error_code;
 pub mod timeit;
 pub mod rand;
-mod r#trait;
-pub mod util;
+mod traits;
+pub mod utils;
 
 
 pub use itertools::{ Itertools, EitherOrBoth };
 
-pub use r#trait::*;
+pub use traits::*;
 pub use rand::*;
 pub use error_code::*;
-pub use util::{ gen, gen_unique, * };
-
+pub use utils::{ gen, gen_unique, * };

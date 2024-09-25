@@ -36,7 +36,7 @@ const MAX_H: usize = 14;
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Structure
+//// Structures
 
 #[derive(DeriveWhere)]
 #[derive_where(Clone, Copy)]
@@ -744,7 +744,7 @@ impl dyn NxtShf<usize> {
     fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = usize> + 'a> {
         let mut cur = self.itself();
 
-        box std::iter::from_fn(move || {
+        Box::new(std::iter::from_fn(move || {
             if cur > 0 {
                 let prev = cur;
                 cur = cur.decshf();
@@ -752,7 +752,7 @@ impl dyn NxtShf<usize> {
             } else {
                 None
             }
-        })
+        }))
     }
 }
 
@@ -1135,7 +1135,7 @@ impl<T: Clone + Debug> RRBVec<T> {
     pub fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = &T> + 'a> {
         let mut i = 0;
 
-        box std::iter::from_fn(move || {
+        Box::new(std::iter::from_fn(move || {
             if i == self.cnt {
                 return None;
             }
@@ -1144,7 +1144,7 @@ impl<T: Clone + Debug> RRBVec<T> {
             i += 1;
 
             Some(nxt)
-        })
+        }))
     }
 
     pub fn slice(&self, start: usize, end: usize) -> Self {
@@ -1724,22 +1724,22 @@ impl<'a, T: Debug + Clone + 'a> Vector<'a, T> for RRBVec<T> {
     }
 
     fn push(&self, item: T) -> Box<dyn Vector<'a, T> + 'a> {
-        box self.push_(item)
+        Box::new(self.push_(item))
     }
 
     fn pop(&self) -> Result<Box<dyn Vector<'a, T> + 'a>, Box<dyn Error>> {
         match self.pop_() {
-            Ok(it) => Ok(box it),
+            Ok(it) => Ok(Box::new(it)),
             Err(err) => Err(err),
         }
     }
 
     fn assoc(&self, idx: usize, item: T) -> Box<dyn Vector<'a, T> + 'a> {
-        box self.assoc_(idx, item)
+        Box::new(self.assoc_(idx, item))
     }
 
     fn duplicate(&self) -> Box<dyn Vector<'a, T> + 'a> {
-        box self.clone()
+        Box::new(self.clone())
     }
 
     fn transient(&self) -> Result<Box<dyn Vector<'a, T> + 'a>, ()> {
@@ -1797,14 +1797,14 @@ mod tests {
 
     #[test]
     fn test_prrb_vec_randomedata() {
-        unsafe { UZProvider {}.test_pvec(|| box RRBVec::empty()) }
+        unsafe { UZProvider {}.test_pvec(|| Box::new(RRBVec::empty())) }
     }
 
     #[test]
     fn test_prrb_vec_manually() {
         let rrb = RRBVec::empty();
 
-        // let mut bpv = (box pv) as Box<dyn Vector<usize>>;
+        // let mut bpv = (Box::new(pv) as Box<dyn Vector<usize>>;)
         let mut brrb = rrb;
         brrb = brrb.push_(0usize);
         brrb = brrb.push_(1);
@@ -1971,6 +1971,6 @@ mod tests {
 
     // #[test]
     // fn test_ttrie_vec_randomedata() {
-    //     unsafe { InodeProvider {}.test_tvec(|| box TTrieVec::empty()) }
+    //     unsafe { InodeProvider {}.test_tvec(|| Box::new(TTrieVec::empty()) })
     // }
 }

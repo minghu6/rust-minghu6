@@ -29,7 +29,7 @@ impl_tree!(
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Macro
+//// Macros
 
 macro_rules! node {
     (kv| $k:expr, $v:expr) => {{
@@ -106,7 +106,7 @@ def_coll_init!(map ^ 1 | bpt, crate::bt::bpt::BPT::new());
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Structure
+//// Structures
 
 enum Node_<K, V> {
     Internal {
@@ -126,7 +126,7 @@ use Node_::*;
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Implementation
+//// Implementations
 
 impl<K: Ord, V, const M: usize> BPT<K, V, M> {
     ////////////////////////////////////////////////////////////////////////////
@@ -143,7 +143,7 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn len(&self) -> usize {
         self.cnt
     }
@@ -599,7 +599,6 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
     ////////////////////////////////////////////////////////////////////////////
     //// Assistant Method
 
-    #[inline(always)]
     fn search_to_leaf<Q>(mut x: &Node<K, V>, k: &Q) -> Node<K, V>
     where
         K: Borrow<Q>,

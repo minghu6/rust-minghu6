@@ -3,7 +3,7 @@
 //! UCS-4 alias as UTF-32
 
 
-use crate::BitLen;
+use common::BitLen;
 
 #[derive(Debug, Clone, Copy)]
 pub enum UTF8CharSt {

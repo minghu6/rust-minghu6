@@ -15,7 +15,7 @@ pub trait BloomFilter<T> {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Structure
+//// Structures
 
 /// patlen: 5   fp_rate: 0.03
 ///
@@ -41,7 +41,7 @@ pub struct BytesBloomFilter64 {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Implementation
+//// Implementations
 
 impl BytesBloomFilter {
     pub fn new() -> Self {
@@ -111,7 +111,7 @@ pub mod tests {
 
 
     ////////////////////////////////////////////////////////////////////////////////
-    //// Structure
+    //// Structures
 
     pub struct FastBloomFilter<T: Hash> {
         bits: BitVec,
@@ -121,7 +121,7 @@ pub mod tests {
 
 
     ////////////////////////////////////////////////////////////////////////////////
-    //// Implementation
+    //// Implementations
 
     impl<T: Hash> FastBloomFilter<T> {
         pub fn with_size(m: usize, k: usize) -> Self {
@@ -167,7 +167,7 @@ pub mod tests {
 
 
     ////////////////////////////////////////////////////////////////////////////////
-    //// Function
+    //// Functions
 
     fn optimal_k(m: usize, n: usize) -> usize {
         let k = ((m as f32 / n as f32) * LN_2).round() as usize;

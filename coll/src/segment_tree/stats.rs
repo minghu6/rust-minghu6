@@ -14,7 +14,7 @@ use super::{
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Macro
+//// Macros
 
 macro_rules! impl_raw_into_stats {
     (monomorphic | $struct:ident, $for_ty:ty, $stats_ty:ty { $fn:item }) => {
@@ -153,7 +153,7 @@ impl_for_num!(gcd_count_sint | sint);
 impl_for_num!(gcd_count_uint | uint);
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Structure
+//// Structures
 
 #[derive(Clone, Copy)]
 pub struct Sum<T>(PhantomData<T>);
@@ -189,7 +189,7 @@ pub struct SubSegMaxSumStats<T> {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Implementation
+//// Implementations
 
 impl<T: Min<T>> Min<SubSegMaxSumStats<T>> for SubSegMaxSumStats<T> {
     fn min() -> Self {

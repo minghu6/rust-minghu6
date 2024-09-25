@@ -45,7 +45,7 @@ macro_rules! parse_range {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Structure
+//// Structures
 
 #[derive(Debug, Clone)]
 pub struct BIT<T, C: Count = Sum<T>> {
@@ -63,7 +63,7 @@ where
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Implementation
+//// Implementations
 
 impl<T: Clone, C: Count<Stats = T>> BIT<T, C> {
     pub fn new<U>(raw: &[U]) -> Self
@@ -115,7 +115,6 @@ impl<T: Clone, C: Count<Stats = T>> BIT<T, C> {
         self.prefix(r) - if l > 0 { self.prefix(l - 1) } else { C::e() }
     }
 
-    #[inline]
     pub fn len(&self) -> usize {
         self.data.len()
     }

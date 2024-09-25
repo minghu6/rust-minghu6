@@ -25,7 +25,7 @@ const MASK: usize = NODE_SIZE - 1;
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Macro
+//// Macros
 
 #[macro_export]
 macro_rules! ptrievec {
@@ -252,7 +252,7 @@ macro_rules! ensure_editable {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Structure
+//// Structures
 
 #[derive(Clone)]
 pub struct PTrieVec<T> {
@@ -281,7 +281,7 @@ use Node_::*;
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Implementation
+//// Implementations
 
 impl<T> PTrieVec<T> {
     ////////////////////////////////////////////////////////////////////////////
@@ -816,7 +816,6 @@ impl<T> TTrieVec<T> {
     }
 
     /// return editable version of node
-    #[inline(always)]
     fn ensure_editable(&self, x: &Node<T>) -> Node<T>
     where
         T: Clone,
@@ -824,7 +823,6 @@ impl<T> TTrieVec<T> {
         ensure_editable!(self.id(), x)
     }
 
-    #[inline(always)]
     fn is_editable(&self) -> bool {
         self.cnt == 0 || self.id() != 0
     }
@@ -918,7 +916,7 @@ impl<T: Debug> Debug for Node<T> {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Function
+//// Functions
 
 const fn trie_height(trie_size: usize) -> u32 {
     match trie_size {

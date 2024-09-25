@@ -3,7 +3,6 @@
 #![feature(test)]
 #![feature(coroutines, coroutine_trait)]
 #![feature(stmt_expr_attributes)]
-#![feature(is_sorted)]
 #![feature(type_ascription)]
 #![feature(trait_alias)]
 #![feature(trait_upcasting)]
@@ -24,6 +23,6 @@ use proc_macros::make_simple_error_rules;
 pub mod text;
 pub mod io;
 pub mod path;
-
+pub mod unicode;
 
 make_simple_error_rules!(XXXError);

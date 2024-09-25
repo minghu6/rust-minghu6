@@ -41,7 +41,6 @@ impl<'a> BMPattern<'a> {
         }
     }
 
-    #[inline]
     fn delta0(&self, char: u8) -> usize {
         if char == self.pat_bytes[self.pat_bytes.len() - 1] {
             LARGE
@@ -415,7 +414,6 @@ impl<'a> SimplifiedBMPattern<'a> {
         SimplifiedBMPattern { pat_bytes, delta1 }
     }
 
-    #[inline]
     fn delta0(&self, char: u8) -> usize {
         if char == self.pat_bytes[self.pat_bytes.len() - 1] {
             LARGE

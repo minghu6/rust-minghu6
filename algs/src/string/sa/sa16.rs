@@ -14,7 +14,6 @@ const EMPTY: usize = MAX_SA_VALUE + 1;
 const UNIQUE: usize = MAX_SA_VALUE + 2;
 const MULTI: usize = MAX_SA_VALUE + 3;  // >= 258
 
-#[inline]
 fn lms_str_cmp<E: Ord>(l1: &[E], l2: &[E]) -> Ordering {
     for (x, y) in l1.iter().zip(l2.iter()) {
         let cmp_res = x.cmp(&y);
@@ -25,7 +24,6 @@ fn lms_str_cmp<E: Ord>(l1: &[E], l2: &[E]) -> Ordering {
     Ordering::Equal
 }
 
-#[inline]
 fn pat_char_type(cur: usize, prev: usize, last_scanned_type: bool) -> bool {
     if cur < prev || cur == prev && last_scanned_type == STYPE { STYPE }
     else { LTYPE }

@@ -13,7 +13,7 @@ mod sp;
 mod verify;
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Structure
+//// Structures
 
 #[derive(Debug)]
 pub struct GraphGenOptions {
@@ -26,7 +26,7 @@ pub struct GraphGenOptions {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Implementation
+//// Implementations
 
 impl GraphGenOptions {
     pub fn non_negative_cycle(mut self) -> Self {
@@ -211,7 +211,7 @@ impl Graph {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Function
+//// Functions
 
 /// Generate (Undirected) Simple Completed Connected Graph
 fn gen_scc_graph(vrange: usize, wrange: Range<isize>) -> Graph {

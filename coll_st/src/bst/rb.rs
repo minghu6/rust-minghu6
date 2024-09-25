@@ -274,7 +274,6 @@ impl<K, V> Node<K, V> {
     ////////////////////////////////////////////////////////////////////////////
     /// Static Stats
 
-    #[inline]
     fn color(&self) -> Color {
         if self.is_none() {
             Black
@@ -284,18 +283,15 @@ impl<K, V> Node<K, V> {
         }
     }
 
-    #[inline]
     fn is_red(&self) -> bool {
         self.color().is_red()
     }
 
     #[allow(unused)]
-    #[inline]
     fn is_black(&self) -> bool {
         self.color().is_black()
     }
 
-    #[inline]
     fn color_flip(&self) {
         debug_assert!(self.is_some(), "Color flip on None");
 

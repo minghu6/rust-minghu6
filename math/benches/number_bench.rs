@@ -99,6 +99,16 @@ fn bench_pri_e_seg_sieve(b: &mut Bencher) {
     })
 }
 
+#[bench]
+fn bench_pri_e_seg_sieve_p(b: &mut Bencher) {
+    b.iter(|| {
+        black_box(
+                e_seg_sieve_p(PRIME_N)
+                .collect::<Vec<usize>>(),
+        );
+    })
+}
+
 #[ignore = "a little slow"]
 #[bench]
 fn bench_pri_wheel_sieve(b: &mut Bencher) {
@@ -109,6 +119,66 @@ fn bench_pri_wheel_sieve(b: &mut Bencher) {
         );
     })
 }
+
+#[bench]
+fn bench_pri_fixed_wheel_seg_sieve(b: &mut Bencher) {
+    b.iter(|| {
+        black_box(
+                fixed_wheel_seg_sieve(PRIME_N)
+                .collect::<Vec<usize>>(),
+        );
+    })
+}
+
+#[bench]
+fn bench_pri_fixed_wheel_seg_sieve_p(b: &mut Bencher) {
+    b.iter(|| {
+        black_box(
+                fixed_wheel_seg_sieve_p(PRIME_N)
+                .collect::<Vec<usize>>(),
+        );
+    })
+}
+
+#[bench]
+fn bench_pri_sundaram_sieve(b: &mut Bencher) {
+    b.iter(|| {
+        black_box(
+                sundaram_sieve(PRIME_N)
+                .collect::<Vec<usize>>(),
+        );
+    })
+}
+
+#[bench]
+fn bench_pri_sundaram_improved_sieve(b: &mut Bencher) {
+    b.iter(|| {
+        black_box(
+                sundaram_sieve_improved(PRIME_N)
+                .collect::<Vec<usize>>(),
+        );
+    })
+}
+
+#[bench]
+fn bench_pri_atkin_simple_sieve(b: &mut Bencher) {
+    b.iter(|| {
+        black_box(
+                atkin_sieve_simple(PRIME_N)
+                .collect::<Vec<usize>>(),
+        );
+    })
+}
+
+// #[bench]
+// fn bench_pri_atkin_enumerate_lattice_sieve(b: &mut Bencher) {
+//     b.iter(|| {
+//         black_box(
+//                 atkin_sieve_enum_lattice(PRIME_N)
+//                 .collect::<Vec<usize>>(),
+//         );
+//     })
+// }
 
 #[bench]
 fn bench_pri_mairson_sieve(b: &mut Bencher) {
@@ -182,3 +252,4 @@ fn bench_pri_gpf_sieve_inf(b: &mut Bencher) {
         );
     })
 }
+

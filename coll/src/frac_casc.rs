@@ -25,7 +25,7 @@ type FindHandler<'a, T, const N: usize> = fn(
 ///
 /// And For more momory saving, using F=3,4, ... however, it works little on saving efficient
 ///
-///  and causes slower running, so we DONT RECOMMEND.
+///  and causes slower running, so we DONT RECOMMEND it.
 ///
 pub struct FractionalCascading<'a, T, const F: usize = 2> {
     m: Vec<Vec<METype<T>>>,
@@ -116,7 +116,6 @@ impl<'a, T: Ord, const F: usize> FractionalCascading<'a, T, F> {
         res
     }
 
-    #[inline(always)]
     fn unpack_result(&self, k:&T, i: usize, j: usize) -> Result<usize, usize> {
         if j < self.l[i].len() && k == &self.l[i][j] {
             Ok(j)
@@ -126,7 +125,6 @@ impl<'a, T: Ord, const F: usize> FractionalCascading<'a, T, F> {
         }
     }
 
-    #[inline(always)]
     fn find_handle_approx_result(
         &self,
         k: &T,
@@ -156,7 +154,6 @@ impl<'a, T: Ord, const F: usize> FractionalCascading<'a, T, F> {
         }
     }
 
-    #[inline(always)]
     fn quick_find_handle_approx_result(
         &self,
         k: &T,

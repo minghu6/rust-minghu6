@@ -595,13 +595,11 @@ macro_rules! fake_swap {
 macro_rules! impl_flatten_cleanup {
     ($fn:item) => {
         impl<K, V> Node<K, V> {
-            #[inline]
             $fn
         }
     };
     () => {
         impl<K, V> Node<K, V> {
-            #[inline]
             fn flatten_cleanup(&self) {}
         }
     }
@@ -612,13 +610,11 @@ macro_rules! impl_flatten_cleanup {
 macro_rules! impl_build_cleanup {
     ($fn:item ) => {
         impl<K, V> Node<K, V> {
-            #[inline]
             $fn
         }
     };
     () => {
         impl<K, V> Node<K, V> {
-            #[inline]
             fn build_cleanup(&self) {}
         }
     }
@@ -629,13 +625,11 @@ macro_rules! impl_build_cleanup {
 macro_rules! impl_rotate_cleanup {
     ($name:ident -> $fn:item ) => {
         impl<K, V> $name<K, V> {
-            #[inline]
             $fn
         }
     };
     ($name:ident) => {
         impl<K, V> $name<K, V> {
-            #[inline]
             fn rotate_cleanup(&self, _x: Node<K, V>, _z: Node<K, V>) {}
         }
     }
@@ -1009,7 +1003,7 @@ macro_rules! test_dict {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// ReExport Declarative Macro
+//// ReExport Declarative Macros
 
 use replace_val;
 use node;
@@ -1049,7 +1043,7 @@ pub(crate) use test_dict;
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Structure
+//// Structures
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum Dir {
@@ -1068,7 +1062,7 @@ use Color::*;
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Implementation
+//// Implementations
 
 impl Dir {
     fn rev(&self) -> Self {

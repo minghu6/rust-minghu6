@@ -7,7 +7,7 @@ use common::StrJoin;
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Macro
+//// Macros
 
 
 ////////////////////////////////////////
@@ -196,7 +196,6 @@ macro_rules! impl_node {
 #[macro_export]
 macro_rules! def_node__heap_access {
     (internal, $name:ident, $ret:ty) => {
-        #[inline]
         fn $name(&self) -> &$ret {
             match self {
                 Internal { $name, .. } => $name,
@@ -207,7 +206,6 @@ macro_rules! def_node__heap_access {
             }
         }
         coll::paste!(
-            #[inline]
             fn [<$name _mut>](&mut self) -> &mut $ret {
                 match self {
                     Internal { $name, .. } => $name,
@@ -220,7 +218,6 @@ macro_rules! def_node__heap_access {
         );
     };
     (leaf, $name:ident, $ret:ty) => {
-        #[inline]
         fn $name(&self) -> &$ret {
             match self {
                 Internal {..} => panic!(
@@ -231,7 +228,6 @@ macro_rules! def_node__heap_access {
             }
         }
         coll::paste!(
-            #[inline]
             fn [<$name _mut>](&mut self) -> &mut $ret {
                 match self {
                     Internal {..} => panic!(
@@ -244,7 +240,6 @@ macro_rules! def_node__heap_access {
         );
     };
     (both, $name:ident, $ret:ty) => {
-        #[inline]
         fn $name(&self) -> &$ret {
             match self {
                 Internal { $name, .. } => $name,
@@ -252,7 +247,6 @@ macro_rules! def_node__heap_access {
             }
         }
         coll::paste!(
-            #[inline]
             fn [<$name _mut>](&mut self) -> &mut $ret {
                 match self {
                     Internal { $name, .. } => $name,
@@ -552,7 +546,7 @@ macro_rules! roadmap {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Structure
+//// Structures
 
 #[derive(Clone)]
 pub(crate) struct RoadMap {
