@@ -819,7 +819,7 @@ impl<T> Stack<T> {
     }
 
     /// FILO
-    pub fn stack_iter<'a>(&'a self) -> impl Iterator<Item = &T> + 'a {
+    pub fn stack_iter<'a>(&'a self) -> impl Iterator<Item = &'a T> + 'a {
         let mut iter = self.0.iter().rev();
 
         std::iter::from_fn(move || iter.next())
@@ -873,7 +873,7 @@ impl<T> Queue<T> {
     }
 
     /// FIFO
-    pub fn queue_iter<'a>(&'a self) -> impl Iterator<Item = &T> + 'a {
+    pub fn queue_iter<'a>(&'a self) -> impl Iterator<Item = &'a T> + 'a {
         let mut iter = self.0.iter();
 
         std::iter::from_fn(move || iter.next())

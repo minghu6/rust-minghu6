@@ -9,6 +9,7 @@ edition = "2021"
 chardet = "^0.2"
 encoding = "^0.2"
 
+binpack = { package = "m6binpack", path = "../binpack/m6binpack" }
 m6coll = { path = "../m6coll" }
 proc_macros = { package = "m6-proc-macros", path = "proc_macros" }
 common = { package = "m6-common", path = "common" }

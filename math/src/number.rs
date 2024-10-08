@@ -1,12 +1,11 @@
 use std::{
     cmp::min,
-    collections::{BTreeSet, HashSet},
-    iter::once,
+    collections::BTreeSet,
+    iter::{self, once},
     thread,
 };
 
 use bit_vec::BitVec;
-use common::def_stats;
 use lazy_static::lazy_static;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -14,12 +13,12 @@ use lazy_static::lazy_static;
 
 static WN: usize = 7;
 
-/// set amount of cpu cores used in parallel task
+/// set amount of cpu cores used in parallel tasks
 pub static USED_CPU_CORES_NUM: usize = 3;
 
 lazy_static! {
     static ref P: Vec<usize> =
-        once(0).chain(bengelloun_sieve_inf().take(100)).collect::<Vec<usize>>();
+        once(0).chain(bengelloun_sieve_inf().take(20)).collect::<Vec<usize>>();
 
     static ref W: Vec<WStruct> = {
         debug_assert!(WN <= 10);  // memory overhead too high.
@@ -329,66 +328,10 @@ macro_rules! isqrt_ceil {
     }};
 }
 
-macro_rules! sieve_spec_case {
-    // ($n: ident; [0]) => {{
-    //     let n = $n;
-
-    //     if n == 0 {
-    //         return Box::new(std::iter::empty());
-    //     }
-    // }};
-    ($n: ident; [0, 1]) => {{
-        let n = $n;
-
-        if n < 2 {
-            return Box::new(std::iter::empty());
-        }
-    }};
-    ($n: ident; [0, 2]) => {{
-        let n = $n;
-
-        sieve_spec_case!(n; [0, 1]);
-
-        if n == 2 {
-            return Box::new(std::iter::once(2));
-        }
-    }};
-    ($n: ident; [0, 3]) => {{
-        let n = $n;
-
-        sieve_spec_case!(n; [0, 2]);
-
-        if n == 3 {
-            return Box::new([2, 3].into_iter());
-        }
-    }};
-    ($n: ident; [0, 4]) => {{
-        let n = $n;
-
-        sieve_spec_case!($n; [0, 2]);
-
-        if n <= 4 {
-            return Box::new([2, 3].into_iter());
-        }
-    }};
-    ($n: ident; [0, 6]) => {{
-        let n = $n;
-
-        sieve_spec_case!($n; [0, 4]);
-
-        if n <= 6 {
-            return Box::new([2, 3, 5].into_iter());
-        }
-    }};
-    ($n: ident; [0, 10]) => {{
-        let n = $n;
-
-        sieve_spec_case!($n; [0, 6]);
-
-        if n <= 10 {
-            return Box::new([2, 3, 5, 7].into_iter());
-        }
-    }};
+macro_rules! boxit {
+    ($e:expr $(,)?) => {
+        Box::new($e)
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -407,8 +350,11 @@ struct WStruct {
 ////////////////////////////////////////////////////////////////////////////////
 //// Functions
 
+/// Eratosthenes Sieve
 pub fn e_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
-    sieve_spec_case!(n; [0, 2]);
+    if n == 0 {
+        return boxit!(iter::empty())
+    }
 
     let mut bits = BitVec::from_elem(n + 1, true);
 
@@ -420,11 +366,11 @@ pub fn e_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
         }
     }
 
-    Box::new(
+    boxit!(
         bits.into_iter()
             .enumerate()
             .skip(2)
-            .filter_map(|(i, flag)| if flag { Some(i) } else { None }),
+            .filter_map(|(i, flag)| if flag { Some(i) } else { None })
     )
 }
 
@@ -433,15 +379,7 @@ pub fn e_seg_sieve(n: usize) -> impl Iterator<Item = usize> {
     std::iter::from_coroutine(
         #[coroutine]
         move || {
-            if n < 4 {
-                if n >= 2 {
-                    yield 2;
-                }
-
-                if n >= 3 {
-                    yield 3
-                }
-
+            if n == 0 {
                 return;
             }
 
@@ -475,9 +413,10 @@ pub fn e_seg_sieve(n: usize) -> impl Iterator<Item = usize> {
     )
 }
 
-
 pub fn e_seg_sieve_p(n: usize) -> Box<dyn Iterator<Item = usize>> {
-    sieve_spec_case!(n; [0, 4]);
+    if n == 0 {
+        return boxit!(iter::empty())
+    }
 
     let delta = n.isqrt();
     let pris = e_sieve(delta).collect::<Vec<usize>>();
@@ -520,20 +459,20 @@ pub fn e_seg_sieve_p(n: usize) -> Box<dyn Iterator<Item = usize>> {
 
         let mut l = delta;
 
-        let mut k_dekta = (n / delta - 1) / USED_CPU_CORES_NUM;
+        let mut k_delta = (n / delta - 1) / USED_CPU_CORES_NUM;
 
-        if l + k_dekta * delta < n {
-            k_dekta += 1;
+        if l + k_delta * delta < n {
+            k_delta += 1;
         }
 
         let mut handles = vec![];
 
         for _ in 0..USED_CPU_CORES_NUM {
             handles.push(scope.spawn(move || {
-                sieve_subtask(pris_ref, l, min(l + k_dekta * delta, n), delta)
+                sieve_subtask(pris_ref, l, min(l + k_delta * delta, n), delta)
             }));
 
-            l += k_dekta * delta;
+            l += k_delta * delta;
         }
 
         handles
@@ -543,7 +482,7 @@ pub fn e_seg_sieve_p(n: usize) -> Box<dyn Iterator<Item = usize>> {
             .collect::<Vec<usize>>()
     });
 
-    Box::new(pris.into_iter().chain(ans.into_iter()))
+    boxit!(pris.into_iter().chain(ans.into_iter()))
 }
 
 
@@ -600,15 +539,26 @@ pub fn e_inc_sieve_reentrant(pris: &mut Vec<usize>, n: usize) {
 }
 
 pub fn e_inc_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
-    sieve_spec_case!(n; [0, 4]);
+    if n <= 3 {
+        if n == 3 {
+            return boxit!([2, 3].into_iter())
+        }
+        else if n == 2 {
+            return boxit!([2].into_iter())
+        }
+        else {
+            return boxit!(iter::empty())
+        }
+    }
 
     let mut pris = vec![2, 3];
 
     e_inc_sieve_reentrant(&mut pris, n);
 
-    Box::new(pris.into_iter())
+    boxit!(pris.into_iter())
 }
 
+#[cfg(test)]
 #[deprecated = "False algorithm"]
 pub fn spiral_wheel() -> impl Iterator<Item = usize> {
     std::iter::from_coroutine(
@@ -685,8 +635,8 @@ pub fn mairson_sieve(n: usize) -> impl Iterator<Item = usize> {
                 return;
             }
 
-            let mut forward: Vec<usize> = (1..=n).chain(once(0)).collect();
-            let mut backward: Vec<usize> = once(0).chain(0..=n - 1).collect();
+            let mut right: Vec<usize> = (1..=n).chain(once(0)).collect();
+            let mut left: Vec<usize> = once(0).chain(0..=n - 1).collect();
 
             // lpf (least prime factor)
             let mut p = 2usize;
@@ -716,38 +666,39 @@ pub fn mairson_sieve(n: usize) -> impl Iterator<Item = usize> {
                 let mut f = f_max;
 
                 while f >= p {
-                    forward[backward[p * f]] = forward[p * f];
-                    backward[forward[p * f]] = backward[p * f];
+                    right[left[p * f]] = right[p * f];
+                    left[right[p * f]] = left[p * f];
 
-                    forward[p * f] = n + 1; // flag it
-                    f = backward[f];
+                    right[p * f] = n + 1; // flag it
+                    f = left[f];
                 }
 
-                p = forward[p];
-                if forward[f_max] == n + 1 {
-                    f_max = backward[f_max];
+                p = right[p];
+                if right[f_max] == n + 1 {
+                    f_max = left[f_max];
                 }
                 while f_max * p > n {
-                    f_max = backward[f_max];
+                    f_max = left[f_max];
                 }
             }
 
             let mut i = 1;
 
-            while forward[i] != 0 {
-                yield forward[i];
+            while right[i] != 0 {
+                yield right[i];
 
-                i = forward[i];
+                i = right[i];
             }
         },
     )
 }
 
 pub fn mairson_dual_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
-    sieve_spec_case!(n ; [0, 1]);
+    if n <= 1 {
+        return boxit!(iter::empty())
+    }
 
     let mut bits = BitVec::from_elem(n + 1, true);
-    // bits[0..1] should be skipped
     let mut pris = vec![];
 
     for f in 2..=n / 2 {
@@ -762,13 +713,13 @@ pub fn mairson_dual_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
 
             bits.set(f * p, false);
 
-            if f % p == 0 {
-                break;
-            }
+            // if f % p == 0 {
+            //     break;
+            // }
         }
     }
 
-    Box::new(
+    boxit!(
         pris.into_iter().chain(
             bits.into_iter().enumerate().skip(1 + n / 2).flat_map(
                 |(i, flag)| {
@@ -883,7 +834,7 @@ pub fn wheel_sieve(n: usize) -> impl Iterator<Item = usize> {
     std::iter::from_coroutine(
         #[coroutine]
         move || {
-            if n < 2 {
+            if n <= 1 {
                 return;
             }
 
@@ -936,7 +887,18 @@ pub fn fixed_wheel_seg_sieve(n: usize) -> impl Iterator<Item = usize> {
             let delta = n.isqrt();
 
             let pris = e_sieve(delta).collect::<Vec<usize>>();
+
+            // let np = pris
+            //     .iter()
+            //     .enumerate()
+            //     .rev()
+            //     .find(
+            //         |(_, &p)|  p * p <= n
+            //     )
+            //     .map(|(i, _)| i + 1)
+            //     .unwrap_or(0);
             let np = pris.len();
+
             let mut v = 1 + wg[0];
             let mut vi = 1;
 
@@ -996,16 +958,17 @@ pub fn fixed_wheel_seg_sieve(n: usize) -> impl Iterator<Item = usize> {
 
             let mut l = delta;
 
-            v = l + 1;
-            let mut v0 = v % prod;
-            let v_base = v - v0;
+            let v_raw: usize = l + 1;
 
-            (v0, vi) = match w.binary_search(&v0) {
+            let prod_rem = v_raw % prod;
+            let prod_base = v_raw - prod_rem;
+
+            let (v0, mut vi) = match w.binary_search(&prod_rem) {
                 Ok(i) => (w[i], i),
                 Err(i) => (w[i], i), // prod-1 is prime
             };
 
-            v = v_base + v0;
+            let mut v = prod_base + v0;
 
             /* Init factors */
             // absolute value
@@ -1013,17 +976,19 @@ pub fn fixed_wheel_seg_sieve(n: usize) -> impl Iterator<Item = usize> {
 
             for i in 0..np - k {
                 let p = pris[k + i];
-                let f = (l + p - l % p) / p;
+                let f_raw = (l + p - l % p) / p;
 
-                let f0 = f % prod;
-                let f_base = f - f0;
+                let prod_rem = f_raw % prod;
+                let prod_base = f_raw - prod_rem;
 
-                let (f0, fi) = match w.binary_search(&f0) {
+                let (f0, fi) = match w.binary_search(&prod_rem) {
                     Ok(i) => (w[i], i),
                     Err(i) => (w[i], i),
                 };
 
-                factors.push((f_base + f0, fi));
+                let f = prod_base + f0;
+
+                factors.push((f, fi));
             }
 
             // /* Init factors and pms */
@@ -1104,7 +1069,7 @@ pub fn fixed_wheel_seg_sieve_p(n: usize) -> Box<dyn Iterator<Item = usize>> {
     let WStruct { wheel_gap: wg, .. } = &W[k];
 
     if n == 0 {
-        return Box::new(std::iter::empty());
+        return boxit!(std::iter::empty());
     }
 
     let delta = n.isqrt();
@@ -1122,7 +1087,7 @@ pub fn fixed_wheel_seg_sieve_p(n: usize) -> Box<dyn Iterator<Item = usize>> {
 
         for i in 1..=k {
             if P[i] > n {
-                return Box::new(ans.into_iter());
+                return boxit!(ans.into_iter());
             }
 
             ans.push(P[i]);
@@ -1135,12 +1100,13 @@ pub fn fixed_wheel_seg_sieve_p(n: usize) -> Box<dyn Iterator<Item = usize>> {
             vi = (vi + 1) % wg.len();
         }
 
-        return Box::new(ans.into_iter());
+        return boxit!(ans.into_iter());
     }
 
     fn sieve_subtask(
         k: usize,
         pris: &[usize],
+        np: usize,
         l0: usize,
         l1: usize,
         delta: usize,
@@ -1152,8 +1118,6 @@ pub fn fixed_wheel_seg_sieve_p(n: usize) -> Box<dyn Iterator<Item = usize>> {
             // ipm,
             ..
         } = &W[k];
-
-        let np = pris.len();
 
         let mut ans = vec![];
 
@@ -1238,6 +1202,16 @@ pub fn fixed_wheel_seg_sieve_p(n: usize) -> Box<dyn Iterator<Item = usize>> {
     let ans = thread::scope(|scope| {
         let pris_ref = &pris;
 
+        let np = pris
+        .iter()
+        .enumerate()
+        .rev()
+        .find(
+            |(_, &p)|  p * p <= n
+        )
+        .map(|(i, _)| i + 1)
+        .unwrap_or(0);
+
         let mut l = delta;
 
         let mut k_dekta = (n / delta - 1) / USED_CPU_CORES_NUM;
@@ -1253,6 +1227,7 @@ pub fn fixed_wheel_seg_sieve_p(n: usize) -> Box<dyn Iterator<Item = usize>> {
                 sieve_subtask(
                     k,
                     pris_ref,
+                    np,
                     l,
                     min(l + k_dekta * delta, n),
                     delta,
@@ -1269,7 +1244,7 @@ pub fn fixed_wheel_seg_sieve_p(n: usize) -> Box<dyn Iterator<Item = usize>> {
             .collect::<Vec<usize>>()
     });
 
-    Box::new(pris.into_iter().chain(ans.into_iter()))
+    boxit!(pris.into_iter().chain(ans.into_iter()))
 }
 
 /// odd factorization
@@ -1277,7 +1252,9 @@ pub fn sundaram_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
     // i + j + 2*i*j
     // up to 2n+2
 
-    sieve_spec_case!(n; [0, 3]);
+    if n <= 1 {
+        return boxit!(iter::empty())
+    }
 
     let k = (n - 1) / 2;
     let mut bits = BitVec::from_elem(k + 1, true);
@@ -1292,16 +1269,18 @@ pub fn sundaram_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
         }
     }
 
-    Box::new(
+    boxit!(
         once(2).chain(bits.into_iter().enumerate().skip(1).filter_map(
             |(i, flag)| if flag { Some(2 * i + 1) } else { None },
-        )),
+        ))
     )
 }
 
 /// odd factorization
 pub fn sundaram_sieve_improved(n: usize) -> Box<dyn Iterator<Item = usize>> {
-    sieve_spec_case!(n; [0, 3]);
+    if n <= 1 {
+        return boxit!(iter::empty())
+    }
 
     let k: usize = (n - 1) / 2;
     let mut bits = BitVec::from_elem(k + 1, true);
@@ -1323,7 +1302,7 @@ pub fn sundaram_sieve_improved(n: usize) -> Box<dyn Iterator<Item = usize>> {
         }
     }
 
-    Box::new(
+    boxit!(
         once(2).chain(bits.into_iter().enumerate().skip(1).filter_map(
             |(i, flag)| if flag { Some(2 * i + 1) } else { None },
         )),
@@ -1334,7 +1313,7 @@ pub fn sundaram_sieve_improved(n: usize) -> Box<dyn Iterator<Item = usize>> {
 // pub fn sundaram_sieve_improved_seg(n: usize) -> Box<dyn Iterator<Item = usize>> {
 //     sieve_spec_case!(n; [0, 10]);
 
-//     Box::new(std::iter::from_coroutine(
+//     boxit!(std::iter::from_coroutine(
 //         #[coroutine]
 //         move || {
 //             for p in [2, 3, 5, 7] {
@@ -1493,8 +1472,13 @@ mod atkin {
 /// [Binary Quadratic Factorization](http://www.ams.org/mcom/2004-73-246/S0025-5718-03-01501-1/S0025-5718-03-01501-1.pdf)
 ///
 ///
+#[cfg(test)]
 #[deprecated = "Too Slow"]
 pub fn atkin_sieve_enum_lattice(n: usize) -> impl Iterator<Item = usize> {
+    use std::collections::HashSet;
+
+    use common::def_stats;
+
     use atkin::*;
 
     def_stats!(Watch, { algs1, algs2, algs3, remove_p });
@@ -1700,12 +1684,17 @@ pub fn atkin_sieve_simple(n: usize) -> impl Iterator<Item = usize> {
     std::iter::from_coroutine(
         #[coroutine]
         move || {
+            if n == 0 {
+                return;
+            }
+
             let mut bits = BitVec::from_elem(n + 1, false);
 
-            if n > 1 {
+            if n >= 2 {
                 bits.set(2, true);
             }
-            if n > 2 {
+
+            if n >= 3 {
                 bits.set(3, true);
             }
 
@@ -1761,7 +1750,9 @@ pub fn atkin_sieve_simple(n: usize) -> impl Iterator<Item = usize> {
 ///
 /// Space: O(n)
 pub fn gpf_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
-    sieve_spec_case!(n; [0, 4]);
+    if n <= 1{
+        return boxit!(iter::empty())
+    }
 
     let mut p = 2;
     let mut bits = BitVec::from_elem(n + 1, true);
@@ -1796,11 +1787,11 @@ pub fn gpf_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
         p = i;
     }
 
-    Box::new(
+    boxit!(
         pris.into_iter().chain(
             bits.into_iter()
                 .enumerate()
-                .skip(1 + n / 2)
+                .skip(n / 2 + 1)
                 .filter_map(|(i, flag)| if flag { Some(i) } else { None }),
         ),
     )
@@ -1810,7 +1801,7 @@ pub fn gpf_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
 ////////////////////////////////////////
 //// Infinite Sieve
 
-pub fn e_inc_sieve_inf() -> impl Iterator<Item = usize> {
+pub fn e_sieve_inf() -> impl Iterator<Item = usize> {
     std::iter::from_coroutine(
         #[coroutine]
         move || {
@@ -1846,28 +1837,30 @@ pub fn bengelloun_sieve_inf() -> impl Iterator<Item = usize> {
             yield lastp;
 
             for n in 3.. {
-                if n % 2 == 0 {
+                if n & 1 == 0 {
                     lpf[n] = 2;
                     lpf[n / 2 * 3] = 3;
-                } else if lpf[n] == 0 {
+                }
+                else if lpf[n] == 0 {
+                    yield n;
+
                     lpf[lastp] = n;
                     // lpf[n] = n;
                     lastp = n;
-
-                    yield n;
 
                     // => p_next < 2n
                     // => p1 / p0 < 2
                     // => (p1 / p0) * p_next < 4n - 2
                     lpf.resize(n * 4, 0);
                 } else {
-                    let lp0 = lpf[n]; // lp0 > 2
-                    let f = n / lp0;
+                    let p = lpf[n]; // lp0 > 2
+                    let f = n / p;
 
-                    if lp0 < if lpf[f] < f { lpf[f] } else { f } {
-                        let lp1 = lpf[lp0];
+                    // min(f, lpf[f]) = truly lpf[f]
+                    if p < min(f, lpf[f]) {
+                        let p1 = lpf[p];  // next prime after p
 
-                        lpf[lp1 * f] = lp1;
+                        lpf[p1 * f] = p1;
                     }
                 }
             }
@@ -1875,43 +1868,43 @@ pub fn bengelloun_sieve_inf() -> impl Iterator<Item = usize> {
     )
 }
 
+/// *LINEAR PRIME-NUMBER SIEVES: A FAMILY TREE:* Algorithm 4.4.
 pub fn gpf_sieve_inf() -> impl Iterator<Item = usize> {
     std::iter::from_coroutine(
         #[coroutine]
         move || {
             let mut lastp = 2;
-            let mut sqp = 2;
-            let mut gpf = vec![0; 2 * 2 + 1];
-            gpf[1] = 2;
+            let mut sqp = 2;  // minimal (for square) prime >= n
+            let mut gpf = vec![0; 2 * 2 + 1]; // (p, f)
 
             yield 2;
 
             for n in 3.. {
                 if n == sqp * sqp {
-                    gpf[n] = sqp; // add starter
-                    sqp = gpf[sqp];
+                    gpf[n] = sqp;  // add starter
+                    sqp = gpf[sqp];  // point to next prime after sqp
                 }
 
                 if gpf[n] == 0 {
+                    yield n;
+
                     // gpf[n] = n;
                     // C_max < p_next < 2n => (p1/p0 or 2) * C_max < 4n
-                    gpf[lastp] = n;
+                    gpf[lastp] = n;  // point to next prime
                     lastp = n;
                     gpf.resize(4 * n, 0);
-
-                    yield n;
                 } else {
                     let p = gpf[n];
                     let f = n / p;
-                    let p1 = gpf[p];
+                    let p1 = gpf[p];  // next prime
 
                     gpf[p1 * f] = p1;
 
-                    if f == p || gpf[f] == p {
-                        // TODO: refine it on algorithm
+                    // min(f, gpf[f]) is truly gpf[f]
+                    if p == min(f, gpf[f]) {
                         let mut f0 = f / p + 1;
 
-                        while f0 > p && gpf[f0] > p {
+                        while min(f0, gpf[f0]) > p {
                             f0 += 1;
                         }
 
@@ -1923,6 +1916,75 @@ pub fn gpf_sieve_inf() -> impl Iterator<Item = usize> {
     )
 }
 
+///
+/// ```
+/// use m6_math::number::*;
+///
+/// assert_eq!(factorization(18), vec![2, 3, 3]);
+/// assert_eq!(factorization(3), vec![3]);
+/// assert_eq!(factorization(0), vec![]);
+/// assert_eq!(factorization(1), vec![]);
+///
+/// ```
+pub fn factorization(mut n: usize) -> Vec<usize> {
+    let mut factors = vec![];
+
+    if n == 0 {
+        return factors;
+    }
+
+    for p in bengelloun_sieve_inf() {
+        while n % p == 0 {
+            n /= p;
+            factors.push(p);
+        }
+
+        if n == 1 {
+            break;
+        }
+    }
+
+    factors
+}
+
+/// 一鱼两吃，既返回值质数列表，也返回质因数分解列表 (lpf)
+/// 这种 API 风格倒也正好是 Rust 推荐的风格
+pub fn mairson_dual_sieve_factorization(n: usize) -> (Vec<usize>, Vec<usize>) {
+    let mut lpf = vec![0; n+1];
+    let mut pris = vec![];
+
+    if n <= 1 {
+        return (pris, lpf);
+    }
+
+    for f in 2..=n / 2 {
+        if lpf[f] == 0 {
+            lpf[f] = f;
+            pris.push(f);
+        }
+
+        for p in pris.iter().cloned() {
+            if p * f > n {
+                break;
+            }
+
+            lpf[p * f] = p;
+
+            if p == lpf[f] {
+                break;
+            }
+        }
+    }
+
+    for i in (n / 2)+1..=n {
+        if lpf[i] == 0 {
+            lpf[i] = i;
+            pris.push(i);
+        }
+    }
+
+    (pris, lpf)
+}
 
 
 #[cfg(test)]
@@ -1930,7 +1992,7 @@ mod tests {
     use std::collections::BTreeSet;
 
     use bag::BTreeBag;
-    use common::same;
+    use common::{random_range, same};
     use derive_new::new;
     use derive_where::derive_where;
 
@@ -2224,12 +2286,12 @@ mod tests {
             (n=$n:expr; $($fn:ident),+ $(,)?; $($fn_inf:ident),* $(,)?) => {
                 for n in [0, 1] {
                     $(assert!($fn(n).collect::<Vec<usize>>().is_empty(),
-                    "{}", stringify!($fn));)+
+                    "{}: {n}", stringify!($fn));)+
                 }
 
                 for n in [2] {
                     $(assert_eq!($fn(n).collect::<Vec<usize>>(), vec![2],
-                     "{}", stringify!($fn));)+
+                     "{}: {n}", stringify!($fn));)+
                 }
 
                 for n in [3, 4] {
@@ -2275,6 +2337,11 @@ mod tests {
             }
         }
 
+        let mairson_dual_sieve_factorization
+            = |n: usize| -> Box<dyn Iterator<Item=usize>> {
+                boxit!(mairson_dual_sieve_factorization(n).0.into_iter())
+            };
+
         for n in [169, 1690, 16900] {
             test_prime!(
                 n = n
@@ -2292,12 +2359,41 @@ mod tests {
                 atkin_sieve_simple,
                 // atkin_sieve_enum_lattice,
                 e_seg_sieve_p,
-                fixed_wheel_seg_sieve_p
+                fixed_wheel_seg_sieve_p,
+                mairson_dual_sieve_factorization
                 ;
-                e_inc_sieve_inf,
+                e_sieve_inf,
                 bengelloun_sieve_inf,
                 gpf_sieve_inf
             );
         }
     }
+
+
+    #[test]
+    fn test_factorization() {
+        let n = 16800;
+        let lpf = mairson_dual_sieve_factorization(n).1;
+
+        for _ in 0..100 {
+            let v = random_range!(2..=n);
+
+            let ans = {
+                let mut v = v;
+                let mut ans = vec![];
+
+                while lpf[v] < v {
+                    ans.push(lpf[v]);
+                    v /= lpf[v];
+                }
+
+                ans.push(v);
+
+                ans
+            };
+
+            assert_eq!(factorization(v), ans);
+        }
+    }
 }
+

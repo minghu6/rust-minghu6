@@ -15,7 +15,8 @@
 #![feature(trace_macros)]
 #![feature(let_chains)]
 #![feature(cell_update)]
-
+#![feature(f16)]
+#![feature(debug_closure_helpers)]
 
 use proc_macros::make_simple_error_rules;
 
@@ -24,5 +25,6 @@ pub mod text;
 pub mod io;
 pub mod path;
 pub mod unicode;
+pub mod float;
 
 make_simple_error_rules!(XXXError);

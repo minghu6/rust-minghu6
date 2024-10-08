@@ -211,6 +211,15 @@ fn bench_pri_mairson_duel_sieve(b: &mut Bencher) {
 }
 
 #[bench]
+fn bench_pri_mairson_duel_sieve_factorization(b: &mut Bencher) {
+    b.iter(|| {
+        black_box(
+                mairson_dual_sieve_factorization(PRIME_N).0
+        );
+    })
+}
+
+#[bench]
 fn bench_pri_gpf_sieve(b: &mut Bencher) {
     b.iter(|| {
         black_box(
@@ -224,7 +233,7 @@ fn bench_pri_gpf_sieve(b: &mut Bencher) {
 fn bench_pri_inc_e_sieve_inf(b: &mut Bencher) {
     b.iter(|| {
         black_box(
-                e_inc_sieve_inf()
+                e_sieve_inf()
                 .take_while(|v| *v < PRIME_N)
                 .collect::<Vec<usize>>(),
         );
