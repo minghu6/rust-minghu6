@@ -30,5 +30,7 @@ pub mod io;
 pub mod path;
 pub mod unicode;
 pub mod float;
+pub mod int;
+
 
 make_simple_error_rules!(XXXError);

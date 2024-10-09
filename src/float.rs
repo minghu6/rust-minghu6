@@ -62,11 +62,19 @@ macro_rules! define_and_impl {
             }
 
             pub fn trailing(self) -> $uint {
-                self.T().reverse_bits() >> (Self::k() - Self::t())
+                self.T() >> (Self::k() - Self::t())
             }
 
             pub fn from_be_bytes(bytes: [u8; $k as usize / 8]) -> Self {
                 Self(<$uint>::from_be_bytes(bytes))
+            }
+
+            pub fn from_le_bytes(bytes: [u8; $k as usize / 8]) -> Self {
+                Self(<$uint>::from_le_bytes(bytes))
+            }
+
+            pub fn from_ne_bytes(bytes: [u8; $k as usize / 8]) -> Self {
+                Self(<$uint>::from_ne_bytes(bytes))
             }
 
             pub fn from_components(
@@ -90,7 +98,7 @@ macro_rules! define_and_impl {
                             >
                             <
                                 {
-                                    (trailing << (Self::k() - Self::t())).reverse_bits()
+                                    (trailing << (Self::k() - Self::t()))
                                 }
                                 :
                                 { Self::t() }
@@ -145,7 +153,7 @@ macro_rules! define_and_impl {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 write!(
                     f,
-                    "({}) 1.({}) * 2^({})",
+                    "({}) 1.({:b}) * 2^({})",
                     if self.signed() { "-" } else { "+" },
                     self.trailing(),
                     self.exponent()
@@ -290,6 +298,8 @@ impl Display for FloatExplain {
 #[cfg(test)]
 #[allow(non_snake_case)]
 mod tests {
+    use std::path::PathBuf;
+
     use super::*;
 
     #[test]
@@ -321,6 +331,8 @@ mod tests {
 
     #[test]
     fn test_float_number() {
+        println!("{}", Float32::from(92f32));
+
         let pinf16 = Float16::from_components(false, 0x10, 0);
 
         assert_eq!(pinf16.to_float(), f16::INFINITY, "{:?}", pinf16);
@@ -343,5 +355,33 @@ mod tests {
         assert!(
             matches!(Float32::from(f32::INFINITY).explain(), Infinity(false)),
         );
+    }
+
+    #[test]
+    fn echo_plain_text_with_float() {
+        use common::tests::{ RESOURCE_DIR, ZH_EN_POEMS };
+
+        const B: usize = 4;
+
+        let mut bytes = std::fs::read(
+            PathBuf::new().join(RESOURCE_DIR).join(ZH_EN_POEMS)
+        ).unwrap();
+
+        for _ in bytes.len() % B + 1..=B {
+            bytes.push(0);
+        }
+
+        for (i, s) in bytes.windows(B).enumerate() {
+            let f = Float32::from_le_bytes(
+                s.try_into().unwrap()
+            );
+
+            print!("{:#?}, ", f.to_float());
+
+            if (i+1) % 4 == 0 {
+                println!();
+            }
+        }
+
     }
 }
