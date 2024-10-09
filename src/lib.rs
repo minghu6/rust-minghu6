@@ -17,6 +17,10 @@
 #![feature(cell_update)]
 #![feature(f16)]
 #![feature(debug_closure_helpers)]
+#![feature(adt_const_params)]
+#![feature(const_trait_impl)]
+#![feature(f128)]
+
 
 use proc_macros::make_simple_error_rules;
 

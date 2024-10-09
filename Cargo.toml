@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 chardet = "^0.2"
 encoding = "^0.2"
+# paste = "1.0"
 
 binpack = { package = "m6binpack", path = "../binpack/m6binpack" }
 m6coll = { path = "../m6coll" }

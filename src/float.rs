@@ -1,33 +1,243 @@
 //! IEEE 754
 
-use std::fmt::{Debug, Display};
+use std::{
+    fmt::{Debug, Display},
+    marker::ConstParamTy,
+};
 
 use binpack::{pack_msb, Pack, Unpack};
 
+////////////////////////////////////////////////////////////////////////////////
+//// Constants
+
+const K_P_ASSOC: [(ParameterK, usize); 4] =
+    [(Half, 11), (Single, 24), (Double, 53), (Quadruple, 113)];
+
+
+////////////////////////////////////////////////////////////////////////////////
+//// Macros
+
+macro_rules! define_and_impl {
+    ({ $struct_name:ident, $k:path, $uint:ty, $sint:ty, $float:ty }) => {
+        #[allow(unused)]
+        #[derive(Clone, Copy)]
+        #[repr(transparent)]
+        struct $struct_name($uint);
+
+        impl BinaryInterchangeFormat<{ $k }> for $struct_name {}
+
+        #[allow(unused)]
+        impl $struct_name {
+            /// 1 bit
+            ///
+            /// signed
+            #[allow(non_snake_case)]
+            pub fn S(self) -> $uint {
+                self.0.extract_msb(1..=1)
+            }
+
+            /// w bit
+            ///
+            /// biased exponent
+            #[allow(non_snake_case)]
+            pub fn E(self) -> $uint {
+                self.0.extract_msb(2..=1 + Self::w())
+            }
+
+            /// t bit
+            ///
+            /// mantisa (significand precision)
+            #[allow(non_snake_case)]
+            pub fn T(self) -> $uint {
+                self.0.extract_msb(Self::k() - Self::t() + 1..=Self::k())
+            }
+
+            /// true for negative
+            pub fn signed(self) -> bool {
+                self.S() != 0
+            }
+
+            pub fn exponent(self) -> $sint {
+                self.E() as $sint - Self::bias() as $sint
+            }
+
+            pub fn trailing(self) -> $uint {
+                self.T().reverse_bits() >> (Self::k() - Self::t())
+            }
+
+            pub fn from_be_bytes(bytes: [u8; $k as usize / 8]) -> Self {
+                Self(<$uint>::from_be_bytes(bytes))
+            }
+
+            pub fn from_components(
+                signed: bool,
+                exponent: $sint,
+                trailing: $uint,
+            ) -> Self {
+                pack_msb! {
+                    v: $uint = <{ signed as $uint }:1>
+                             <
+                                {
+                                    if exponent < 0 {
+                                        (Self::bias() as $sint + exponent) as $uint
+                                    }
+                                    else {
+                                        Self::bias() as $uint + exponent as $uint
+                                    }
+                                }
+                                :
+                                { Self::w() }
+                            >
+                            <
+                                {
+                                    (trailing << (Self::k() - Self::t())).reverse_bits()
+                                }
+                                :
+                                { Self::t() }
+                            >
+                }
+
+                Self(v)
+            }
+
+            pub fn explain(&self) -> FloatExplain {
+                if self.E() == (1 << Self::w()) - 1 {
+                    // overflow
+                    if self.T() == 0 {
+                        Infinity(self.signed())
+                    } else {
+                        // invalid operation exception
+                        // IEEE-754-2008, ch-3.4, p19
+                        // raw msb: 0 for signaling
+                        NaN(
+                            (self.T() >> (Self::t() - 1)) == 0
+                        )
+                    }
+                }
+                // underflow
+                else if self.E() == 0 && self.T() == 0 {
+                    SubNormal
+                } else {
+                    Normal
+                }
+            }
+
+            pub fn to_float(&self) -> $float {
+                <$float>::from_ne_bytes(self.0.to_ne_bytes())
+            }
+        }
+
+        impl Debug for $struct_name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                let bytes = self.0.to_be_bytes();
+
+                let mut d = f.debug_tuple(&format!("{} (MSB)", stringify!($struct_name)));
+
+                for byte in bytes {
+                    d.field_with(|fmt| write!(fmt, "{:08b}", byte));
+                }
+
+                d.finish()
+            }
+        }
+
+        impl Display for $struct_name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(
+                    f,
+                    "({}) 1.({}) * 2^({})",
+                    if self.signed() { "-" } else { "+" },
+                    self.trailing(),
+                    self.exponent()
+                )
+            }
+        }
+
+        impl From<$float> for $struct_name {
+            fn from(value: $float) -> Self {
+                Self::from_be_bytes(value.to_be_bytes())
+            }
+        }
+
+    };
+
+    ($( { $struct_name:ident, $k:path, $uint:ty, $sint:ty, $float:ty } )*) => {
+        $(
+            define_and_impl!({ $struct_name, $k, $uint, $sint, $float });
+        )*
+    };
+}
+
+define_and_impl! {
+    { Float16,  Half,      u16,  i16,  f16  }
+    { Float32,  Single,    u32,  i32,  f32  }
+    { Float64,  Double,    u64,  i64,  f64  }
+    { Float128, Quadruple, u128, i128, f128 }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//// Traits
+
+pub trait BinaryInterchangeFormat<const K: ParameterK> {
+    /// total width in bits
+    fn k() -> usize {
+        K as _
+    }
+
+    /// precision in bits = trailing bits (t) + implicit leading `1` (1)
+    fn p() -> usize {
+        if Self::k() > 128 {
+            Self::k() - 4 * Self::k().ilog2() as usize + 13
+        } else {
+            K_P_ASSOC.iter().find(|x| x.0 == K).unwrap().1
+        }
+    }
+
+    /// exponent field width in bits
+    fn w() -> usize {
+        Self::k() - Self::p()
+    }
+
+    /// trailing significand field width in bits
+    fn t() -> usize {
+        Self::p() - 1
+    }
+
+    fn emax() -> usize {
+        (1 << (Self::w() - 1)) - 1
+    }
+
+    fn bias() -> usize {
+        Self::emax()
+    }
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+//// Structures
+
+///
+/// |  k | s  |  e  |  w  |
+/// |----|----|----|----|
+/// |  16  | 01 | 05 | 10 |
+/// |  32  | 01 | 08 | 23 |
+/// |  64  | 01 | 11 | 52 |
+/// | 128  | 01 | 15 | 112 |
+/// | 256  | 01 | 19 | 237 |
+///
+#[derive(ConstParamTy, PartialEq, Eq)]
 pub enum ParameterK {
     Half = 16,
     Single = 32,
     Double = 64,
     Quadruple = 128,
-    Octuple = 256
+    Octuple = 256,
 }
 
-pub struct BinaryInterchangeFormat;
+pub(crate) use ParameterK::*;
 
 
-/// MSB(u16)
-///
-/// s:  1
-///
-/// e:  5
-///
-/// t: 10
-///
-#[derive(Clone, Copy)]
-#[repr(transparent)]
-pub struct Float16(u16);
-
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum FloatExplain {
     Normal,
     /// -0
@@ -37,179 +247,101 @@ pub enum FloatExplain {
 
     /// overflow
     /// signed (true - 1 - negative)
-    Infinite(bool),
+    Infinity(bool),
 
-    ///
-    ///
     /// [quiet NaN](https://en.wikipedia.org/wiki/NaN#Quiet_NaN) \[default\]
     ///
     /// [signaling NaN](https://en.wikipedia.org/wiki/NaN#Signaling_NaN)
-    NaN(bool)
+    NaN(bool),
 }
 
-use FloatExplain::*;
+pub(crate) use FloatExplain::*;
 
-impl Float16 {
-    /// 1 bit
-    ///
-    /// signed
-    pub fn s(self) -> u16 {
-        self.0.extract_msb(1..=1)
-    }
-
-    /// 5 bit
-    ///
-    /// biased exponent
-    pub fn e(self) -> u16 {
-        self.0.extract_msb(2..=6)
-    }
-
-    pub fn e_bias() -> u16 {
-        (1 << 4) - 1
-    }
-
-    /// 10 bit
-    ///
-    /// mantisa (significand precision)
-    pub fn t(self) -> u16 {
-        self.0.extract_msb(7..=16)
-    }
-
-    /// true for negative
-    pub fn signed(self) -> bool {
-        self.s() != 0
-    }
-
-    pub fn exponent(self) -> i16 {
-        self.e() as i16 - Self::e_bias() as i16
-    }
-
-    pub fn trailing(self) -> u16 {
-        self.t().reverse_bits() >> 6
-    }
-
-    ///
-    pub fn from_be_bytes(bytes: [u8; 2]) -> Self {
-        Self(u16::from_be_bytes(bytes))
-    }
-
-    pub fn from_components(
-        signed: bool,
-        exponent: i16,
-        trailing: u16,
-    ) -> Self {
-        // debug_assert!(exponent < (1 << 4), "exponent overflow {exponent:0b}");
-        // debug_assert!(
-        //     exponent > -(1 << 4),
-        //     "exponent -overflow {exponent:0b}"
-        // );
-        // debug_assert!(trailing < (1 << 11), "trailing overflow {trailing:0b}");
-
-        // true to 1
-        // let s = (signed as u16) << (size_of::<Self>() * 8 - 1);
-
-        let e = if exponent < 0 {
-             (Self::e_bias() as i16 + exponent) as u16
-        }
-        else {
-            Self::e_bias() + exponent as u16
-        };
-
-        println!("e: {e:0b}");
-
-        // let t = (trailing << 6).reverse_bits();
-
-        // println!("{s:01b}, {e:05b}, {t:010b}");
-
-        pack_msb! {
-            v: u16 = <signed as u16:1>
-                     <e:5>
-                     <(trailing << 6).reverse_bits():10>
-        }
-
-        Self(v)
-    }
-
-    pub fn explain(&self) -> FloatExplain {
-        if self.e() == (1 << 5) - 1 {
-            // overflow
-            if self.t() == 0 {
-                FloatExplain::Infinite(self.signed())
-            }
-            else {
-                // invalid operation exception
-                // IEEE-754-2008
-                FloatExplain::NaN(self.t() & 1 == 0)
-            }
-        }
-        // underflow
-        else if self.e() == 0 && self.t() == 0 {
-            FloatExplain::SubNormal
-        }
-        else {
-            FloatExplain::Normal
-        }
-    }
-
-    pub fn to_f16(&self) -> f16 {
-        f16::from_ne_bytes(self.0.to_ne_bytes())
-    }
-}
-
-impl Debug for Float16 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let bytes = self.0.to_be_bytes();
-
-        f.debug_tuple("Float16 (MSB)")
-            .field_with(|fmt| write!(fmt, "{:08b}", bytes[0]))
-            .field_with(|fmt| write!(fmt, "{:08b}", bytes[1]))
-            .finish()
-    }
-}
-
-impl Display for Float16 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "({}) 1.({}) * 2^({})",
-            if self.signed() { "-" } else { "+" },
-            self.trailing(),
-            self.exponent()
-        )
-    }
-}
-
-impl From<f16> for Float16 {
-    fn from(value: f16) -> Self {
-        Self::from_be_bytes(value.to_be_bytes())
-    }
-}
-
+////////////////////////////////////////////////////////////////////////////////
+//// Implementations
 
 impl Display for FloatExplain {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", match self {
-            Normal => "N",
-            SignedZero => "-0",
-            SubNormal => "subN",
-            Infinite(s) => if *s { "-∞" } else { "∞" } ,
-            NaN(s) => if *s { "sNaN" } else { "qNaN" },
-        })
+        write!(
+            f,
+            "{}",
+            match self {
+                Normal => "N",
+                SignedZero => "-0",
+                SubNormal => "subN",
+                Infinity(s) =>
+                    if *s {
+                        "-∞"
+                    } else {
+                        "∞"
+                    },
+                NaN(s) =>
+                    if *s {
+                        "sNaN"
+                    } else {
+                        "qNaN"
+                    },
+            }
+        )
     }
 }
 
 
 #[cfg(test)]
+#[allow(non_snake_case)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_float16() {
-        let inf = Float16::from_components(false, 0x10, 0);
+    fn test_float_spec() {
+        assert_eq!(Float16::k(), 16);
+        assert_eq!(Float16::p(), 11);
+        assert_eq!(Float16::w(), 5);
+        assert_eq!(Float16::t(), 10);
+        assert_eq!(Float16::bias(), 15);
 
-        println!("{:?}", Float16::from_components(false, 0x10, 0x20).to_f16());
-        assert_eq!(inf.to_f16(), f16::INFINITY);
+        assert_eq!(Float32::k(), 32);
+        assert_eq!(Float32::p(), 24);
+        assert_eq!(Float32::w(), 8);
+        assert_eq!(Float32::t(), 23);
+        assert_eq!(Float32::bias(), 127);
 
-        println!("{}", ParameterK::Half as u8);
+        assert_eq!(Float64::k(), 64);
+        assert_eq!(Float64::p(), 53);
+        assert_eq!(Float64::w(), 11);
+        assert_eq!(Float64::t(), 52);
+        assert_eq!(Float64::bias(), 1023);
+
+        assert_eq!(Float128::k(), 128);
+        assert_eq!(Float128::p(), 113);
+        assert_eq!(Float128::w(), 15);
+        assert_eq!(Float128::t(), 112);
+        assert_eq!(Float128::bias(), 16383);
+    }
+
+    #[test]
+    fn test_float_number() {
+        let pinf16 = Float16::from_components(false, 0x10, 0);
+
+        assert_eq!(pinf16.to_float(), f16::INFINITY, "{:?}", pinf16);
+
+        let sNaN32 =  Float32::from_components(
+            false,
+            Float32::emax() as i32 + 1,
+            1
+        );
+
+        println!("{}", sNaN32.to_float());
+
+        assert_eq!(sNaN32.explain(), NaN(false),
+        "{:?}, E: {:08b}, T: {:023b}", sNaN32, sNaN32.E(), sNaN32.T()
+        );
+
+        assert!(
+            matches!(Float32::from(f32::NAN).explain(), NaN(_)),
+        );
+        assert!(
+            matches!(Float32::from(f32::INFINITY).explain(), Infinity(false)),
+        );
     }
 }
