@@ -31,7 +31,7 @@ macro_rules! random_range {
             Unbounded => panic!("Unsupported unbound range"),
         }
 
-        thread_rng().gen_range(start, end)
+        thread_rng().gen_range(start..end)
     }};
 }
 

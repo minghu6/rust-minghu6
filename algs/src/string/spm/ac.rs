@@ -19,7 +19,6 @@ struct TrieNode<'a> {
 }
 
 
-
 impl<'a> TrieTree<'a> {
     pub fn new(keys: &'a Vec<String>) -> Self {
         let root_ptr = TrieTree::build_ac_automaton(keys);
@@ -367,5 +366,5 @@ mod tests {
         }
     }
 
-    
+
 }

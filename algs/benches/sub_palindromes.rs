@@ -8,7 +8,7 @@ use m6_algs::string::{
     create_npows, find_longest_palindromes_hash_dp,
     find_longest_palindromes_hash_native, find_sub_palindromes_brute_force,
     find_sub_palindromes_manacher, find_sub_palindromes_manacher_unify,
-    gen_random_dna_text, sub_palindromes_to_longest_palindromes, AlphaBet,
+    gen_random_dna_string, sub_palindromes_to_longest_palindromes, AlphaBet,
     DigitsLetters,
 };
 use test::Bencher;
@@ -19,7 +19,7 @@ lazy_static! {
     static ref TEXTS: Vec<Vec<char>> = {
         vec![TEXT_SZ; 100]
             .into_iter()
-            .map(|size| gen_random_dna_text(size).chars().collect())
+            .map(|size| gen_random_dna_string(size).chars().collect())
             .collect()
     };
     static ref NPOWS: Vec<[u64; 1]> = create_npows::<1>(DigitsLetters.prime(), TEXT_SZ);

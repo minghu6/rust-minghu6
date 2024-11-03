@@ -230,7 +230,7 @@ fn bench_pri_gpf_sieve(b: &mut Bencher) {
 }
 
 #[bench]
-fn bench_pri_inc_e_sieve_inf(b: &mut Bencher) {
+fn bench_pri_e_sieve_inf(b: &mut Bencher) {
     b.iter(|| {
         black_box(
                 e_sieve_inf()

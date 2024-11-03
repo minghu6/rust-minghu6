@@ -3,7 +3,6 @@
 use std::f32::consts::LN_2;
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //// Trait
 
@@ -17,51 +16,13 @@ pub trait BloomFilter<T> {
 ////////////////////////////////////////////////////////////////////////////////
 //// Structures
 
-/// patlen: 5   fp_rate: 0.03
-///
-/// patlen: 10  fp_rate: 0.07
-///
-/// patlen: 20  fp_rate: 0.14
-///
-/// patlen: 50  fp_rate: 0.32
-///
-/// patlen: 100 fp_rate: 0.54
-///
-/// patlen: 200 fp_rate: 0.79
-///
-/// patlen: 300 fp_rate: 0.90
-pub struct BytesBloomFilter {
-    mask: u64,
-}
-
-
 pub struct BytesBloomFilter64 {
-    mask: u64,
+    data: u64,
     k: u8,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Implementations
-
-impl BytesBloomFilter {
-    pub fn new() -> Self {
-        BytesBloomFilter { mask: 0 }
-    }
-}
-
-/// fp rate 0.5
-impl BloomFilter<u8> for BytesBloomFilter {
-    #[inline]
-    fn insert(&mut self, elem: &u8) {
-        (self.mask) |= 1u64 << (elem & 63);
-    }
-
-    #[inline]
-    fn contains(&self, elem: &u8) -> bool {
-        (self.mask & (1u64 << (elem & 63))) != 0
-    }
-}
-
 
 impl BytesBloomFilter64 {
     pub fn with_len(n: usize) -> Self {
@@ -71,7 +32,7 @@ impl BytesBloomFilter64 {
             k = 1
         }
 
-        BytesBloomFilter64 { mask, k }
+        BytesBloomFilter64 { data: mask, k }
     }
 }
 
@@ -80,18 +41,18 @@ impl BloomFilter<u8> for BytesBloomFilter64 {
     fn insert(&mut self, elem: &u8) {
         for i in 0..self.k {
             let x = (*elem as u16 + i as u16) % 255;
-            (self.mask) |= 1u64 << (x & 63)
+            (self.data) |= 1u64 << (x & 63)
         }
     }
 
     fn contains(&self, elem: &u8) -> bool {
-        (0..self.k).all(|i| (self.mask & (1u64 << (elem + i & 63))) != 0)
+        (0..self.k).all(|i| (self.data & (1u64 << (elem + i & 63))) != 0)
     }
 }
 
 
 #[cfg(any(test))]
-pub use tests::FastBloomFilter;
+pub use tests::HashBloomFilter;
 
 
 
@@ -113,17 +74,16 @@ pub mod tests {
     ////////////////////////////////////////////////////////////////////////////////
     //// Structures
 
-    pub struct FastBloomFilter<T: Hash> {
+    pub struct HashBloomFilter<T: Hash> {
         bits: BitVec,
         hashbuilder: BuildHasherDefault<XxHash64>,
         _marker: PhantomData<T>,
     }
 
-
     ////////////////////////////////////////////////////////////////////////////////
     //// Implementations
 
-    impl<T: Hash> FastBloomFilter<T> {
+    impl<T: Hash> HashBloomFilter<T> {
         pub fn with_size(m: usize, k: usize) -> Self {
             debug_assert!(k > 0);
 
@@ -131,7 +91,7 @@ pub mod tests {
             // let hashbuilder = RandomXxHashBuilder64::default();
             let hashbuilder = BuildHasherDefault::<XxHash64>::default();
 
-            FastBloomFilter {
+            HashBloomFilter {
                 bits,
                 hashbuilder,
                 _marker: PhantomData::<T>,
@@ -141,11 +101,11 @@ pub mod tests {
         pub fn with_rate(n: usize, max_fp_rate: f32) -> Self {
             let (k, m) = find_proper_params(n as usize, max_fp_rate);
 
-            FastBloomFilter::with_size(m as usize, k as usize)
+            HashBloomFilter::with_size(m as usize, k as usize)
         }
     }
 
-    impl<T: Hash> BloomFilter<T> for FastBloomFilter<T> {
+    impl<T: Hash> BloomFilter<T> for HashBloomFilter<T> {
         fn insert(&mut self, item: &T) {
             let bits_len = self.bits.len();
             let bits = &mut self.bits;
@@ -202,20 +162,18 @@ pub mod tests {
 
     use test::Bencher;
 
-    use crate::string::gen_random_text;
+    use crate::string::gen_random_string;
 
     #[test]
     fn bloom_filter_fp_rate() {
         let mut fp_rate_value;
 
-        for patlen in &[5, 10, 20, 50, 100, 200, 300, 500] {
-            fp_rate_value = fp_rate(128, *patlen as usize, 1);
-            println!("128: patlen: {} fp_rate: {}", patlen, fp_rate_value);
-        }
+        for m in [8, 16, 32, 64, 128, 256] {
+            for patlen in &[5, 10, 20, 50, 100, 200, 300, 500] {
+                fp_rate_value = fp_rate(m, *patlen as usize, 1);
 
-        for patlen in &[5, 10, 20, 50, 100, 200, 300, 500] {
-            fp_rate_value = fp_rate(64, *patlen as usize, 1);
-            println!("64: patlen: {} fp_rate: {}", patlen, fp_rate_value);
+                println!("{m}: patlen: {patlen} fp_rate: {fp_rate_value}");
+            }
         }
     }
 
@@ -231,8 +189,8 @@ pub mod tests {
     }
 
     #[test]
-    fn fast_bloom_filter_works() {
-        let mut fbf = FastBloomFilter::with_rate(20, 0.15);
+    fn hash_bloom_filter_works() {
+        let mut fbf = HashBloomFilter::with_rate(20, 0.15);
 
         for i in 0..255u8 {
             fbf.insert(&i);
@@ -243,13 +201,13 @@ pub mod tests {
 
 
     fn gen_test_text() -> String {
-        gen_random_text(10000)
+        gen_random_string(10000)
     }
 
     #[bench]
     fn simple_bloom_filter_basic_op(b: &mut Bencher) {
         let gen = || {
-            let mut bloom_filter = BytesBloomFilter::new();
+            let mut bloom_filter = BytesBloomFilter64::with_len(6);
 
             for b in gen_test_text().as_bytes() {
                 bloom_filter.insert(&b);
@@ -264,7 +222,7 @@ pub mod tests {
     #[bench]
     fn fast_bloom_filter_basic_op(b: &mut Bencher) {
         let gen = || {
-            let mut bloom_filter = FastBloomFilter::with_rate(100, 0.15);
+            let mut bloom_filter = HashBloomFilter::with_rate(100, 0.15);
 
             for b in gen_test_text().as_bytes() {
                 bloom_filter.insert(&b);

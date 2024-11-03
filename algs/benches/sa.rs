@@ -4,7 +4,7 @@ use std::{sync::mpsc, thread};
 
 use common::utils::split_improved;
 use m6_algs::string::{
-    compute_suffix_array_naive, gen_random_text, suffix_array_16,
+    compute_suffix_array_naive, gen_random_string, suffix_array_16,
     suffix_array_bl, suffix_array_bl_radix, suffix_array_bl_radix_improved,
     suffix_array_sais,
 };
@@ -17,7 +17,7 @@ use test::Bencher;
 fn gen_tested_text() -> Vec<String> {
     let mut result = vec![];
     for i in 8000..8100 {
-        result.push(gen_random_text(i));
+        result.push(gen_random_string(i));
     }
 
     result

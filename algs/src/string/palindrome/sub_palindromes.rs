@@ -383,7 +383,7 @@ pub fn find_sub_palindromes_manacher_unify(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::string::{create_npows, gen_random_dna_text, DigitsLetters};
+    use crate::string::{create_npows, gen_random_dna_string, DigitsLetters};
 
     #[allow(unused)]
     #[test]
@@ -422,7 +422,7 @@ mod tests {
         for _ in 0..50 {
             let texts = [0, 1, 2, 3, 5, 10, 20, 30, 50, 100, 200]
                 .into_iter()
-                .map(|size| gen_random_dna_text(size));
+                .map(|size| gen_random_dna_string(size));
 
             for text in texts {
                 let chars: Vec<char> = text.chars().collect();

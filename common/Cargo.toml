@@ -1,10 +1,10 @@
 [package]
 name = "m6-common"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2021"
 
 [dependencies]
-extern_rand = { package = "rand", version = "^0.7" }
+extern_rand = { package = "rand", version = "^0.8" }
 itertools = "=0.10.1"
 
 proc_macros = { package = "m6-proc-macros", path = "../proc_macros" }

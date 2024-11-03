@@ -1,21 +1,55 @@
 #![feature(test)]
-#![allow(dead_code)]
+
+use std::hint::black_box;
+
+use paste::paste;
 
 use m6_algs::string::{
-    b5s::B5STimePattern, bm::BMPattern, gen_random_dna_text,
-    gen_square_periodic_dna_pattern, sunday::SundayPattern,
+    bm::*, gen_random_dna_string,
+    gen_square_periodic_dna_pattern,
+    FindStr
 };
 
 extern crate test;
 
 use test::Bencher;
 
+
+macro_rules! bench {
+    ($name:ident, $patten:path) => {
+        paste! {
+            #[bench]
+            fn [<bench_ $name periodic_spm>](b: &mut Bencher) {
+                let gen = || {
+                    let tested_strings = gen_tested_text();
+                    let tested_patterns = gen_tested_pattern();
+
+                    for pattern in &tested_patterns {
+                        let pat = $patten::from(pattern);
+
+                        for text in &tested_strings {
+                            black_box(pat
+                                .find_all(&text)
+                                .collect::<Vec<_>>()
+                            );
+                        }
+                    }
+                };
+
+                b.iter(|| gen())
+            }
+        }
+    };
+}
+
+
 fn gen_tested_text() -> Vec<String> {
     let mut result = vec![];
-    result.push(gen_random_dna_text(500_000));
+    result.push(gen_random_dna_string(500_000));
 
     result
 }
+
 
 fn gen_tested_pattern() -> Vec<String> {
     let mut result = vec![];
@@ -35,47 +69,9 @@ fn gen_some_random_dna_text(b: &mut Bencher) {
     })
 }
 
-#[bench]
-fn bm_periodic_spm(b: &mut Bencher) {
-    let gen = || {
-        let tested_texts = gen_tested_text();
-        let tested_patterns = gen_tested_pattern();
-        for text in &tested_texts {
-            for pattern in &tested_patterns {
-                BMPattern::new(pattern.as_str()).find_all(text.as_str());
-            }
-        }
-    };
 
-    b.iter(|| gen())
-}
+bench!(bm, BMPattern);
 
-#[bench]
-fn b5stime_periodic_spm(b: &mut Bencher) {
-    let gen = || {
-        let tested_texts = gen_tested_text();
-        let tested_patterns = gen_tested_pattern();
-        for text in &tested_texts {
-            for pattern in &tested_patterns {
-                B5STimePattern::new(pattern.as_str()).find_all(text.as_str());
-            }
-        }
-    };
+bench!(sunday, SundayPattern);
 
-    b.iter(|| gen())
-}
-
-#[bench]
-fn sunday_periodic_spm(b: &mut Bencher) {
-    let gen = || {
-        let tested_texts = gen_tested_text();
-        let tested_patterns = gen_tested_pattern();
-        for text in &tested_texts {
-            for pattern in &tested_patterns {
-                SundayPattern::new(pattern.as_str()).find_all(text.as_str());
-            }
-        }
-    };
-
-    b.iter(|| gen())
-}
+bench!(b5s_time, B5STimePattern);

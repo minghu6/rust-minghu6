@@ -28,8 +28,8 @@ lazy_static! {
             WStruct { wheel: vec![1], wheel_gap: vec![2], prod: 2, ipm: vec![] },  // W1
         ];
 
-        let mut bits = BitVec::from_elem(2+1, false);
-        bits.set(1, true);
+        // let mut bits = BitVec::from_elem(2+1, false);
+        // bits.set(1, true);
 
         for k in 2..=WN {
             // let w0 = &res[k-1].wheel;
@@ -353,7 +353,7 @@ struct WStruct {
 /// Eratosthenes Sieve
 pub fn e_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
     if n == 0 {
-        return boxit!(iter::empty())
+        return boxit!(iter::empty());
     }
 
     let mut bits = BitVec::from_elem(n + 1, true);
@@ -366,12 +366,11 @@ pub fn e_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
         }
     }
 
-    boxit!(
-        bits.into_iter()
-            .enumerate()
-            .skip(2)
-            .filter_map(|(i, flag)| if flag { Some(i) } else { None })
-    )
+    boxit!(bits
+        .into_iter()
+        .enumerate()
+        .skip(2)
+        .filter_map(|(i, flag)| if flag { Some(i) } else { None }))
 }
 
 /// Space: O(\sqrt{n})
@@ -390,24 +389,25 @@ pub fn e_seg_sieve(n: usize) -> impl Iterator<Item = usize> {
                 yield pris[i];
             }
 
-            let mut l = delta;
             let mut seg = BitVec::from_elem(delta + 1, true);
 
-            while l < n {
+            // (l, l+delta]
+            for l in (delta..=n).step_by(delta) {
+                let actual_delta = min(delta, n - l);
+
                 for &p in pris.iter() {
-                    for i in (p - l % p..=delta).step_by(p) {
+                    for i in (p - l % p..=actual_delta).step_by(p) {
                         seg.set(i, false);
                     }
                 }
 
-                for i in 1..=delta {
+                for i in 1..=actual_delta {
                     if seg[i] {
                         yield l + i
                     }
                 }
 
                 seg.set_all();
-                l += delta;
             }
         },
     )
@@ -415,7 +415,7 @@ pub fn e_seg_sieve(n: usize) -> impl Iterator<Item = usize> {
 
 pub fn e_seg_sieve_p(n: usize) -> Box<dyn Iterator<Item = usize>> {
     if n == 0 {
-        return boxit!(iter::empty())
+        return boxit!(iter::empty());
     }
 
     let delta = n.isqrt();
@@ -430,25 +430,23 @@ pub fn e_seg_sieve_p(n: usize) -> Box<dyn Iterator<Item = usize>> {
         let mut ans = vec![];
 
         let mut seg = BitVec::from_elem(delta + 1, true);
-        let mut l = l0;
 
-        while l < l1 {
-            let end = min(delta, l1 - l);
+        for l in (l0..=l1).step_by(delta) {
+            let actual_delta = min(delta, l1 - l);
 
             for &p in pris.iter() {
-                for i in (p - l % p..=end).step_by(p) {
+                for i in (p - l % p..=actual_delta).step_by(p) {
                     seg.set(i, false);
                 }
             }
 
-            for i in 1..=end {
+            for i in 1..=actual_delta {
                 if seg[i] {
                     ans.push(l + i);
                 }
             }
 
             seg.set_all();
-            l += delta;
         }
 
         ans
@@ -541,13 +539,11 @@ pub fn e_inc_sieve_reentrant(pris: &mut Vec<usize>, n: usize) {
 pub fn e_inc_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
     if n <= 3 {
         if n == 3 {
-            return boxit!([2, 3].into_iter())
-        }
-        else if n == 2 {
-            return boxit!([2].into_iter())
-        }
-        else {
-            return boxit!(iter::empty())
+            return boxit!([2, 3].into_iter());
+        } else if n == 2 {
+            return boxit!([2].into_iter());
+        } else {
+            return boxit!(iter::empty());
         }
     }
 
@@ -695,7 +691,7 @@ pub fn mairson_sieve(n: usize) -> impl Iterator<Item = usize> {
 
 pub fn mairson_dual_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
     if n <= 1 {
-        return boxit!(iter::empty())
+        return boxit!(iter::empty());
     }
 
     let mut bits = BitVec::from_elem(n + 1, true);
@@ -719,19 +715,18 @@ pub fn mairson_dual_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
         }
     }
 
-    boxit!(
-        pris.into_iter().chain(
-            bits.into_iter().enumerate().skip(1 + n / 2).flat_map(
-                |(i, flag)| {
-                    if flag {
-                        Some(i)
-                    } else {
-                        None
-                    }
-                },
-            ),
-        ),
-    )
+    boxit!(pris.into_iter().chain(
+        bits.into_iter()
+            .enumerate()
+            .skip(1 + n / 2)
+            .flat_map(|(i, flag)| {
+                if flag {
+                    Some(i)
+                } else {
+                    None
+                }
+            },),
+    ),)
 }
 
 /// Sublinear additive sieve by Paul Pritchard
@@ -743,24 +738,35 @@ pub fn wheel_sieve(n: usize) -> impl Iterator<Item = usize> {
         /// 0 for nil
         tail: usize,
         /// [value, forward, backward]
-        arr: Vec<[usize; 3]>,
+        arr: Vec<Meta>,
+    }
+
+    #[derive(Default)]
+    struct Meta {
+        value: usize,
+        left: usize,
+        right: usize,
     }
 
     impl CompactDoubleArrayList {
         fn new() -> Self {
             let tail = 0;
-            let list = vec![[0; 3]];
+            let arr = vec![Meta::default()];
 
-            Self { tail, arr: list }
+            Self { tail, arr }
         }
 
         fn push(&mut self, v: usize) {
-            self.arr[self.tail][1] = self.tail + 1;
+            self.arr[self.tail].right = self.tail + 1;
 
-            let new_node = [v, 0, self.tail];
+            let new_node = Meta {
+                value: v,
+                left: self.tail,
+                right: 0,
+            };
 
             if self.tail == self.arr.len() - 1 {
-                self.arr.push(new_node);
+                self.arr.push(new_node); // dynamic extend for saving some memory
             } else {
                 self.arr[self.tail + 1] = new_node;
             }
@@ -768,32 +774,32 @@ pub fn wheel_sieve(n: usize) -> impl Iterator<Item = usize> {
             self.tail += 1;
         }
 
-        fn filter<P: Fn(usize) -> bool>(&mut self, pred: P) {
-            let mut i = self.arr[0][1];
+        fn filtering<P: Fn(usize) -> bool>(&mut self, pred: P) {
+            let mut i = self.arr[0].right;
 
             while i != 0 {
-                if !pred(self.arr[i][0]) {
-                    let prev = self.arr[i][2];
-                    let next = self.arr[i][1];
+                if !pred(self.arr[i].value) {
+                    let left = self.arr[i].left;
+                    let right = self.arr[i].right;
 
-                    self.arr[prev][1] = next;
-                    self.arr[next][2] = prev;
+                    self.arr[left].right = right;
+                    self.arr[right].left = left;
                 }
 
-                i = self.arr[i][1];
+                i = self.arr[i].right;
             }
         }
 
         fn nth(&self, index: usize) -> usize {
-            let mut i = self.arr[0][1];
+            let mut i = self.arr[0].right;
             let mut c = 0;
 
             while i != 0 {
                 if c == index {
-                    return self.arr[i][0];
+                    return self.arr[i].value;
                 }
 
-                i = self.arr[i][1];
+                i = self.arr[i].right;
                 c += 1;
             }
 
@@ -804,29 +810,29 @@ pub fn wheel_sieve(n: usize) -> impl Iterator<Item = usize> {
             std::iter::from_coroutine(
                 #[coroutine]
                 move || {
-                    let mut i = self.arr[0][1];
+                    let mut i = self.arr[0].right;
 
                     while i != 0 {
-                        yield self.arr[i][0];
-                        i = self.arr[i][1];
+                        yield self.arr[i].value;
+                        i = self.arr[i].right;
                     }
                 },
             )
         }
 
         fn rolling(&mut self, l: usize, n: usize) {
-            let mut i = self.arr[0][1];
+            let mut i = self.arr[0].right;
 
             debug_assert!(i != 0);
 
-            while l + self.arr[i][0] <= n {
-                self.push(l + self.arr[i][0]);
-                i = self.arr[i][1];
+            while l + self.arr[i].value <= n {
+                self.push(l + self.arr[i].value);
+                i = self.arr[i].right;
             }
         }
 
         fn delete_multiple_p(&mut self, p: usize) {
-            self.filter(|v| v % p != 0)
+            self.filtering(|v| v % p != 0)
         }
     }
 
@@ -852,6 +858,7 @@ pub fn wheel_sieve(n: usize) -> impl Iterator<Item = usize> {
 
                 yield p;
 
+                // prevent multiple overflow
                 l = min(p * l, n);
                 p = w.nth(1);
             }
@@ -865,6 +872,18 @@ pub fn wheel_sieve(n: usize) -> impl Iterator<Item = usize> {
     )
 }
 
+/// -> (v in wheel*, vi in wheel)
+fn locate_in_wheel(w: &[usize], prod: usize, raw: usize) -> (usize, usize) {
+    let prod_rem = raw % prod;
+    let prod_base = raw - prod_rem;
+
+    let (v0, vi) = match w.binary_search(&prod_rem) {
+        Ok(i) => (w[i], i),
+        Err(i) => (w[i], i),
+    };
+
+    (prod_base + v0, vi)
+}
 
 /// AKA SFWS (segmented fixed-wheel sieve)
 pub fn fixed_wheel_seg_sieve(n: usize) -> impl Iterator<Item = usize> {
@@ -887,16 +906,6 @@ pub fn fixed_wheel_seg_sieve(n: usize) -> impl Iterator<Item = usize> {
             let delta = n.isqrt();
 
             let pris = e_sieve(delta).collect::<Vec<usize>>();
-
-            // let np = pris
-            //     .iter()
-            //     .enumerate()
-            //     .rev()
-            //     .find(
-            //         |(_, &p)|  p * p <= n
-            //     )
-            //     .map(|(i, _)| i + 1)
-            //     .unwrap_or(0);
             let np = pris.len();
 
             let mut v = 1 + wg[0];
@@ -923,52 +932,14 @@ pub fn fixed_wheel_seg_sieve(n: usize) -> impl Iterator<Item = usize> {
                 return;
             }
 
-            // bootstrapping
-            // for i in 1..=k {
-            //     if P[i] > n {
-            //         return;
-            //     }
-
-            //     yield P[i];
-            // }
-
-            // let mut v = 1 + wg[0];
-            // let mut vi = 1;
-
-            // if n < w[1] * w[1] {
-            //     while v <= n {
-            //         yield v;
-
-            //         v += wg[vi];
-            //         vi = (vi + 1) % wg.len();
-            //     }
-
-            //     return;
-            // }
-
-            // let delta = n.isqrt();
-            // let pris = fixed_wheel_seg_sieve(delta).collect::<Vec<usize>>();
-            // let np = pris.len();
-
             for i in 0..pris.len() {
                 yield pris[i];
             }
 
             /* Init v0, vi */
 
-            let mut l = delta;
-
-            let v_raw: usize = l + 1;
-
-            let prod_rem = v_raw % prod;
-            let prod_base = v_raw - prod_rem;
-
-            let (v0, mut vi) = match w.binary_search(&prod_rem) {
-                Ok(i) => (w[i], i),
-                Err(i) => (w[i], i), // prod-1 is prime
-            };
-
-            let mut v = prod_base + v0;
+            let v_raw = delta + 1;
+            let (mut v, mut vi) = locate_in_wheel(w, *prod, v_raw);
 
             /* Init factors */
             // absolute value
@@ -976,77 +947,41 @@ pub fn fixed_wheel_seg_sieve(n: usize) -> impl Iterator<Item = usize> {
 
             for i in 0..np - k {
                 let p = pris[k + i];
-                let f_raw = (l + p - l % p) / p;
+                // (delta + p - delta % p) + 1
+                let f_raw = delta / p + 1;
 
-                let prod_rem = f_raw % prod;
-                let prod_base = f_raw - prod_rem;
-
-                let (f0, fi) = match w.binary_search(&prod_rem) {
-                    Ok(i) => (w[i], i),
-                    Err(i) => (w[i], i),
-                };
-
-                let f = prod_base + f0;
-
-                factors.push((f, fi));
+                factors.push(locate_in_wheel(w, *prod, f_raw));
             }
-
-            // /* Init factors and pms */
-            // let mut factors = vec![(0, 0); np-k];
-            // let mut pms = vec![
-            //     vec![0; ipm.last().unwrap() + 1];
-            //     np - k
-            // ];
-
-            // for i in 0..np - k {
-            //     let p = pris[k + i];
-            //     let f = (l + p - l % p) / p;
-
-            //     let f0 = f % prod;
-            //     let f_base = f - f0;
-
-            //     let (f0, fi) = match w.binary_search(&f0) {
-            //         Ok(i) => (w[i], i),
-            //         Err(i) => (w[i], i),
-            //     };
-
-            //     let f = f_base + f0;
-            //     let c = p * f;
-
-            //     factors[i] = (c, fi);
-            //     for j in ipm.iter().cloned() {
-            //         // shift bit no meaningless for Rust
-            //         pms[i][j] = (j << 1) * pris[k + i]; // p * delta_f
-            //     }
-            // }
 
             /* Run the algorithm */
 
             let mut bits = BitVec::from_elem(delta + 1, true);
 
-            while l < n {
+            for l in (delta..=n).step_by(delta) {
+                let end = min(l + delta, n);
+
                 /* sift for p_k..p_np */
 
                 for i in 0..np - k {
                     let p = pris[k + i];
-                    let (mut f, mut j) = factors[i];
+                    let (mut f, mut fi) = factors[i];
                     // let (mut c, mut j) = factors[i];
 
-                    while p * f <= l + delta {
+                    while p * f <= end {
                         bits.set(p * f - l, false);
 
-                        f += wg[j];
+                        f += wg[fi];
                         // c += pms[i][wg[j] / 2];
-                        j = (j + 1) % wg.len();
+                        fi = (fi + 1) % wg.len();
                     }
 
-                    factors[i] = (f, j);
+                    factors[i] = (f, fi);
                     // factors[i] = (c, j);
                 }
 
                 /* accumulate primes */
 
-                while v <= l + delta {
+                while v <= end {
                     if bits[v - l] {
                         yield v;
                     }
@@ -1057,7 +992,6 @@ pub fn fixed_wheel_seg_sieve(n: usize) -> impl Iterator<Item = usize> {
 
                 /* reset for next segment */
 
-                l += delta;
                 bits.set_all();
             }
         },
@@ -1121,21 +1055,10 @@ pub fn fixed_wheel_seg_sieve_p(n: usize) -> Box<dyn Iterator<Item = usize>> {
 
         let mut ans = vec![];
 
-        let mut l = l0;
-
         /* Init v, vi */
 
-        let v_raw: usize = l + 1;
-
-        let prod_rem = v_raw % prod;
-        let prod_base = v_raw - prod_rem;
-
-        let (v0, mut vi) = match w.binary_search(&prod_rem) {
-            Ok(i) => (w[i], i),
-            Err(i) => (w[i], i), // prod-1 is prime
-        };
-
-        let mut v = prod_base + v0;
+        let v_raw: usize = l0 + 1;
+        let (mut v, mut vi) = locate_in_wheel(w, *prod, v_raw);
 
         /* Init factors */
         // absolute value
@@ -1143,33 +1066,25 @@ pub fn fixed_wheel_seg_sieve_p(n: usize) -> Box<dyn Iterator<Item = usize>> {
 
         for i in 0..np - k {
             let p = pris[k + i];
-            let f_raw = (l + p - l % p) / p;
+            let f_raw = l0 / p + 1;
 
-            let prod_rem = f_raw % prod;
-            let prod_base = f_raw - prod_rem;
-
-            let (f0, fi) = match w.binary_search(&prod_rem) {
-                Ok(i) => (w[i], i),
-                Err(i) => (w[i], i),
-            };
-
-            let f = prod_base + f0;
-
-            factors.push((f, fi));
+            factors.push(locate_in_wheel(w, *prod, f_raw));
         }
 
         /* Run the algorithm */
 
         let mut bits = BitVec::from_elem(delta + 1, true);
 
-        while l < l1 {
+        for l in (l0..=l1).step_by(delta) {
+            let end = min(l + delta, l1);
+
             /* sift for p_k..p_np */
 
             for i in 0..np - k {
                 let p = pris[k + i];
                 let (mut f, mut j) = factors[i];
 
-                while p * f <= l + delta {
+                while p * f <= end {
                     bits.set(p * f - l, false);
 
                     f += wg[j];
@@ -1181,7 +1096,7 @@ pub fn fixed_wheel_seg_sieve_p(n: usize) -> Box<dyn Iterator<Item = usize>> {
 
             /* accumulate primes */
 
-            while v <= l + delta {
+            while v <= end {
                 if bits[v - l] {
                     ans.push(v);
                 }
@@ -1192,7 +1107,6 @@ pub fn fixed_wheel_seg_sieve_p(n: usize) -> Box<dyn Iterator<Item = usize>> {
 
             /* reset for next segment */
 
-            l += delta;
             bits.set_all();
         }
 
@@ -1203,14 +1117,12 @@ pub fn fixed_wheel_seg_sieve_p(n: usize) -> Box<dyn Iterator<Item = usize>> {
         let pris_ref = &pris;
 
         let np = pris
-        .iter()
-        .enumerate()
-        .rev()
-        .find(
-            |(_, &p)|  p * p <= n
-        )
-        .map(|(i, _)| i + 1)
-        .unwrap_or(0);
+            .iter()
+            .enumerate()
+            .rev()
+            .find(|(_, &p)| p * p <= n)
+            .map(|(i, _)| i + 1)
+            .unwrap_or(0);
 
         let mut l = delta;
 
@@ -1253,7 +1165,7 @@ pub fn sundaram_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
     // up to 2n+2
 
     if n <= 1 {
-        return boxit!(iter::empty())
+        return boxit!(iter::empty());
     }
 
     let k = (n - 1) / 2;
@@ -1279,7 +1191,7 @@ pub fn sundaram_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
 /// odd factorization
 pub fn sundaram_sieve_improved(n: usize) -> Box<dyn Iterator<Item = usize>> {
     if n <= 1 {
-        return boxit!(iter::empty())
+        return boxit!(iter::empty());
     }
 
     let k: usize = (n - 1) / 2;
@@ -1477,9 +1389,8 @@ mod atkin {
 pub fn atkin_sieve_enum_lattice(n: usize) -> impl Iterator<Item = usize> {
     use std::collections::HashSet;
 
-    use common::def_stats;
-
     use atkin::*;
+    use common::def_stats;
 
     def_stats!(Watch, { algs1, algs2, algs3, remove_p });
 
@@ -1750,8 +1661,8 @@ pub fn atkin_sieve_simple(n: usize) -> impl Iterator<Item = usize> {
 ///
 /// Space: O(n)
 pub fn gpf_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
-    if n <= 1{
-        return boxit!(iter::empty())
+    if n <= 1 {
+        return boxit!(iter::empty());
     }
 
     let mut p = 2;
@@ -1787,14 +1698,12 @@ pub fn gpf_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
         p = i;
     }
 
-    boxit!(
-        pris.into_iter().chain(
-            bits.into_iter()
-                .enumerate()
-                .skip(n / 2 + 1)
-                .filter_map(|(i, flag)| if flag { Some(i) } else { None }),
-        ),
-    )
+    boxit!(pris.into_iter().chain(
+        bits.into_iter()
+            .enumerate()
+            .skip(n / 2 + 1)
+            .filter_map(|(i, flag)| if flag { Some(i) } else { None }),
+    ),)
 }
 
 
@@ -1805,23 +1714,39 @@ pub fn e_sieve_inf() -> impl Iterator<Item = usize> {
     std::iter::from_coroutine(
         #[coroutine]
         move || {
-            let mut p0 = 2;
-            let mut pris = vec![2, 3];
+            let mut pris = vec![2];
 
-            yield 2;
-            yield 3;
+            let mut p1 = pris[0];
+            let mut l0 = p1;
+            let mut l1 = p1 * p1;
+            let mut delta = l1 - l0;
+            let mut seg = BitVec::from_elem(delta + 1, true);
+
+            for i in 0..pris.len() {
+                yield pris[i];
+            }
 
             loop {
-                let p1 = pris.last().unwrap().clone(); // ~p0^2
-                let round = e_seg_sieve_0(&pris, p0 * p0, p1 * p1 - p0 * p0)
-                    .collect::<Vec<usize>>();
-
-                for i in 0..round.len() {
-                    yield round[i];
+                for &p in pris.iter() {
+                    for i in (p - l0 % p..=delta).step_by(p) {
+                        seg.set(i, false);
+                    }
                 }
 
-                pris.extend(round);
-                p0 = p1;
+                for i in 1..=delta {
+                    if seg[i] {
+                        yield l0 + i;
+
+                        pris.push(l0 + i);
+                    }
+                }
+
+                l0 = l1;
+                p1 = pris.last().unwrap().clone();
+                l1 = p1 * p1;
+                delta = l1 - l0;
+                seg.grow(delta + 1 - seg.len(), true);
+                seg.set_all();
             }
         },
     )
@@ -1840,8 +1765,7 @@ pub fn bengelloun_sieve_inf() -> impl Iterator<Item = usize> {
                 if n & 1 == 0 {
                     lpf[n] = 2;
                     lpf[n / 2 * 3] = 3;
-                }
-                else if lpf[n] == 0 {
+                } else if lpf[n] == 0 {
                     yield n;
 
                     lpf[lastp] = n;
@@ -1858,7 +1782,7 @@ pub fn bengelloun_sieve_inf() -> impl Iterator<Item = usize> {
 
                     // min(f, lpf[f]) = truly lpf[f]
                     if p < min(f, lpf[f]) {
-                        let p1 = lpf[p];  // next prime after p
+                        let p1 = lpf[p]; // next prime after p
 
                         lpf[p1 * f] = p1;
                     }
@@ -1874,15 +1798,15 @@ pub fn gpf_sieve_inf() -> impl Iterator<Item = usize> {
         #[coroutine]
         move || {
             let mut lastp = 2;
-            let mut sqp = 2;  // minimal (for square) prime >= n
+            let mut sqrtp = 2; // minimal (for square) prime >= n
             let mut gpf = vec![0; 2 * 2 + 1]; // (p, f)
 
             yield 2;
 
             for n in 3.. {
-                if n == sqp * sqp {
-                    gpf[n] = sqp;  // add starter
-                    sqp = gpf[sqp];  // point to next prime after sqp
+                if n == sqrtp * sqrtp {
+                    gpf[n] = sqrtp; // add starter
+                    sqrtp = gpf[sqrtp]; // point to next prime after sqrtp
                 }
 
                 if gpf[n] == 0 {
@@ -1890,13 +1814,13 @@ pub fn gpf_sieve_inf() -> impl Iterator<Item = usize> {
 
                     // gpf[n] = n;
                     // C_max < p_next < 2n => (p1/p0 or 2) * C_max < 4n
-                    gpf[lastp] = n;  // point to next prime
+                    gpf[lastp] = n; // point to next prime
                     lastp = n;
                     gpf.resize(4 * n, 0);
                 } else {
                     let p = gpf[n];
                     let f = n / p;
-                    let p1 = gpf[p];  // next prime
+                    let p1 = gpf[p]; // next prime
 
                     gpf[p1 * f] = p1;
 
@@ -1950,7 +1874,7 @@ pub fn factorization(mut n: usize) -> Vec<usize> {
 /// 一鱼两吃，既返回值质数列表，也返回质因数分解列表 (lpf)
 /// 这种 API 风格倒也正好是 Rust 推荐的风格
 pub fn mairson_dual_sieve_factorization(n: usize) -> (Vec<usize>, Vec<usize>) {
-    let mut lpf = vec![0; n+1];
+    let mut lpf = vec![0; n + 1];
     let mut pris = vec![];
 
     if n <= 1 {
@@ -1976,7 +1900,7 @@ pub fn mairson_dual_sieve_factorization(n: usize) -> (Vec<usize>, Vec<usize>) {
         }
     }
 
-    for i in (n / 2)+1..=n {
+    for i in (n / 2) + 1..=n {
         if lpf[i] == 0 {
             lpf[i] = i;
             pris.push(i);
@@ -2318,6 +2242,15 @@ mod tests {
                             "{i} should be {flag} for `{}`",
                             stringify!($name)
                         );
+
+                        assert_eq!(
+                            $standard.len(),
+                            $name.len(),
+                            "{}: -/{} should has {} primes",
+                            stringify!($name),
+                            $n,
+                            $standard.len()
+                        );
                     )+
                 }
             };
@@ -2337,12 +2270,26 @@ mod tests {
             }
         }
 
-        let mairson_dual_sieve_factorization
-            = |n: usize| -> Box<dyn Iterator<Item=usize>> {
+        let mairson_dual_sieve_factorization =
+            |n: usize| -> Box<dyn Iterator<Item = usize>> {
                 boxit!(mairson_dual_sieve_factorization(n).0.into_iter())
             };
 
-        for n in [169, 1690, 16900] {
+        let fixed_list = [169, 1690, 16900];
+        let rand_list_meta = [
+            (1, 10, 3),
+            (100, 300, 5),
+            (1000, 3000, 3),
+            (10_000, 30_000, 3),
+        ];
+
+        let rand_list = rand_list_meta
+            .into_iter()
+            .map(|(s, e, iters)| (0..iters).map(move |_| random_range!(s..=e)))
+            .flatten()
+            .collect::<Vec<usize>>();
+
+        for n in fixed_list.into_iter().chain(rand_list) {
             test_prime!(
                 n = n
                 ;
@@ -2396,4 +2343,3 @@ mod tests {
         }
     }
 }
-

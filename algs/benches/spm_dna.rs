@@ -1,24 +1,50 @@
 #![feature(test)]
-#![allow(dead_code)]
+
+use paste::paste;
 
 use m6_algs::string::{
     ac::TrieTree,
-    b5s::{B5SSpacePattern, B5STimePattern},
-    bm::{BMPattern, SimplifiedBMPattern},
-    brute_force_match, gen_dna_pattern, gen_random_dna_text,
-    horspool::HorspoolPattern,
+    bm::*,
+    gen_dna_pattern, gen_random_dna_string,
     kmp::{ComputeNext, KMPPattern},
-    sunday::SundayPattern,
+    FindStr,
 };
 
 extern crate test;
 
-use test::Bencher;
+use test::{black_box, Bencher};
+
+
+macro_rules! bench {
+    ($name:ident, $patten:path) => {
+        paste! {
+            #[bench]
+            fn [<$name _dna_spm>](b: &mut Bencher) {
+                let gen = || {
+                    let tested_strings = gen_tested_text();
+                    let tested_patterns = gen_tested_pattern();
+                    for pattern in &tested_patterns {
+                        let pat = $patten::from(pattern);
+
+                        for text in &tested_strings {
+                            black_box(pat
+                                .find_all(&text)
+                                .collect::<Vec<_>>()
+                                );
+                        }
+                    }
+                };
+
+                b.iter(|| gen())
+            }
+        }
+    };
+}
 
 fn gen_tested_text() -> Vec<String> {
     let mut result = vec![];
     for _ in 0..1 {
-        result.push(gen_random_dna_text(500_000));
+        result.push(gen_random_dna_string(500_000));
     }
 
     result
@@ -42,21 +68,6 @@ fn gen_some_random_text(b: &mut Bencher) {
     })
 }
 
-#[bench]
-fn bf_dna_spm(b: &mut Bencher) {
-    let gen = || {
-        let tested_texts = gen_tested_text();
-        let tested_patterns = gen_tested_pattern();
-
-        for pattern in &tested_patterns {
-            for text in &tested_texts {
-                brute_force_match(pattern.as_str(), text.as_str());
-            }
-        }
-    };
-
-    b.iter(|| gen())
-}
 
 #[ignore]
 #[bench]
@@ -76,21 +87,6 @@ fn kmp_dna_spm(b: &mut Bencher) {
     b.iter(|| gen())
 }
 
-#[bench]
-fn bm_dna_spm(b: &mut Bencher) {
-    let gen = || {
-        let tested_texts = gen_tested_text();
-        let tested_patterns = gen_tested_pattern();
-        for pattern in &tested_patterns {
-            let bmpat = BMPattern::new(pattern.as_str());
-            for text in &tested_texts {
-                bmpat.find_all(text.as_str());
-            }
-        }
-    };
-
-    b.iter(|| gen())
-}
 
 #[bench]
 fn simplified_bm_dna_spm(b: &mut Bencher) {
@@ -108,70 +104,19 @@ fn simplified_bm_dna_spm(b: &mut Bencher) {
     b.iter(|| gen())
 }
 
-#[bench]
-fn horspool_dna_spm(b: &mut Bencher) {
-    let gen = || {
-        let tested_texts = gen_tested_text();
-        let tested_patterns = gen_tested_pattern();
-        for pattern in &tested_patterns {
-            let horspool_pat = HorspoolPattern::new(pattern.as_str());
-            for text in &tested_texts {
-                horspool_pat.find_all(text.as_str());
-            }
-        }
-    };
 
-    b.iter(|| gen())
-}
+bench!(horspool, HorspoolPattern);
 
-#[bench]
-fn sunday_dna_spm(b: &mut Bencher) {
-    let gen = || {
-        let tested_texts = gen_tested_text();
-        let tested_patterns = gen_tested_pattern();
-        for pattern in &tested_patterns {
-            let sundaypat = SundayPattern::new(pattern.as_str());
-            for text in &tested_texts {
-                sundaypat.find_all(text.as_str());
-            }
-        }
-    };
+bench!(bm, BMPattern);
 
-    b.iter(|| gen())
-}
+bench!(twoway, String);
 
-#[bench]
-fn b5s_time_dna_spm(b: &mut Bencher) {
-    let gen = || {
-        let tested_texts = gen_tested_text();
-        let tested_patterns = gen_tested_pattern();
-        for pattern in &tested_patterns {
-            let b5stimepat = B5STimePattern::new(pattern.as_str());
-            for text in &tested_texts {
-                b5stimepat.find_all(text.as_str());
-            }
-        }
-    };
+bench!(sunday, SundayPattern);
 
-    b.iter(|| gen())
-}
+bench!(b5s_space, B5SSpacePattern);
 
-#[ignore]
-#[bench]
-fn b5s_space_dna_spm(b: &mut Bencher) {
-    let gen = || {
-        let tested_texts = gen_tested_text();
-        let tested_patterns = gen_tested_pattern();
-        for pattern in &tested_patterns {
-            let b5space = B5SSpacePattern::new(pattern.as_str());
-            for text in &tested_texts {
-                b5space.find_all(text.as_str());
-            }
-        }
-    };
+// bench!(b5s_time, B5STimePattern);
 
-    b.iter(|| gen())
-}
 
 #[ignore]
 #[bench]

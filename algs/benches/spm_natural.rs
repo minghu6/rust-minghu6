@@ -4,26 +4,57 @@ use std::hint::black_box;
 
 use m6_algs::string::{
     ac::TrieTree,
-    b5s::{B5SSpacePattern, B5STimePattern},
-    bm::{BMPattern, SimplifiedBMPattern},
-    bm_badimpl::BMPattern as BMBadImplPattern,
-    brute_force_match, gen_pattern, gen_random_text,
-    horspool::HorspoolPattern,
+    bm::*,
+    // bm_badimpl::BMPattern as BMBadImplPattern,
+    create_npows,
+    gen_pattern,
+    gen_random_string,
     kmp::{ComputeNext, KMPPattern},
-    sunday::SundayPattern,
-    rk::{ RabinKarpPatten, RabinKarpText }, CommonChinese, create_npows, AlphaBet,
+    rk::{RabinKarpPatten, RabinKarpText},
+    AlphaBet,
+    CommonChinese,
+    FindStr,
 };
+use paste::paste;
 
 
 extern crate test;
 
 use test::Bencher;
 
+
+macro_rules! bench {
+    ($name:ident, $patten:path) => {
+        paste! {
+            #[bench]
+            fn [<bench_ $name _spm>](b: &mut Bencher) {
+                let gen = || {
+                    let tested_strings = gen_tested_text();
+                    let tested_patterns = gen_tested_pattern();
+                    for pattern in &tested_patterns {
+                        let pat = $patten::from(pattern);
+
+                        for text in &tested_strings {
+                            black_box(pat
+                                .find_all(&text)
+                                .collect::<Vec<_>>()
+                            );
+                        }
+                    }
+                };
+
+                b.iter(|| gen())
+            }
+        }
+    };
+}
+
+
 fn gen_tested_text() -> Vec<String> {
     let mut result = vec![];
     // result.push(gen_random_text(1_000_000));
     // result.push(gen_random_text(1_000_000));
-    result.push(gen_random_text(0_500));
+    result.push(gen_random_string(0_500));
 
     // result.push(gen_random_text(1_000));
 
@@ -48,21 +79,6 @@ fn gen_some_random_text(b: &mut Bencher) {
     })
 }
 
-#[ignore]
-#[bench]
-fn bf_spm(b: &mut Bencher) {
-    let gen = || {
-        let tested_texts = gen_tested_text();
-        let tested_patterns = gen_tested_pattern();
-        for text in &tested_texts {
-            for pattern in &tested_patterns {
-                brute_force_match(pattern.as_str(), text.as_str());
-            }
-        }
-    };
-
-    b.iter(|| gen())
-}
 
 #[ignore]
 #[bench]
@@ -98,37 +114,18 @@ fn kmp_spm_naive(b: &mut Bencher) {
     b.iter(|| gen())
 }
 
-#[bench]
-fn bm_spm(b: &mut Bencher) {
-    let gen = || {
-        let tested_texts = gen_tested_text();
-        let tested_patterns = gen_tested_pattern();
-        for text in &tested_texts {
-            for pattern in &tested_patterns {
-                BMPattern::new(pattern.as_str()).find_all(text.as_str());
-            }
-        }
-    };
+bench!(horspool, HorspoolPattern);
 
-    b.iter(|| gen())
-}
+bench!(bm, BMPattern);
 
-#[ignore]
-#[bench]
-fn bmbadimpl_spm(b: &mut Bencher) {
-    let gen = || {
-        let tested_texts = gen_tested_text();
-        let tested_patterns = gen_tested_pattern();
-        for text in &tested_texts {
-            for pattern in &tested_patterns {
-                BMBadImplPattern::new(pattern.as_str())
-                    .find_all(text.as_str());
-            }
-        }
-    };
+bench!(twoway, String);
 
-    b.iter(|| gen())
-}
+bench!(sunday, SundayPattern);
+
+bench!(b5s_time, B5STimePattern);
+
+bench!(b5s_space, B5SSpacePattern);
+
 
 #[bench]
 fn simplified_bm_spm(b: &mut Bencher) {
@@ -146,65 +143,7 @@ fn simplified_bm_spm(b: &mut Bencher) {
     b.iter(|| gen())
 }
 
-#[bench]
-fn horspool_spm(b: &mut Bencher) {
-    let gen = || {
-        let tested_texts = gen_tested_text();
-        let tested_patterns = gen_tested_pattern();
-        for text in &tested_texts {
-            for pattern in &tested_patterns {
-                HorspoolPattern::new(pattern.as_str()).find_all(text.as_str());
-            }
-        }
-    };
 
-    b.iter(|| gen())
-}
-
-#[bench]
-fn sunday_spm(b: &mut Bencher) {
-    let gen = || {
-        let tested_texts = gen_tested_text();
-        let tested_patterns = gen_tested_pattern();
-        for text in &tested_texts {
-            for pattern in &tested_patterns {
-                SundayPattern::new(pattern.as_str()).find_all(text.as_str());
-            }
-        }
-    };
-
-    b.iter(|| gen())
-}
-
-#[bench]
-fn b5s_time_spm(b: &mut Bencher) {
-    let gen = || {
-        let tested_texts = gen_tested_text();
-        let tested_patterns = gen_tested_pattern();
-        for text in &tested_texts {
-            for pattern in &tested_patterns {
-                B5STimePattern::new(pattern.as_str()).find_all(text.as_str());
-            }
-        }
-    };
-
-    b.iter(|| gen())
-}
-
-#[bench]
-fn b5s_space_spm(b: &mut Bencher) {
-    let gen = || {
-        let tested_texts = gen_tested_text();
-        let tested_patterns = gen_tested_pattern();
-        for text in &tested_texts {
-            for pattern in &tested_patterns {
-                B5SSpacePattern::new(pattern.as_str()).find_all(text.as_str());
-            }
-        }
-    };
-
-    b.iter(|| gen())
-}
 
 #[bench]
 fn ac_automaton(b: &mut Bencher) {
@@ -232,16 +171,10 @@ fn rk_spm(b: &mut Bencher) {
         let tested_patterns = gen_tested_pattern();
 
         for text in &tested_texts {
-            let rk_text = RabinKarpText::<1>::new(
-                &text,
-                &alphabet
-            ).unwrap();
+            let rk_text = RabinKarpText::<1>::new(&text, &alphabet).unwrap();
 
             for pat in tested_patterns.iter() {
-                let pat = RabinKarpPatten::new(
-                    &pat,
-                    &alphabet
-                ).unwrap();
+                let pat = RabinKarpPatten::new(&pat, &alphabet).unwrap();
 
                 // extend_npows(p, &mut npows, pat.len());
 
