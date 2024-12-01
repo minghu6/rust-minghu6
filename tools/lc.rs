@@ -2,13 +2,12 @@
 #![allow(unused_imports)]
 
 use std::{
-    fs::{File, read, read_dir},
-    io::{BufRead, BufReader, Read},
+    fs::{read, read_dir, File},
+    io::{self, BufRead, BufReader, Read},
     path::{Path, PathBuf},
 };
 
-use common::{ Itertools, error_code::*,  };
-use minghu6::{read_dir_wrapper, path::{syn_walk, FindOptions}};
+use minghu6::path::{syn_walk, FindOptions};
 
 use clap::Parser;
 
@@ -27,17 +26,17 @@ pub struct Cnt {
     files: usize
 }
 
-pub fn count_lines_dir<P: AsRef<Path>>(path: P, opt: FindOptions) -> Result<Cnt> {
+pub fn count_lines_dir<P: AsRef<Path>>(path: P, opt: FindOptions) -> io::Result<Cnt> {
     let mut cnt = 0;
     let mut files = 0;
 
-    for entry_res in syn_walk(&path)?.with_opt(opt) {
-        let path = entry_res?.path();
+    for path in syn_walk(&path).with_opt(opt) {
+        let path = path.path();
         // let file =
         //     File::open(path).map_err(|err| ErrorCode::Open(err))?;
         // let lines = BufReader::new(file).lines().count();
 
-        let bytes = read(path).map_err(|err| ErrorCode::Open(err))?;
+        let bytes = read(path)?;
         let lines = bytes
         .into_iter()
         .filter(|c| *c == NEWLINE_CODE)
@@ -57,14 +56,15 @@ pub fn count_lines_dir<P: AsRef<Path>>(path: P, opt: FindOptions) -> Result<Cnt>
 
 
 /// count lines for depth 1, used for counting root dir
-pub fn count_lines_dir_d1<P: AsRef<Path>>(path: P, opt: FindOptions) -> Result<Cnt> {
+pub fn count_lines_dir_d1<P: AsRef<Path>>(path: P, opt: FindOptions) -> io::Result<Cnt> {
     let mut cnt = 0;
     let mut files = 0;
 
-    for entry_res in read_dir_wrapper!(path.as_ref())? {
-        let p = entry_res?.path();
+    for result_entry_res in read_dir(path.as_ref())? {
+        let p = result_entry_res?.path();
+
         if !p.is_dir() && opt.verify(&p) {
-            let bytes = read(p).map_err(|err| ErrorCode::Open(err))?;
+            let bytes = read(p)?;
             let lines = bytes
             .into_iter()
             .filter(|c| *c == NEWLINE_CODE)
@@ -143,7 +143,7 @@ struct Args {
 }
 
 
-fn main() -> Result<()> {
+fn main() -> io::Result<()> {
     let args = Args::parse();
     let mut opt = FindOptions::default();
 
@@ -154,8 +154,9 @@ fn main() -> Result<()> {
     let target_dir = args.target_dir;
 
     let mut topdirs = vec![];
-    for entry_res in read_dir_wrapper!(&target_dir)? {
-        let path = entry_res?.path();
+    for result_entry in read_dir(&target_dir)? {
+        let path = result_entry?.path();
+
         if path.is_dir() && opt.verify(&path) {
             topdirs.push(path);
         }

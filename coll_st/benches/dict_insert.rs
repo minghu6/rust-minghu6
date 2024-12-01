@@ -87,6 +87,8 @@ bench_dict_insert!(_V2__200, BP, bt::bpt2::BPT2::<u64, u64, 200>::new());
 bench_dict_insert!(_V2__300, BP, bt::bpt2::BPT2::<u64, u64, 300>::new());
 bench_dict_insert!(_V2__95, BP, bt::bpt2::BPT2::<u64, u64, 95>::new());
 
+bench_dict_insert!(_0_, BTree_MAP, std::collections::BTreeMap::new());
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Nodes Distribution Bench

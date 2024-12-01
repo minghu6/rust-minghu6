@@ -9,9 +9,7 @@ use std::{
 };
 
 use super::{
-    bpt::{
-        BPT, bpt
-    },
+    bpt::{bpt, BPT},
     *,
 };
 
@@ -111,7 +109,10 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
         }
     }
 
-    pub fn select<'a, Q, R>(&self, range: R) -> impl Iterator<Item = &V>
+    pub fn select<'a, Q, R>(
+        &self,
+        range: R,
+    ) -> impl Iterator<Item = &V>
     where
         K: Borrow<Q>,
         Q: Ord + ?Sized + 'a,
@@ -138,7 +139,10 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
         } else {
             match range.start_bound() {
                 Included(&k) => {
-                    cur = Self::search_to_leaf_r(&self.root, k.borrow());
+                    cur = Self::search_to_leaf_r(
+                        &self.root,
+                        k.borrow(),
+                    );
 
                     if cur.is_none() {
                         cur = self.min_node.upgrade();
@@ -151,23 +155,27 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
             }
         }
 
-        std::iter::from_coroutine(#[coroutine] move || {
-            while cur.is_some() {
-                let mut entries = entries_mut!(cur).select_mut(range.clone());
+        std::iter::from_coroutine(
+            #[coroutine]
+            move || {
+                while cur.is_some() {
+                    let mut entries =
+                        entries_mut!(cur).select_mut(range.clone());
 
-                if let Some(fst) = entries.next() {
-                    yield fst;
+                    if let Some(fst) = entries.next() {
+                        yield fst;
 
-                    for ent in entries {
-                        yield ent
+                        for ent in entries {
+                            yield ent
+                        }
+
+                        cur = succ!(cur);
+                    } else {
+                        break;
                     }
-
-                    cur = succ!(cur);
-                } else {
-                    break;
                 }
-            }
-        })
+            },
+        )
     }
 
     pub fn insert(&mut self, k: K, v: V) -> Option<V>
@@ -195,7 +203,11 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
     ////////////////////////////////////////////////////////////////////////////
     //// Assistant Method
 
-    fn remove_on_leaf<Q>(&mut self, x: Node<K, V>, k: &Q) -> Option<V>
+    fn remove_on_leaf<Q>(
+        &mut self,
+        x: Node<K, V>,
+        k: &Q,
+    ) -> Option<V>
     where
         K: Borrow<Q> + Clone + Debug,
         Q: Ord + ?Sized,
@@ -229,7 +241,12 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
         popped
     }
 
-    fn insert_into_leaf(&mut self, mut x: Node<K, V>, k: K, v: V) -> Option<V>
+    fn insert_into_leaf(
+        &mut self,
+        mut x: Node<K, V>,
+        k: K,
+        v: V,
+    ) -> Option<V>
     where
         K: Clone + Debug,
         V: Debug,
@@ -330,10 +347,14 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
         let x2;
 
         if x.is_leaf() {
-            debug_assert_eq!(entries!(x).len(), Self::entries_high_bound());
+            debug_assert_eq!(
+                entries!(x).len(),
+                Self::entries_high_bound()
+            );
 
             // keep key for leaf
-            let entries_x2 = entries_mut!(x).split_off(M.div_floor(2));
+            let entries_x2 =
+                entries_mut!(x).split_off(M.div_ceil(2));
 
             x2 = node!(
                 basic - leaf | entries_x2,
@@ -348,9 +369,13 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
                 Self::entries_high_bound() + 1
             );
 
-            let children_x2 = children_mut!(x).split_off((M + 1).div_floor(2));
+            let children_x2 =
+                children_mut!(x).split_off(M.div_ceil(2));
 
-            x2 = node!(basic - internal | children_x2, WeakNode::none());
+            x2 = node!(
+                basic - internal | children_x2,
+                WeakNode::none()
+            );
 
             for child in children_mut!(x2).values() {
                 paren!(child, x2.clone());
@@ -368,7 +393,8 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
                 x2_k => x2
             };
 
-            self.root = node!(basic - internal | children, WeakNode::none());
+            self.root =
+                node!(basic - internal | children, WeakNode::none());
 
             for child in children_mut!(self.root).values() {
                 paren!(child, self.root.clone());
@@ -395,7 +421,8 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
         debug_assert!(paren!(x).is_some());
         debug_assert!(
             x.is_leaf()
-                || children!(x).len() == Self::entries_low_bound() - 1 + 1
+                || children!(x).len()
+                    == Self::entries_low_bound() - 1 + 1
         );
 
         let p = paren!(x);
@@ -405,9 +432,12 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
             return;
         }
 
+        /* rebalancing failed, start to merge */
+
         // merge with left_sib (no need to update index)
         if idx > 0 {
-            let (_sib_k, sib_lf) = children!(p).nth(idx - 1).unwrap();
+            let (_sib_k, sib_lf) =
+                children!(p).nth(idx - 1).unwrap();
 
             children_mut!(p).remove(&x_k);
 
@@ -416,10 +446,8 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
             } else {
                 debug_assert!(x.is_internal());
 
-                // let x_inner = unwrap_into!(x);
-                // let (children, _) = x_inner.unpack_as_internal();
-
-                for (child_k, child) in children_mut!(x).drain_all() {
+                for (child_k, child) in children_mut!(x).drain_all()
+                {
                     paren!(child, sib_lf.clone());
                     children_mut!(sib_lf).push_back(child_k, child);
                 }
@@ -427,7 +455,8 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
         }
         // for right_sib (merge into left)
         else {
-            let (_sib_k, sib_rh) = children!(p).nth(idx + 1).unwrap();
+            let (_sib_k, sib_rh) =
+                children!(p).nth(idx + 1).unwrap();
             let sib_rh = sib_rh.clone();
 
             // 由于没有prev，只能总是合并到左节点，好在此时叶子节点只有一个元素
@@ -436,7 +465,11 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
 
                 succ!(x, succ!(sib_rh));
 
-                let (k, v) = entries_mut!(sib_rh).pop_first().unwrap();
+                let (k, v) =
+                    entries_mut!(sib_rh).pop_first().unwrap();
+
+                children_mut!(p).remove(&k);
+
                 entries_mut!(x).insert(k.clone(), v);
 
                 // remove x from p
@@ -447,7 +480,9 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
                 let old_key_sib_rh = min_key!(sib_rh);
                 children_mut!(p).remove(&old_key_sib_rh);
 
-                for (child_k, child) in children_mut!(sib_rh).drain_all() {
+                for (child_k, child) in
+                    children_mut!(sib_rh).drain_all()
+                {
                     paren!(child, x.clone());
                     children_mut!(x).push_back(child_k, child);
                 }
@@ -461,7 +496,7 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
 
         if paren!(x).is_none() {
             if children!(x).len() == 1 {
-                // pop new level
+                // pop level
                 self.root = children_mut!(x).pop_first().unwrap().1;
                 paren!(self.root, Node::none());
             }
@@ -472,6 +507,14 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
         }
     }
 
+    ///
+    /// ```ignore
+    ///       p
+    ///  / | ... \ \
+    /// c0 c1    cn-1 cn
+    /// ```
+    ///
+    /// return if rebalancing is succeeded
     fn try_rebalancing(
         p: &Node<K, V>,
         x: &Node<K, V>,
@@ -484,10 +527,12 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
     {
         // try to redistribute with left
         if idx > 0 {
-            let (_sib_k, sib_lf) = children!(p).nth(idx - 1).unwrap();
+            let (_sib_k, sib_lf) =
+                children!(p).nth(idx - 1).unwrap();
 
             if sib_lf.is_leaf() && entries!(sib_lf).len() > 1 {
-                let (k, v) = entries_mut!(sib_lf).pop_last().unwrap();
+                let (k, v) =
+                    entries_mut!(sib_lf).pop_last().unwrap();
                 entries_mut!(x).insert(k, v);
 
                 Self::update_index(old_k, x);
@@ -496,9 +541,11 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
             }
 
             if sib_lf.is_internal()
-                && children!(sib_lf).len() > Self::entries_low_bound() + 1
+                && children!(sib_lf).len()
+                    > Self::entries_low_bound() + 1
             {
-                let (k, v) = children_mut!(sib_lf).pop_last().unwrap();
+                let (k, v) =
+                    children_mut!(sib_lf).pop_last().unwrap();
                 paren!(v, x.clone());
                 children_mut!(x).insert(k, v);
 
@@ -509,11 +556,13 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
         }
         // try to redistribute with right then
         if idx < children!(p).len() - 1 {
-            let (_sib_k, sib_rh) = children!(p).nth(idx + 1).unwrap();
+            let (_sib_k, sib_rh) =
+                children!(p).nth(idx + 1).unwrap();
             let sib_rh = sib_rh.clone();
 
             if sib_rh.is_leaf() && entries!(sib_rh).len() > 1 {
-                let (k, v) = entries_mut!(sib_rh).pop_first().unwrap();
+                let (k, v) =
+                    entries_mut!(sib_rh).pop_first().unwrap();
                 entries_mut!(x).insert(k.clone(), v);
 
                 Self::update_index(old_k, x); // WARNING： it wll replace sib_rh with x
@@ -523,11 +572,13 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
             }
 
             if sib_rh.is_internal()
-                && children!(sib_rh).len() > Self::entries_low_bound() + 1
+                && children!(sib_rh).len()
+                    > Self::entries_low_bound() + 1
             {
                 let sib_rh_old_key = min_key!(sib_rh);
 
-                let (k, v) = children_mut!(sib_rh).pop_first().unwrap();
+                let (k, v) =
+                    children_mut!(sib_rh).pop_first().unwrap();
                 paren!(v, x.clone());
                 children_mut!(x).insert(k.clone(), v);
 
@@ -606,9 +657,10 @@ impl<K: Debug + Ord, V> Debug for Node_<K, V> {
                 .debug_struct("Internal")
                 .field("children", children)
                 .finish(),
-            Self::Leaf { entries, .. } => {
-                f.debug_struct("Leaf").field("entries", entries).finish()
-            }
+            Self::Leaf { entries, .. } => f
+                .debug_struct("Leaf")
+                .field("entries", entries)
+                .finish(),
         }
     }
 }
@@ -685,13 +737,12 @@ impl<K: Debug + Ord, V> Debug for Node<K, V> {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Test && Stats Method
+//// Test && Stats Methods
 
 
 #[cfg(test)]
-#[allow(unused)]
 impl<K: Ord + Debug + Clone, V, const M: usize> BPT2<K, V, M> {
-    fn debug_print(&self)
+    pub fn debug_print(&self)
     where
         V: Debug,
     {
@@ -745,7 +796,7 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT2<K, V, M> {
         println!("------------- end --------------\n");
     }
 
-    fn validate(&self)
+    pub fn validate(&self)
     where
         K: Debug + std::hash::Hash,
         V: Debug,
@@ -758,7 +809,8 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT2<K, V, M> {
 
         use common::vecdeq;
 
-        let mut cur_q = vecdeq![vecdeq![Node::none(), self.root.clone()]];
+        let mut cur_q =
+            vecdeq![vecdeq![Node::none(), self.root.clone()]];
 
         while !cur_q.is_empty() {
             let mut nxt_q = vecdeq![];
@@ -766,7 +818,7 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT2<K, V, M> {
             let mut internal_num = 0;
 
             while let Some(mut group) = cur_q.pop_front() {
-                let p = group.pop_front().unwrap();
+                let _p = group.pop_front().unwrap();
 
                 for child in group.iter() {
                     assert!(child.is_some());
@@ -780,7 +832,8 @@ impl<K: Ord + Debug + Clone, V, const M: usize> BPT2<K, V, M> {
                         // children!(child).validate();
                     } else {
                         assert!(
-                            entries!(child).len() < Self::entries_high_bound()
+                            entries!(child).len()
+                                < Self::entries_high_bound()
                         );
                         // entries!(child).validate();
                     }
@@ -855,13 +908,19 @@ mod tests {
         dict_remove!(dict, 47);
         dict_remove!(dict, 3);
 
-        assert_eq!(dict.select(..).cloned().collect::<Vec<_>>(), [28, 30, 35]);
+        assert_eq!(
+            dict.select(..).cloned().collect::<Vec<_>>(),
+            [28, 30, 35]
+        );
 
         dict_remove!(dict, 35);
         dict_remove!(dict, 30);
         dict_remove!(dict, 28);
 
-        assert_eq!(dict.select(..).cloned().collect::<Vec<_>>(), [0u16; 0]);
+        assert_eq!(
+            dict.select(..).cloned().collect::<Vec<_>>(),
+            [0u16; 0]
+        );
 
         // dict.debug_print();
     }
@@ -920,8 +979,8 @@ mod tests {
         test_dict!(BPT2::<u16, u16, 20>::new());
         println!("Ok..M=20");
 
-        test_dict!(BPT2::<u16, u16, 100>::new());
-        println!("Ok..M=100");
+        test_dict!(BPT2::<u16, u16, 101>::new());
+        println!("Ok..M=101");
     }
 
     #[test]

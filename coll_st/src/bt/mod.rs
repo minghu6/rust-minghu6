@@ -5,6 +5,7 @@ use coll::*;
 pub mod bt;
 pub mod bpt;
 pub mod bpt2;
+pub mod flatbpt;
 
 
 /// O(M)

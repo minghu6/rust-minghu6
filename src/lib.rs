@@ -21,16 +21,9 @@
 #![feature(const_trait_impl)]
 #![feature(f128)]
 
-
-use proc_macros::make_simple_error_rules;
-
-
 pub mod text;
 pub mod io;
 pub mod path;
 pub mod unicode;
 pub mod float;
 pub mod int;
-
-
-make_simple_error_rules!(XXXError);

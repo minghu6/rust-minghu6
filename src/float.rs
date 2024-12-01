@@ -298,7 +298,7 @@ impl Display for FloatExplain {
 #[cfg(test)]
 #[allow(non_snake_case)]
 mod tests {
-    use std::path::PathBuf;
+    use resource_config::RES;
 
     use super::*;
 
@@ -359,13 +359,9 @@ mod tests {
 
     #[test]
     fn echo_plain_text_with_float() {
-        use common::tests::{ RESOURCE_DIR, ZH_EN_POEMS };
-
         const B: usize = 4;
 
-        let mut bytes = std::fs::read(
-            PathBuf::new().join(RESOURCE_DIR).join(ZH_EN_POEMS)
-        ).unwrap();
+        let mut bytes = RES.zh_en_poems_txt().load();
 
         for _ in bytes.len() % B + 1..=B {
             bytes.push(0);

@@ -20,3 +20,6 @@ Cargo.lock
 tmp
 *.data
 *.svg
+
+# ice file
+rustc-ice-*.txt

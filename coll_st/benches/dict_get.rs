@@ -154,3 +154,5 @@ bench_dict_get!(_V2__30, BP, bt::bpt2::BPT2::<u64, u64, 30>::new());
 bench_dict_get!(_V2__100, BP, bt::bpt2::BPT2::<u64, u64, 100>::new());
 
 bench_dict_get!(_0_, HASH_MAP, std::collections::HashMap::new());
+
+bench_dict_get!(_0_, BTree_MAP, std::collections::BTreeMap::new());

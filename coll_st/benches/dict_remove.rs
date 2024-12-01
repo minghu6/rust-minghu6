@@ -87,6 +87,7 @@ bench_dict_remove!(_V2__100, BP, bt::bpt2::BPT2::<u64, u64, 100>::new());
 bench_dict_remove!(_V2__300, BP, bt::bpt2::BPT2::<u64, u64, 300>::new());
 bench_dict_remove!(_V2__500, BP, bt::bpt2::BPT2::<u64, u64, 500>::new());
 
+bench_dict_remove!(_0_, BTree_MAP, std::collections::BTreeMap::new());
 
 
 

@@ -554,6 +554,7 @@ fn detect_negative_cycle(
 #[cfg(test)]
 mod tests {
     use common::{ min, same };
+    use resource_config::RES;
 
     use super::{SPBellmanFord, SPFloyd};
     use crate::{
@@ -565,7 +566,7 @@ mod tests {
 
     #[test]
     fn test_sp_fixeddata() {
-        let mut g = Graph::read_from_csv_file("../res/sp5.csv").unwrap();
+        let mut g = Graph::read_from_csv(&mut RES.graph().sp().sp_5_csv().open()).unwrap();
         g.is_dir = false;
         assert!(g.is_connected());
 

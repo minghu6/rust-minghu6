@@ -59,34 +59,7 @@ pub fn hardware_random() -> usize {
     0
 }
 
-
-// pub fn random_range<T, B, R>(range: R) -> T
-// where
-//     T: SampleUniform + Add<usize, Output = T> + Copy,
-//     B: SampleBorrow<T> + Sized,
-//     R: RangeBounds<B>
-// {
-//     let start;
-//     let end;
-
-//     match range.start_bound() {
-//         Included(v) => start = *v.borrow(),
-//         Excluded(v) => start = *v.borrow() + 1,
-//         Unbounded => panic!("Unsupported unbound range"),
-//     }
-
-//     match range.end_bound() {
-//         Included(v) => end = *v.borrow() + 1,
-//         Excluded(v) => end = *v.borrow(),
-//         Unbounded => panic!("Unsupported unbound range"),
-//     }
-
-//     extern_rand::thread_rng().gen_range(start, end)
-// }
-
-
 pub use extern_rand::{prelude::*, *};
-
 
 
 #[cfg(test)]

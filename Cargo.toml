@@ -8,7 +8,6 @@ edition = "2021"
 [dependencies]
 chardet = "^0.2"
 encoding = "^0.2"
-# paste = "1.0"
 
 binpack = { package = "m6binpack", path = "../binpack/m6binpack" }
 m6coll = { path = "../m6coll" }
@@ -34,6 +33,7 @@ serde_json = "1.0"
 futures = "0.3"
 walkdir = "2.3"
 
+resource_config = { package = "m6-resource-config", path = "resource_config"}
 
 [workspace]
 members = [
@@ -46,11 +46,8 @@ members = [
     "coll_persistent",
     "coll_heap",
     "coll_st",
+    "test_suites", "resource_config",
 ]
-
-
-# [profile.bench]
-# debug = true
 
 
 [profile.release]
@@ -59,23 +56,3 @@ debug = true
 [[example]]
 name = "srcstats"
 path = "tools/lc.rs"
-
-# [[example]]
-# name = "lca"
-# path = "tools/lca.rs"
-
-# [[example]]
-# name = "lco"
-# path = "tools/lco.rs"
-
-# [[example]]
-# name = "read"
-# path = "tools/read.rs"
-
-[[example]]
-name = "pkcheat"
-path = "tools/pkcheat.rs"
-
-# [[example]]
-# name = "graph"
-# path = "tools/graph.rs"

@@ -14,5 +14,7 @@ coll_heap = { package = "m6-coll-heap", path = "../coll_heap" }
 [dev-dependencies]
 lazy_static = "1.4.0"
 
+resource_config = { package = "m6-resource-config", path = "../resource_config" }
+
 [package.metadata.workspaces]
 independent = true

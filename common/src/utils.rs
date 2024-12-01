@@ -21,7 +21,7 @@ macro_rules! ht {
 }
 
 
-macro_rules! def_coll_init {
+macro_rules! def_coll_macro {
     (seq | $name:ident, $new:expr, $push:ident) => {
         #[macro_export]
         macro_rules! $name {
@@ -57,10 +57,10 @@ macro_rules! def_coll_init {
     };
 }
 
-def_coll_init!(seq | vecdeq, std::collections::VecDeque::new(), push_back);
-def_coll_init!(seq | hashset, std::collections::HashSet::new(), insert);
-def_coll_init!(map | hashmap, std::collections::HashMap::new());
-def_coll_init!(map | btreemap, std::collections::BTreeMap::new());
+def_coll_macro!(seq | vecdeq, std::collections::VecDeque::new(), push_back);
+def_coll_macro!(seq | hashset, std::collections::HashSet::new(), insert);
+def_coll_macro!(map | hashmap, std::collections::HashMap::new());
+def_coll_macro!(map | btreemap, std::collections::BTreeMap::new());
 
 
 #[macro_export]

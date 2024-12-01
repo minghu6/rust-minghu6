@@ -5,10 +5,14 @@ edition = "2018"
 
 
 [dependencies]
-proc-macro2 = "^1.0"
-quote = "^1.0"
-syn = "^1.0"
-uuid = { version = "0.8", features = ["v4"] }
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "2" }
+derive-syn-parse = "0.2.0"
+paste = "1"
+derive-quote-to-tokens = "0.1.1"
+either = "1.13"
+convert_case = "0.6"
 
 [lib]
 proc-macro = true

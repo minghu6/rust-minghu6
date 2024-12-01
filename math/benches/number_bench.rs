@@ -1,5 +1,4 @@
 #![feature(test)]
-#![feature(isqrt)]
 
 extern crate test;
 

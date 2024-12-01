@@ -160,9 +160,9 @@ impl BMMatch for u8 {
 }
 
 
-impl<'a, T: AsRef<str>> From<&'a T> for BMPattern<'a, u8> {
+impl<'a, T: std::borrow::Borrow<str>> From<&'a T> for BMPattern<'a, u8> {
     fn from(pat: &'a T) -> Self {
-        pat.as_ref().into()
+        pat.borrow().into()
     }
 }
 
@@ -413,9 +413,9 @@ impl<'a> SimplifiedBMPattern<'a> {
 }
 
 
-impl<'a, T: AsRef<str>> From<&'a T> for HorspoolPattern<'a, u8> {
+impl<'a, T: std::borrow::Borrow<str>> From<&'a T> for HorspoolPattern<'a, u8> {
     fn from(pat: &'a T) -> Self {
-        pat.as_ref().as_bytes().into()
+        pat.borrow().into()
     }
 }
 
@@ -478,9 +478,9 @@ impl<'a, M: Eq> super::Find<'a, M> for HorspoolPattern<'a, M> {
 }
 
 
-impl<'a, T: AsRef<str>> From<&'a T> for SundayPattern<'a, u8> {
+impl<'a, T: std::borrow::Borrow<str>> From<&'a T> for SundayPattern<'a, u8> {
     fn from(pat: &'a T) -> Self {
-        pat.as_ref().as_bytes().into()
+        pat.borrow().into()
     }
 }
 
@@ -551,19 +551,17 @@ impl<'a, M: Eq> super::Find<'a, M> for SundayPattern<'a, M> {
 }
 
 
-impl<'a, T: AsRef<str>> From<&'a T> for B5STimePattern<'a, u8> {
+impl<'a, T: std::borrow::Borrow<str>> From<&'a T> for B5STimePattern<'a, u8> {
     fn from(pat: &'a T) -> Self {
-        pat.as_ref().as_bytes().into()
+        pat.borrow().into()
     }
 }
-
 
 impl<'a> From<&'a str> for B5STimePattern<'a, u8> {
     fn from(pat: &'a str) -> Self {
         pat.as_bytes().into()
     }
 }
-
 
 impl<'a, M> From<&'a [M]> for B5STimePattern<'a, M>
 where
@@ -575,7 +573,6 @@ where
         Self { pat, _delta1 }
     }
 }
-
 
 impl<'a, M: Eq> B5STimePattern<'a, M> {
     fn delta1(&self, char: &M) -> usize {
@@ -633,19 +630,17 @@ impl<'a, M: Eq> super::Find<'a, M> for B5STimePattern<'a, M> {
 }
 
 
-impl<'a, T: AsRef<str>> From<&'a T> for B5SSpacePattern<'a, u8> {
+impl<'a, T: std::borrow::Borrow<str>> From<&'a T> for B5SSpacePattern<'a, u8> {
     fn from(pat: &'a T) -> Self {
-        pat.as_ref().as_bytes().into()
+        pat.borrow().into()
     }
 }
-
 
 impl<'a> From<&'a str> for B5SSpacePattern<'a, u8> {
     fn from(pat: &'a str) -> Self {
         pat.as_bytes().into()
     }
 }
-
 
 impl<'a> From<&'a [u8]> for B5SSpacePattern<'a, u8> {
     fn from(pat: &'a [u8]) -> Self {
@@ -654,7 +649,6 @@ impl<'a> From<&'a [u8]> for B5SSpacePattern<'a, u8> {
         Self { pat, patalphabet, skip }
     }
 }
-
 
 impl<'a> B5SSpacePattern<'a, u8> {
     fn build(pat: &'a [u8]) -> (SimpleBloomFilter, usize) {
@@ -967,11 +961,10 @@ mod tests {
     fn horspool_find_all_randomdata_works() {
         for (pat, string, result) in gen_test_case() {
             assert_eq!(
-                HorspoolPattern::from(&pat)
-                    .find_all(&string)
-                    .collect::<Vec<_>>(),
+                HorspoolPattern::from(&pat).find_all(&string).collect::<Vec<_>>(),
                 result
-            )
+            );
+
         }
     }
 

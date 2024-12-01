@@ -4,9 +4,6 @@ uninstall:
 install-lc:
 	cargo install --path . --example srcstats
 
-install-pkcheat:
-	cargo install --path . --example pkcheat
-
 check-syntax:
 	cargo build
 	cargo test --no-run --workspace
@@ -16,5 +13,11 @@ check-syntax:
 bump-version: check-syntax
 	cargo ws version --no-individual-tags
 
-clean:
-	@ rm *.dot
+check-resource-config:
+	cargo expand --lib -p m6-resource-config
+
+clean-ice:
+	@ rm -f rustc-ice*.txt
+
+clean: clean-ice
+	@ rm -f *.dot
