@@ -1,10 +1,10 @@
 pub use collections_abc::*;
-pub use mapping::*;
 pub use loader::*;
 pub use test_suite::*;
+pub use suites::*;
 
 mod collections_abc;
-mod mapping;
 mod loader;
 mod test_suite;
-mod rand;
+pub mod rand;
+mod suites;

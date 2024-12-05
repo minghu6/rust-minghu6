@@ -79,6 +79,12 @@ pub trait WalkTree<'a> {
 ////////////////////////////////////////////////////////////////////////////////
 //// Structures
 
+enum QueryRangeEndResult {
+    /// nodeid, entryid
+    Spec(usize, usize),
+    Unbound,
+}
+
 pub struct PreOrderView<'a, NB> {
     /// persisitent sequence
     pseq: Vec<(LocOnTree, &'a NB)>,
@@ -111,7 +117,7 @@ pub enum Node<K, const M: usize> {
 
 
 #[derive(Clone)]
-pub struct FlatBPT<K, V, const M: usize> {
+pub struct FlatBPT<K, V, const M: usize = 30> {
     /// uncouple data manage (avoid unnecessary mutability check)
     data: LazyDeleteVec<*mut V>,
 
@@ -523,11 +529,13 @@ impl<K, V, const M: usize> FlatBPT<K, V, M> {
 
 /// Bounded public methods
 impl<K: Clone + Ord, V, const M: usize> FlatBPT<K, V, M> {
-    pub fn bulk_build<T: IntoIterator<Item = (K, V)>>(ordered_iter: T) -> Self
+    pub fn bulk_build<T: IntoIterator<Item = (K, V)>>(sorted_iter: T) -> Self
     where
         K: Debug,
     {
-        let kv_vec0: Vec<(K, V)> = ordered_iter.into_iter().collect();
+        /* dedup */
+
+        let kv_vec0: Vec<(K, V)> = sorted_iter.into_iter().collect();
 
         debug_assert!(kv_vec0.iter().is_sorted_by_key(|(k, _)| k));
 
@@ -736,91 +744,38 @@ impl<K: Clone + Ord, V, const M: usize> FlatBPT<K, V, M> {
             .map(|dataid| self.data(dataid))
     }
 
-    pub fn select<'a, Q, R>(&self, range: R) -> impl Iterator<Item = (&K, &V)>
+    pub fn range<Q, R>(&self, range: R) -> impl Iterator<Item = (&K, &V)>
     where
         K: Borrow<Q>,
-        Q: Ord + ?Sized + 'a,
-        R: RangeBounds<&'a Q> + Clone,
+        Q: Ord + ?Sized,
+        R: RangeBounds<Q>,
     {
-        self.inner_select(range).map(|(k, v)| (k, v as _))
+        self.inner_range(range).map(|(k, v)| (k, v as _))
     }
 
-    pub fn select_mut<'a, Q, R>(
+    pub fn range_mut<Q, R>(
         &mut self,
         range: R,
     ) -> impl Iterator<Item = (&K, &mut V)>
     where
         K: Borrow<Q>,
-        Q: Ord + ?Sized + 'a,
-        R: RangeBounds<&'a Q>,
+        Q: Ord + ?Sized,
+        R: RangeBounds<Q>,
     {
-        self.inner_select(range)
+        self.inner_range(range)
+    }
+
+    pub fn push_back(&mut self, key: K, value: V) {
+        let nodeid = self.max_node();
+
+        self.inner_insert(key, value, nodeid);
     }
 
     pub fn insert(&mut self, key: K, value: V) -> Option<V>
-    where
-        K: Debug,
     {
-        let (mut ptr, ..) = self.complete_search(&key);
-        let mut maybe_res_entryid = None;
+        let (nodeid, ..) = self.complete_search(&key);
 
-        if self.nodes[ptr].is_full() {
-            self.promote(ptr);
-
-            /* Re-search on parent node */
-
-            let p = self.nodes[ptr].paren();
-            let p_children = self.nodes[p].get_children();
-
-            (ptr, maybe_res_entryid) = match p_children
-                .exact()
-                .binary_search_by_key(&&key, |KVEntry(key, _)| key)
-            {
-                Ok(idx) => (p_children[idx].1, Some(Ok(0))),
-                Err(idx) => {
-                    if idx == 0 {
-                        (p_children[0].1, Some(Err(0)))
-                    } else {
-                        (p_children[idx - 1].1, None)
-                    }
-                }
-            };
-        }
-
-        let res_entryid = maybe_res_entryid.unwrap_or_else(|| {
-            self.nodes[ptr]
-                .get_entries()
-                .exact()
-                .binary_search_by_key(&&key, |KVEntry(key, _)| key)
-        });
-
-        match res_entryid {
-            /* replace data */
-            Ok(entryid) => {
-                let dataid = self.nodes[ptr].get_entries()[entryid].1;
-
-                Some(self.replace_data(dataid, value))
-            }
-            /* insert data */
-            Err(entryid) => {
-                let entry = KVEntry(key, self.push_data(value));
-
-                // if !(ptr == self.root && self.nodes[ptr].is_empty()) {
-                //     self.validate();  // avoid break up `len` logic
-                // }
-
-                let ptr_entries = self.nodes[ptr].get_entries_mut();
-
-                ptr_entries.insert(entryid, entry);
-
-                if entryid == 0 && ptr != self.root {
-                    let ptr_old_key = ptr_entries[1].0.clone();
-                    self.update_index(ptr, ptr_old_key);
-                }
-
-                None
-            }
-        }
+        self.inner_insert(key, value, nodeid)
     }
 
     pub fn remove<Q>(&mut self, k: &Q) -> Option<V>
@@ -861,11 +816,11 @@ impl<K: Clone + Ord, V, const M: usize> FlatBPT<K, V, M> {
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&K, &V)> {
-        self.inner_select(..).map(|(k, v)| (k, v as _))
+        self.inner_range(..).map(|(k, v)| (k, v as _))
     }
 
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (&K, &mut V)> {
-        self.inner_select(..).map(|(k, v)| (k, v as _))
+        self.inner_range(..).map(|(k, v)| (k, v as _))
     }
 
     pub fn into_iter(mut self) -> impl Iterator<Item = (K, V)> {
@@ -928,76 +883,193 @@ impl<K, V, const M: usize> FlatBPT<K, V, M> {
         }
     }
 
+    fn inner_insert(&mut self, key: K, value: V, nodeid: usize) -> Option<V>
+    where
+        K: Ord + Clone
+    {
+        let mut ptr = nodeid;
+        let mut maybe_res_entryid = None;
+
+        if self.nodes[ptr].is_full() {
+            self.promote(ptr);
+
+            /* Re-search on parent node */
+
+            let p = self.nodes[ptr].paren();
+            let p_children = self.nodes[p].get_children();
+
+            (ptr, maybe_res_entryid) = match p_children
+                .exact()
+                .binary_search_by_key(&&key, |KVEntry(key, _)| key)
+            {
+                Ok(idx) => (p_children[idx].1, Some(Ok(0))),
+                Err(idx) => {
+                    if idx == 0 {
+                        (p_children[0].1, Some(Err(0)))
+                    } else {
+                        (p_children[idx - 1].1, None)
+                    }
+                }
+            };
+        }
+
+        let res_entryid = maybe_res_entryid.unwrap_or_else(|| {
+            self.nodes[ptr]
+                .get_entries()
+                .exact()
+                .binary_search_by_key(&&key, |KVEntry(key, _)| key)
+        });
+
+        match res_entryid {
+            /* replace data */
+            Ok(entryid) => {
+                let dataid = self.nodes[ptr].get_entries()[entryid].1;
+
+                Some(self.replace_data(dataid, value))
+            }
+            /* insert data */
+            Err(entryid) => {
+                let entry = KVEntry(key, self.push_data(value));
+
+                // if !(ptr == self.root && self.nodes[ptr].is_empty()) {
+                //     self.validate();  // avoid break up `len` logic
+                // }
+
+                let ptr_entries = self.nodes[ptr].get_entries_mut();
+
+                ptr_entries.insert(entryid, entry);
+
+                if entryid == 0 && ptr != self.root {
+                    let ptr_old_key = ptr_entries[1].0.clone();
+                    self.update_index(ptr, ptr_old_key);
+                }
+
+                None
+            }
+        }
+    }
+
     ////////////////////////////////////////////////////////////////////////////
     //// Search Methods
 
-    fn inner_select<'a, Q, R>(
-        &self,
-        range: R,
-    ) -> impl Iterator<Item = (&K, &mut V)>
+    fn inner_range<Q, R>(&self, range: R) -> impl Iterator<Item = (&K, &mut V)>
     where
         K: Borrow<Q>,
-        Q: Ord + ?Sized + 'a,
-        R: RangeBounds<&'a Q>,
+        Q: Ord + ?Sized,
+        R: RangeBounds<Q>,
     {
         std::iter::from_coroutine(
             #[coroutine]
             move || {
-                let (mut ptr, mut entryid) =
-                    if let Some(x) = self.select_start(&range) {
+                let (start_nodeid, start_entryid) =
+                    if let Some(x) = self.range_start(&range) {
                         x
                     } else {
                         return;
                     };
 
-                loop {
-                    let Node::Leaf { entries, next, .. } = &self.nodes[ptr]
-                    else {
-                        unreachable!()
-                    };
+                let Some(query_end_res) = self.range_end(&range) else {
+                    return;
+                };
 
-                    for KVEntry(key, dataid) in &entries.exact()[entryid..] {
-                        match range.end_bound() {
-                            Included(&k) => {
-                                if key.borrow() > &k {
-                                    break;
-                                }
-                            }
-                            Excluded(&k) => {
-                                if key.borrow() >= &k {
-                                    break;
-                                }
-                            }
-                            Unbounded => (),
+                match query_end_res {
+                    QueryRangeEndResult::Spec(end_nodeid, end_entryid) => {
+                        let start_k = self.nodes[start_nodeid].get_entries()
+                            [start_entryid]
+                            .0
+                            .borrow();
+                        let end_k = self.nodes[end_nodeid].get_entries()
+                            [end_entryid]
+                            .0
+                            .borrow();
+
+                        if start_k > end_k {
+                            return;
                         }
 
-                        yield (key, self.data(*dataid))
-                    }
+                        if start_nodeid == end_nodeid {
+                            for KVEntry(key, dataid) in
+                                &self.nodes[start_nodeid].get_entries().exact()
+                                    [start_entryid..=end_entryid]
+                            {
+                                yield (key, self.data(*dataid))
+                            }
+                        } else {
+                            for KVEntry(key, dataid) in
+                                &self.nodes[start_nodeid].get_entries().exact()
+                                    [start_entryid..]
+                            {
+                                yield (key, self.data(*dataid))
+                            }
 
-                    if let Some(next) = next {
-                        entryid = 0;
-                        ptr = *next;
-                    } else {
-                        break;
+                            let mut maybe_ptr = self.nodes[start_nodeid].next();
+
+                            while let Some(ptr) = maybe_ptr {
+                                let Node::Leaf { entries, next, .. } =
+                                    &self.nodes[ptr]
+                                else {
+                                    unreachable!()
+                                };
+
+                                if ptr == end_nodeid {
+                                    for KVEntry(key, dataid) in entries.exact()[..=end_entryid].iter() {
+                                        yield (key, self.data(*dataid))
+                                    }
+
+                                    break;
+                                }
+                                else {
+                                    for KVEntry(key, dataid) in entries.exact() {
+                                        yield (key, self.data(*dataid))
+                                    }
+                                }
+
+                                maybe_ptr = *next;
+                            }
+                        }
                     }
+                    QueryRangeEndResult::Unbound => {
+                        for KVEntry(key, dataid) in &self.nodes[start_nodeid]
+                            .get_entries()
+                            .exact()[start_entryid..]
+                        {
+                            yield (key, self.data(*dataid))
+                        }
+
+                        let mut maybe_ptr = self.nodes[start_nodeid].next();
+
+                        while let Some(ptr) = maybe_ptr {
+                            let Node::Leaf { entries, next, .. } =
+                                &self.nodes[ptr]
+                            else {
+                                unreachable!()
+                            };
+
+                            for KVEntry(key, dataid) in entries.exact() {
+                                yield (key, self.data(*dataid))
+                            }
+
+                            maybe_ptr = *next;
+                        }
+                    },
                 }
             },
         )
     }
 
     /// return Option<(nodeid, entryid)>
-    fn select_start<'a, Q, R>(&self, range: &R) -> Option<(usize, usize)>
+    fn range_start<Q, R>(&self, range: &R) -> Option<(usize, usize)>
     where
         K: Borrow<Q>,
-        Q: Ord + ?Sized + 'a,
-        R: RangeBounds<&'a Q>,
+        Q: Ord + ?Sized,
+        R: RangeBounds<Q>,
     {
         if self.is_empty() {
             return None;
         }
 
         match range.start_bound() {
-            Included(&k) => {
+            Included(k) => {
                 let (ptr, ..) = self.complete_search(k);
 
                 let Node::Leaf { entries, next, .. } = &self.nodes[ptr] else {
@@ -1023,6 +1095,144 @@ impl<K, V, const M: usize> FlatBPT<K, V, M> {
         }
     }
 
+    /// return Option<(nodeid, entryid)>
+    fn range_end<Q, R>(&self, range: &R) -> Option<QueryRangeEndResult>
+    where
+        K: Borrow<Q>,
+        Q: Ord + ?Sized,
+        R: RangeBounds<Q>,
+    {
+        if self.is_empty() {
+            return None;
+        }
+
+        match range.end_bound() {
+            Included(k) => {
+                let (ptr, ..) = self.complete_search(k);
+
+                let Node::Leaf { entries, .. } = &self.nodes[ptr] else {
+                    unreachable!()
+                };
+
+                match entries
+                    .exact()
+                    .binary_search_by_key(&k, |KVEntry(key, _)| key.borrow())
+                {
+                    Ok(idx) => Some(QueryRangeEndResult::Spec(ptr, idx)),
+                    Err(idx) => {
+                        if idx == 0 {
+                            None
+                        } else {
+                            Some(QueryRangeEndResult::Spec(ptr, idx - 1))
+                        }
+                    }
+                }
+            }
+            Excluded(k) => {
+                let (ptr, maybe_ptr_of_p) = self.complete_search(k);
+
+                let Node::Leaf { entries, .. } = &self.nodes[ptr] else {
+                    unreachable!()
+                };
+
+                match entries
+                    .exact()
+                    .binary_search_by_key(&k, |KVEntry(key, _)| key.borrow())
+                {
+                    Ok(idx) => {
+                        if idx == 0 {
+                            if let Some(ptr_of_p) = maybe_ptr_of_p {
+                                if let Some(prev) =
+                                    self.prev_leaf(ptr, ptr_of_p)
+                                {
+                                    let entryid =
+                                        self.nodes[prev].get_entries().len()
+                                            - 1;
+
+                                    return Some(QueryRangeEndResult::Spec(
+                                        prev, entryid,
+                                    ));
+                                }
+                            }
+
+                            None
+                        } else {
+                            Some(QueryRangeEndResult::Spec(ptr, idx - 1))
+                        }
+                    }
+                    Err(idx) => {
+                        if idx == 0 {
+                            None
+                        } else {
+                            Some(QueryRangeEndResult::Spec(ptr, idx - 1))
+                        }
+                    }
+                }
+            }
+            Unbounded => Some(QueryRangeEndResult::Unbound),
+        }
+    }
+
+    fn prev_leaf<Q>(&self, leaf: usize, leaf_of_p: usize) -> Option<usize>
+    where
+        K: Borrow<Q>,
+        Q: Ord + ?Sized,
+    {
+        debug_assert!(matches!(self.nodes[leaf], Node::Leaf { .. }));
+
+        /* trace upwards */
+
+        if leaf == self.root {
+            return None;
+        }
+
+        let mut p = self.nodes[leaf].paren();
+        let mut p_node = &self.nodes[p];
+
+        Some(if leaf_of_p == 0 {
+            #[allow(unused_assignments)]
+            let mut ptr = leaf;
+            let mut ptr_of_p = leaf_of_p;
+
+            loop {
+                if ptr_of_p > 0 {
+                    ptr = p_node.get_children()[ptr_of_p - 1].1;
+                    break;
+                }
+
+                if p == self.root {
+                    return None;
+                }
+
+                let p_node_k = p_node.get_children()[0].0.borrow();
+
+                let pp = p_node.paren();
+                let pp_node = &self.nodes[pp];
+
+                let p_of_pp = pp_node
+                    .get_children()
+                    .exact()
+                    .binary_search_by_key(&p_node_k, |KVEntry(k, _)| k.borrow())
+                    .unwrap();
+
+                p = pp;
+                p_node = pp_node;
+                ptr_of_p = p_of_pp;
+            }
+
+            let mut ptr_node = &self.nodes[ptr];
+
+            while matches!(ptr_node, Node::Internal { .. }) {
+                ptr = ptr_node.get_children().exact().last().unwrap().1;
+                ptr_node = &self.nodes[ptr];
+            }
+
+            ptr
+        } else {
+            p_node.get_children()[leaf_of_p - 1].1
+        })
+    }
+
     fn min_node(&self) -> usize {
         let mut ptr = self.root;
 
@@ -1033,7 +1243,17 @@ impl<K, V, const M: usize> FlatBPT<K, V, M> {
         ptr
     }
 
-    /// apply within `insert` or `select`
+    fn max_node(&self) -> usize {
+        let mut ptr = self.root;
+
+        while let Node::Internal { children, .. } = &self.nodes[ptr] {
+            ptr = children.exact().last().unwrap().1;
+        }
+
+        ptr
+    }
+
+    /// apply within `insert` or `range`
     ///
     /// return `(nodeid, Option<x_of_p>)`
     fn complete_search<Q>(&self, k: &Q) -> (usize, Option<usize>)
@@ -1492,7 +1712,7 @@ impl<K, V, const M: usize> FlatBPT<K, V, M> {
     /// `x` to find `p` and `x_new_key`
     fn update_index(&mut self, x: usize, x_old_key: K)
     where
-        K: Clone + Ord + Debug,
+        K: Clone + Ord,
     {
         debug_assert!(x != self.root);
 
@@ -1508,15 +1728,15 @@ impl<K, V, const M: usize> FlatBPT<K, V, M> {
             let Ok(x_of_p) = p_children.exact().binary_search(&old_key_entry)
             else {
                 panic!(
-                    "{}",
-                    self.display_fault(
-                        &self.nodes[ptr],
-                        &format! {
-                            "not found {:?} on {:?}",
-                            old_key_entry.0,
-                            self.nodes[ptr].get_keys()
-                        }
-                    )
+                    // "{}",
+                    // self.display_fault(
+                    //     &self.nodes[ptr],
+                    //     &format! {
+                    //         "not found {:?} on {:?}",
+                    //         old_key_entry.0,
+                    //         self.nodes[ptr].get_keys()
+                    //     }
+                    // )
                 )
             };
 
@@ -1662,11 +1882,25 @@ impl<K: Clone + Ord, V, const M: usize> IntoIterator for FlatBPT<K, V, M> {
     }
 }
 
-// impl<K: Clone + Ord, V, const M: usize> FromIterator<(K, V)> for FlatBPT<K, V, M> {
-//     fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
-//         let mut tmp = iter.into_iter().collect::<Vec<_>>;
-//     }
-// }
+impl<K: Clone + Ord + Debug, V, const M: usize> FromIterator<(K, V)>
+    for FlatBPT<K, V, M>
+{
+    fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
+        let mut inputs = iter.into_iter().collect::<Vec<_>>();
+
+        inputs.sort_by(|a, b| a.0.cmp(&b.0));
+
+        Self::bulk_build(inputs.into_iter())
+
+        // let mut flatbpt = FlatBPT::new();
+
+        // for (key, value) in iter {
+        //     flatbpt.push_back(key, value);
+        // }
+
+        // flatbpt
+    }
+}
 
 impl<K: Ord + Debug, V, const M: usize> Debug for FlatBPT<K, V, M> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -2043,10 +2277,8 @@ impl<K, const M: usize> Node<K, M> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
     use log::{info, trace};
-    use test_suites::*;
+    use test_suites::{bpt_mapping::*, *};
 
     use super::*;
 
@@ -2197,6 +2429,30 @@ mod tests {
         }
     }
 
+    impl<K: Key + Borrow<Q>, V, const M: usize, Q: Ord> BPTreeMap<Q>
+        for FlatBPT<K, V, M>
+    {
+        fn range<R>(
+            &self,
+            range: R,
+        ) -> impl Iterator<Item = (&Self::Key, &Self::Value)>
+        where
+            R: RangeBounds<Q>,
+        {
+            self.range(range)
+        }
+
+        fn range_mut<R>(
+            &mut self,
+            range: R,
+        ) -> impl Iterator<Item = (&Self::Key, &mut Self::Value)>
+        where
+            R: RangeBounds<Q>,
+        {
+            self.range_mut(range)
+        }
+    }
+
     impl<K: Key + Default, V, const M: usize> BulkLoad for FlatBPT<K, V, M> {
         type BulkItem = KVEntry<K, V>;
 
@@ -2223,19 +2479,18 @@ mod tests {
     fn test_flatbpt_<const M: usize>() {
         let loader =
             MixedLoader::<FlatBPT<i32, i32, M>, _>::new_with_bulkloader(
-                BulkLoader::<_, GenerateI32Any>::new_with_upper_bound(20_000),
+                BulkLoader::<_, GenerateI32Any>::new_with_upper_bound(2000),
             );
-        // let loader = DefaultLoader::<FlatBPT<i32, i32, M>>::new();
+        // let loader: DefaultLoader<FlatBPT<i32, i32, M>> = DefaultLoader::<FlatBPT<i32, i32, M>>::new();
         // let loader =
         //     BulkLoader::<i32, GenerateI32Any>::new_with_upper_bound(20_000);
 
-        let mut test_suit = MutableMappingTestSuite::<
+        let mut test_suit = BPTreeTestSuite::<
+            _,
             GenerateI32Any,
             _,
             _,
             FlatBPT<_, _, M>,
-            HashMap<_, _>,
-            _,
         >::new_with_loader(loader);
 
         test_suit.test_fixeddata();

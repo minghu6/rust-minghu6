@@ -1,6 +1,6 @@
 use std::{
     borrow::Borrow,
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap},
     fmt::{Debug, Display},
     hash::Hash,
     marker::PhantomData,
@@ -8,7 +8,10 @@ use std::{
 
 use extern_rand::{rngs::ThreadRng, thread_rng, Rng};
 use resource_config::RES;
-use serde::{de::{ Visitor, DeserializeOwned }, Deserialize, Deserializer};
+use serde::{
+    de::{DeserializeOwned, Visitor},
+    Deserialize, Deserializer,
+};
 
 use crate::{
     collections_abc::*,
@@ -63,33 +66,33 @@ enum AbcIU {
 use AbcIU::*;
 
 #[derive(Debug, Default)]
-pub(crate) struct RandomInputFacility<K, V> {
-    rng: ThreadRng,
-    cg: HashMap<K, V>,
-    missed: HashSet<K>,
-    plain_values: Vec<K>,
+pub struct RandomInputFacility<K, V> {
+    pub(crate) rng: ThreadRng,
+    pub(crate) cg: BTreeMap<K, V>,
+    pub(crate) missed: BTreeSet<K>,
+    pub(crate) plain_values: Vec<K>,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Implementations
 
 impl<K, V> RandomInputFacility<K, V> {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             rng: thread_rng(),
-            cg: HashMap::new(),
-            missed: HashSet::new(),
+            cg: BTreeMap::new(),
+            missed: BTreeSet::new(),
             plain_values: vec![],
         }
     }
 
-    pub(crate) fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.cg.len()
     }
 }
 
-impl<K: Hash + Eq + Clone> RandomInputFacility<K, K> {
-    fn insert(&mut self, k: K, v: K) -> Option<K> {
+impl<K: Ord + Clone> RandomInputFacility<K, K> {
+    pub fn insert(&mut self, k: K, v: K) -> Option<K> {
         let res = self.cg.insert(k.clone(), v);
 
         // insert new value
@@ -103,7 +106,7 @@ impl<K: Hash + Eq + Clone> RandomInputFacility<K, K> {
         res
     }
 
-    fn remove(&mut self, k: &K) -> Option<K> {
+    pub fn remove(&mut self, k: &K) -> Option<K> {
         let res = self.cg.remove(k);
 
         // it did remove a value
@@ -114,92 +117,29 @@ impl<K: Hash + Eq + Clone> RandomInputFacility<K, K> {
         res
     }
 
-    fn impl_abciu<G>(
-        &mut self,
-        g: &mut G,
-        case: &mut Vec<MutableMappingIU<K>>,
-        iu: AbcIU,
-    ) where
-        G: GenerateRandomValue<K>,
-    {
-        match iu {
-            QE | AEVE | AEVNE | DE => {
-                let (k, v) = self.randomly_roll_item();
-
-                match iu {
-                    QE => {
-                        case.push(Q(k.clone()));
-                    }
-                    AEVNE => {
-                        let v1 = loop {
-                            let v1 = g.gen();
-
-                            if v1 != v {
-                                break v1;
-                            }
-                        };
-
-                        case.push(A(k.clone(), v1));
-                    }
-                    AEVE => {
-                        case.push(A(k.clone(), v));
-                    }
-                    DE => {
-                        case.push(D(k.clone()));
-                        self.remove(&k);
-                    }
-                    _ => unreachable!(),
-                }
-
-                if !matches!(iu, QE) {
-                    case.push(Q(k));
-                }
-            }
-            QNE | ANE | DNE => {
-                let k1 = loop {
-                    let k1 = g.gen();
-
-                    if self.cg.get(&k1).is_none() {
-                        break k1;
-                    }
-                };
-
-                match iu {
-                    QNE => {
-                        case.push(Q(k1));
-                    }
-                    ANE => {
-                        case.push(A(k1.clone(), k1.clone()));
-                        self.insert(k1.clone(), k1);
-                    }
-                    DNE => {
-                        case.push(D(k1));
-                    }
-                    _ => unreachable!(),
-                }
-            }
-        };
+    fn rebuild_plain_values(&mut self) {
+        // rebuild plain values
+        self.plain_values = self.cg.keys().cloned().collect();
+        self.missed.clear();
     }
 
-    /// **Core method**
-    ///
-    /// return (key, value)
-    fn randomly_roll_item(&mut self) -> (K, K) {
+    fn or_else_rebuild_plain_values(&mut self) {
+        if self.missed.len() * 2 >= self.cg.len() {
+            self.rebuild_plain_values();
+        }
+    }
+
+    pub fn randomly_roll_item(&mut self) -> (K, K) {
         assert!(self.len() > 0);
 
-        if self.missed.len() * 2 >= self.cg.len() {
-            // rebuild plain values
-            self.plain_values = self.cg.keys().cloned().collect();
-            self.missed.clear();
-        }
+        self.or_else_rebuild_plain_values();
 
-        let idx = self.rng.gen_range(0..self.plain_values.len());
+        let len = self.plain_values.len();
+        let start_idx = self.rng.gen_range(0..len);
 
-        for k in self.plain_values[idx..]
-            .iter()
-            .chain(self.plain_values[..idx].iter())
-            .cycle()
-        {
+        for idx in (start_idx..len).chain(0..start_idx) {
+            let k = &self.plain_values[idx];
+
             if let Some(v) = self.cg.get(k) {
                 return (k.clone(), v.clone());
             }
@@ -207,9 +147,24 @@ impl<K: Hash + Eq + Clone> RandomInputFacility<K, K> {
 
         unreachable!()
     }
+
+    pub fn randomly_roll_range(&mut self) -> (K, K) {
+        assert!(self.len() > 0);
+
+        let mut k1 = self.randomly_roll_item().0;
+        let mut k2 = self.randomly_roll_item().0;
+
+        if k1 > k2 {
+            (k1, k2) = (k2, k1)
+        }
+
+        (k1, k2)
+    }
 }
 
-impl<EG: Display, CG, K: Clone + Debug> Display for TestContext<EG, CG, MutableMappingIU<K>> {
+impl<EG: Display, CG, K: Clone + Debug> Display
+    for TestContext<EG, CG, MutableMappingIU<K>>
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f)?;
 
@@ -329,54 +284,6 @@ where
     }
 }
 
-impl<G, K, Q, EG, CG, L> MutableMappingTestSuite<G, K, Q, EG, CG, L>
-where
-    K: Eq + Clone + Debug + Borrow<Q>,
-    EG: MutableMapping<Q, Key = K, Value = K> + Validate + Display,
-    CG: MutableMapping<Q, Key = K, Value = K>,
-    L: Loader<EG>,
-{
-    pub fn new_with_loader_and_g(loader: L, g: G) -> Self {
-        Self {
-            loader,
-            g,
-            _marker: PhantomData,
-        }
-    }
-
-    fn interpret(
-        ctx: &mut TestContext<EG, CG, MutableMappingIU<K>>
-    ) {
-        match ctx.cur().unwrap().clone() {
-            Q(k) => assert_eq!(ctx.eg.get(k.borrow()), ctx.cg.get(k.borrow()), "{ctx}"),
-            A(k, val) => assert_eq!(
-                ctx.eg.insert(k.clone(), val.clone()),
-                ctx.cg.insert(k.clone(), val.clone()),
-                "{ctx}"
-            ),
-            D(k) => assert_eq!(
-                ctx.eg.remove(k.borrow()),
-                ctx.cg.remove(k.borrow()),
-                "{ctx}"
-            ),
-            V => ctx.eg.validate(),
-        }
-    }
-
-    fn new_test_context(&mut self, name: &str) -> TestContext<EG, CG, MutableMappingIU<K>> {
-        let name = name.to_owned();
-        let eg = self.loader.load();
-        let mut cg = CG::new();
-
-        for (k, v) in eg.iter() {
-            cg.insert(k.clone(), v.clone());
-        }
-
-        TestContext { eg, cg, name, input: vec![] }
-    }
-
-}
-
 impl<G, EG, CG, L> TestSuite for MutableMappingTestSuite<G, i32, i32, EG, CG, L>
 where
     G: GenerateRandomValue<i32>,
@@ -421,7 +328,7 @@ where
                 ]);
 
                 while tracer.len() < max_len {
-                    let mut iu ;
+                    let mut iu;
 
                     loop {
                         iu = insert_roller.roll();
@@ -431,11 +338,7 @@ where
                         }
                     }
 
-                    tracer.impl_abciu(
-                        &mut self.g,
-                        &mut case,
-                        iu,
-                    );
+                    impl_abciu(&mut tracer, &mut self.g, &mut case, iu);
                 }
 
                 /* Decrement procedure */
@@ -451,7 +354,8 @@ where
                 ]);
 
                 while tracer.len() > 0 {
-                    tracer.impl_abciu(
+                    impl_abciu(
+                        &mut tracer,
                         &mut self.g,
                         &mut case,
                         remove_roller.roll(),
@@ -463,14 +367,45 @@ where
             .collect()
     }
 
-    fn interpret(
-        ctx: &mut TestContext<EG, CG, Self::IU>
-    ) {
-        Self::interpret(ctx)
+    fn interpret(ctx: &mut TestContext<EG, CG, Self::IU>) {
+        match ctx.cur().unwrap().clone() {
+            Q(k) => assert_eq!(
+                ctx.eg.get(k.borrow()),
+                ctx.cg.get(k.borrow()),
+                "{ctx}"
+            ),
+            A(k, val) => assert_eq!(
+                ctx.eg.insert(k.clone(), val.clone()),
+                ctx.cg.insert(k.clone(), val.clone()),
+                "{ctx}"
+            ),
+            D(k) => assert_eq!(
+                ctx.eg.remove(k.borrow()),
+                ctx.cg.remove(k.borrow()),
+                "{ctx}"
+            ),
+            V => ctx.eg.validate(),
+        }
     }
 
-    fn new_test_context(&mut self, name: &str) -> TestContext<EG, CG, Self::IU> {
-        self.new_test_context(name)
+    fn new_test_context(
+        &mut self,
+        name: &str,
+    ) -> TestContext<EG, CG, Self::IU> {
+        let name = name.to_owned();
+        let eg = self.loader.load();
+        let mut cg = CG::new();
+
+        for (k, v) in eg.iter() {
+            cg.insert(k.clone(), v.clone());
+        }
+
+        TestContext {
+            eg,
+            cg,
+            name,
+            input: vec![],
+        }
     }
 }
 
@@ -484,7 +419,8 @@ impl<K, V> MappingIterable for BTreeMap<K, V> {
     ) -> impl Iterator<Item = (&'a Self::Key, &'a Self::Value)> + 'a
     where
         Self::Key: 'a,
-        Self::Value: 'a {
+        Self::Value: 'a,
+    {
         self.iter()
     }
 }
@@ -499,13 +435,15 @@ impl<K, V> Collection for BTreeMap<K, V> {
     }
 }
 
-impl<K: Ord + Borrow<Q>, V, Q: Ord> Mapping<Q> for BTreeMap<K, V> {
+impl<K: Ord + Borrow<Q>, V, Q: Ord + ?Sized> Mapping<Q> for BTreeMap<K, V> {
     fn get(&self, key: &Q) -> Option<&Self::Value> {
         self.get(key)
     }
 }
 
-impl<K: Ord + Borrow<Q>, V, Q: Ord> MutableMapping<Q> for BTreeMap<K, V> {
+impl<K: Ord + Borrow<Q>, V, Q: Ord + ?Sized> MutableMapping<Q>
+    for BTreeMap<K, V>
+{
     fn insert(
         &mut self,
         key: Self::Key,
@@ -545,7 +483,7 @@ impl<K, V> MappingIterable for HashMap<K, V> {
     }
 }
 
-impl<K: Eq + Hash + Borrow<Q>, V, Q: Hash + Eq> Mapping<Q> for HashMap<K, V>
+impl<K: Eq + Hash + Borrow<Q>, V, Q: Hash + Eq + ?Sized> Mapping<Q> for HashMap<K, V>
 where
     Self::Key: Borrow<Q>,
 {
@@ -558,7 +496,7 @@ where
     }
 }
 
-impl<K: Eq + Hash + Borrow<Q>, V, Q: Hash + Eq> MutableMapping<Q>
+impl<K: Eq + Hash + Borrow<Q>, V, Q: Hash + Eq + ?Sized> MutableMapping<Q>
     for HashMap<K, V>
 {
     fn insert(
@@ -577,32 +515,105 @@ impl<K: Eq + Hash + Borrow<Q>, V, Q: Hash + Eq> MutableMapping<Q>
 ////////////////////////////////////////////////////////////////////////////////
 //// Functions
 
-fn deserialize_variant_a<'de, K, D>(d: D) -> Result<(K, K), D::Error>
+pub(crate) fn deserialize_variant_a<'de, K, D>(d: D) -> Result<(K, K), D::Error>
 where
     K: Deserialize<'de> + Clone,
     D: Deserializer<'de>,
 {
     struct TupleLenOneOrTwo<K>(PhantomData<K>);
 
-    impl<'de, K> Visitor<'de> for TupleLenOneOrTwo<K> where K: Deserialize<'de> + Clone {
+    impl<'de, K> Visitor<'de> for TupleLenOneOrTwo<K>
+    where
+        K: Deserialize<'de> + Clone,
+    {
         type Value = (K, K);
 
-        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        fn expecting(
+            &self,
+            formatter: &mut std::fmt::Formatter,
+        ) -> std::fmt::Result {
             formatter.write_str("expect K or [K; 2]")
         }
 
         fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-            where
-                A: serde::de::SeqAccess<'de>, {
-
+        where
+            A: serde::de::SeqAccess<'de>,
+        {
             let fst: K = seq.next_element()?.unwrap();
 
             let snd = seq.next_element()?.unwrap_or(fst.clone());
 
             Ok((fst, snd))
         }
-
     }
 
     d.deserialize_any(TupleLenOneOrTwo(PhantomData))
+}
+
+fn impl_abciu<G, K>(
+    tracer: &mut RandomInputFacility<K, K>,
+    g: &mut G,
+    case: &mut Vec<MutableMappingIU<K>>,
+    iu: AbcIU,
+) where
+    G: GenerateRandomValue<K>,
+    K: Ord + Clone,
+{
+    match iu {
+        QE | AEVE | AEVNE | DE => {
+            let (k, v) = tracer.randomly_roll_item();
+
+            match iu {
+                QE => {
+                    case.push(Q(k.clone()));
+                }
+                AEVNE => {
+                    let v1 = loop {
+                        let v1 = g.gen();
+
+                        if v1 != v {
+                            break v1;
+                        }
+                    };
+
+                    case.push(A(k.clone(), v1));
+                }
+                AEVE => {
+                    case.push(A(k.clone(), v));
+                }
+                DE => {
+                    case.push(D(k.clone()));
+                    tracer.remove(&k);
+                }
+                _ => unreachable!(),
+            }
+
+            if !matches!(iu, QE) {
+                case.push(Q(k));
+            }
+        }
+        QNE | ANE | DNE => {
+            let k1 = loop {
+                let k1 = g.gen();
+
+                if tracer.cg.get(&k1).is_none() {
+                    break k1;
+                }
+            };
+
+            match iu {
+                QNE => {
+                    case.push(Q(k1));
+                }
+                ANE => {
+                    case.push(A(k1.clone(), k1.clone()));
+                    tracer.insert(k1.clone(), k1);
+                }
+                DNE => {
+                    case.push(D(k1));
+                }
+                _ => unreachable!(),
+            }
+        }
+    };
 }

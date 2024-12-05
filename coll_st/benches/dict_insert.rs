@@ -89,6 +89,11 @@ bench_dict_insert!(_V2__95, BP, bt::bpt2::BPT2::<u64, u64, 95>::new());
 
 bench_dict_insert!(_0_, BTree_MAP, std::collections::BTreeMap::new());
 
+bench_dict_insert!(_0__07, FBPT, bt::flatbpt::FlatBPT::<u64, u64, 7>::new());
+bench_dict_insert!(_0__11, FBPT, bt::flatbpt::FlatBPT::<u64, u64, 11>::new());
+bench_dict_insert!(_0__20, FBPT, bt::flatbpt::FlatBPT::<u64, u64, 20>::new());
+bench_dict_insert!(_0__30, FBPT, bt::flatbpt::FlatBPT::<u64, u64, 30>::new());
+bench_dict_insert!(_0__100, FBPT, bt::flatbpt::FlatBPT::<u64, u64, 100>::new());
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Nodes Distribution Bench

@@ -38,7 +38,7 @@ macro_rules! impl_tree {
     ) =>
     {
         $(#[$attr])*
-        pub struct $treename<K, V, const M: usize> {
+        pub struct $treename<K, V, const M: usize = 32> {
             root: Node<K, V>,
 
             /* extra attr */

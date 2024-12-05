@@ -1,26 +1,23 @@
 //! BP2 M: 10-20
 
-
 #![feature(test)]
-use test::Bencher;
-
 use lazy_static::lazy_static;
-
 use m6_coll_st::{
     // bst,
-    bt
+    bt,
 };
+use test::Bencher;
 
 
 extern crate test;
 
 mod dict_common;
 
-const BATCH_NUM: usize = 4_000;
+const BATCH_NUM: usize = 40_000;
 
 enum OP {
     Insert(u64, u64),
-    Remove(u64)
+    Remove(u64),
 }
 use OP::*;
 
@@ -154,5 +151,9 @@ bench_dict_get!(_V2__30, BP, bt::bpt2::BPT2::<u64, u64, 30>::new());
 bench_dict_get!(_V2__100, BP, bt::bpt2::BPT2::<u64, u64, 100>::new());
 
 bench_dict_get!(_0_, HASH_MAP, std::collections::HashMap::new());
-
 bench_dict_get!(_0_, BTree_MAP, std::collections::BTreeMap::new());
+bench_dict_get!(_0__07, FBPT, bt::flatbpt::FlatBPT::<u64, u64, 7>::new());
+bench_dict_get!(_0__11, FBPT, bt::flatbpt::FlatBPT::<u64, u64, 11>::new());
+bench_dict_get!(_0__20, FBPT, bt::flatbpt::FlatBPT::<u64, u64, 20>::new());
+bench_dict_get!(_0__30, FBPT, bt::flatbpt::FlatBPT::<u64, u64, 30>::new());
+bench_dict_get!(_0__100, FBPT, bt::flatbpt::FlatBPT::<u64, u64, 100>::new());

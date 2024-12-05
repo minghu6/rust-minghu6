@@ -1,6 +1,6 @@
 //! Refer Python Module [collections.abc](https://docs.python.org/3/library/collections.abc.html#collections-abstract-base-classes)
 
-use std::borrow::Borrow;
+use std::{borrow::Borrow, ops::RangeBounds};
 
 
 
@@ -49,14 +49,14 @@ where
     fn get(&self, k: &Q) -> Option<&Self::Value>;
 }
 
-pub trait MappingMut<Q>: Mapping<Q>
+pub trait MappingMut<Q: ?Sized>: Mapping<Q>
 where
     Self::Key: Borrow<Q>
 {
     fn get_mut(&mut self, k: &Q) -> Option<&mut Self::Value>;
 }
 
-pub trait MutableMapping<Q>: Mapping<Q>
+pub trait MutableMapping<Q: ?Sized>: Mapping<Q>
 where
     Self::Key: Borrow<Q>
 {
@@ -69,31 +69,32 @@ where
     fn remove(&mut self, key: &Q) -> Option<Self::Value>;
 }
 
-// pub trait BPTreeMap<'a>: MutableMapping<'a> {
-//     fn select<Q, R>(&self, range: R) -> impl Iterator<Item = Self::ItemRef>
-//     where
-//         Self::Key: Borrow<Q>,
-//         Q: Ord + ?Sized + 'a,
-//         R: RangeBounds<&'a Q> + Clone;
+pub trait BPTreeMap<Q: ?Sized>: MutableMapping<Q>
+where
+    Self::Key: Borrow<Q>
+{
+    fn range<R>(&self, range: R) -> impl Iterator<Item = (&Self::Key, &Self::Value)>
+    where
+        R: RangeBounds<Q>;
 
-//     fn select_keys<Q, R>(&self, range: R) -> impl Iterator<Item = &'a Self::Key>
-//     where
-//         Self::Key: Borrow<Q>,
-//         Q: Ord + ?Sized + 'a,
-//         R: RangeBounds<&'a Q> + Clone,
-//     {
-//         self.select(range).map(|(k, _v)| k)
-//     }
+    fn range_mut<R>(&mut self, range: R) -> impl Iterator<Item = (&Self::Key, &mut Self::Value)>
+        where
+            R: RangeBounds<Q>;
 
-//     fn select_values<Q, R>(
-//         &self,
-//         range: R,
-//     ) -> impl Iterator<Item = &'a Self::Value>
-//     where
-//         Self::Key: Borrow<Q>,
-//         Q: Ord + ?Sized + 'a,
-//         R: RangeBounds<&'a Q> + Clone,
-//     {
-//         self.select(range).map(|(_k, v)| v)
-//     }
-// }
+    fn range_keys<R>(&self, range: R) -> impl Iterator<Item = &Self::Key>
+    where
+        R: RangeBounds<Q>,
+    {
+        self.range(range).map(|(k, _v)| k)
+    }
+
+    fn range_values<R>(
+        &self,
+        range: R,
+    ) -> impl Iterator<Item = &Self::Value>
+    where
+        R: RangeBounds<Q>,
+    {
+        self.range(range).map(|(_k, v)| v)
+    }
+}

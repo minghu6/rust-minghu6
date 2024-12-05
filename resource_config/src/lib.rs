@@ -11,7 +11,8 @@ resources! {
         }
     },
     test_suites: {
-        mutable_mapping_toml: "mutable_mapping.toml"
+        mutable_mapping_toml: "mutable_mapping.toml",
+        bpt_toml: "bpt.toml"
     },
     zh_en_poems_txt: "zh_en_poems.txt"
 }

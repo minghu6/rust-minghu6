@@ -109,26 +109,26 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
         }
     }
 
-    pub fn select<'a, Q, R>(
+    pub fn range<Q, R>(
         &self,
         range: R,
-    ) -> impl Iterator<Item = &V>
+    ) -> impl Iterator<Item = (&K, &V)>
     where
         K: Borrow<Q>,
-        Q: Ord + ?Sized + 'a,
-        R: RangeBounds<&'a Q> + Clone,
+        Q: Ord + ?Sized,
+        R: RangeBounds<Q> + Clone
     {
-        mut_self!(self).select_mut(range).map(|v| &*v)
+        mut_self!(self).range_mut(range).map(|(k, v)| (k, v as _))
     }
 
-    pub fn select_mut<'a, Q, R>(
+    pub fn range_mut<Q, R>(
         &mut self,
         range: R,
-    ) -> impl Iterator<Item = &mut V>
+    ) -> impl Iterator<Item = (&K, &mut V)>
     where
         K: Borrow<Q>,
-        Q: Ord + ?Sized + 'a,
-        R: RangeBounds<&'a Q> + Clone,
+        Q: Ord + ?Sized,
+        R: RangeBounds<Q> + Clone
     {
         /* find start_node */
 
@@ -138,7 +138,7 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
             cur = Node::none();
         } else {
             match range.start_bound() {
-                Included(&k) => {
+                Included(k) => {
                     cur = Self::search_to_leaf_r(
                         &self.root,
                         k.borrow(),
@@ -160,7 +160,7 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
             move || {
                 while cur.is_some() {
                     let mut entries =
-                        entries_mut!(cur).select_mut(range.clone());
+                        entries_mut!(cur).range_mut(range.clone());
 
                     if let Some(fst) = entries.next() {
                         yield fst;
@@ -909,7 +909,7 @@ mod tests {
         dict_remove!(dict, 3);
 
         assert_eq!(
-            dict.select(..).cloned().collect::<Vec<_>>(),
+            dict.range(..).map(|(k, _v)| k).cloned().collect::<Vec<_>>(),
             [28, 30, 35]
         );
 
@@ -918,7 +918,7 @@ mod tests {
         dict_remove!(dict, 28);
 
         assert_eq!(
-            dict.select(..).cloned().collect::<Vec<_>>(),
+            dict.range(..).map(|(k, _v)| k).cloned().collect::<Vec<_>>(),
             [0u16; 0]
         );
 
@@ -946,7 +946,6 @@ mod tests {
         dict_insert!(dict, 53);
         dict_insert!(dict, 00);
         dict_insert!(dict, 27);
-
 
         dict_remove!(dict, 34);
         dict_remove!(dict, 13);

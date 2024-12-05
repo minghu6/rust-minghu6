@@ -178,24 +178,26 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
         }
     }
 
-    pub fn select<'a, Q, R: RangeBounds<&'a Q>>(
+    pub fn range<Q, R>(
         &self,
         range: R,
-    ) -> impl Iterator<Item = &V>
+    ) -> impl Iterator<Item = (&K, &V)>
     where
         K: Borrow<Q>,
-        Q: Ord + ?Sized + 'a,
+        Q: Ord + ?Sized,
+        R: RangeBounds<Q>
     {
-        mut_self!(self).select_mut(range).map(|v| &*v)
+        mut_self!(self).range_mut(range).map(|(k, v)| (k, v as _))
     }
 
-    pub fn select_mut<'a, Q, R: RangeBounds<&'a Q>>(
+    pub fn range_mut<Q, R>(
         &mut self,
         range: R,
-    ) -> impl Iterator<Item = &mut V>
+    ) -> impl Iterator<Item = (&K, &mut V)>
     where
         K: Borrow<Q>,
-        Q: Ord + ?Sized + 'a,
+        Q: Ord + ?Sized,
+        R: RangeBounds<Q>
     {
         /* find start_node */
 
@@ -203,7 +205,7 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
         let mut idx = 0;
 
         match range.start_bound() {
-            Included(&k) => {
+            Included(k) => {
                 let x = Self::search_to_leaf(&self.root, k.borrow());
 
                 // Nil
@@ -242,7 +244,7 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
             loop {
                 for ent in entries {
                     if range.contains(&ent.0.borrow()) {
-                        yield &mut ent.1
+                        yield (&ent.0, &mut ent.1)
                     } else {
                         return;
                     }
@@ -1110,6 +1112,19 @@ impl<K: Ord, V, const M: usize> BPT<K, V, M> {
     }
 }
 
+impl<K: Ord + Clone, V: Debug, const M: usize> FromIterator<(K, V)> for BPT<K, V, M> {
+    fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
+        let mut inputs = iter.into_iter().collect::<Vec<_>>();
+
+        inputs.sort_by(|a, b| a.0.cmp(&b.0));
+
+        let mut it = Self::new();
+
+        it.bulk_push_back(inputs.into_iter());
+
+        it
+    }
+}
 
 impl<K: Ord + Debug, V, const M: usize> Debug for BPT<K, V, M> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
@@ -1580,7 +1595,7 @@ pub(crate) mod tests {
             let r2 = $r2;
 
             let u_range = (r);
-            let v_range = $dict.select(r2).cloned();
+            let v_range = $dict.range(r2).map(|(k, _v)| k).cloned();
 
             for x in u_range.zip_longest(v_range) {
                 match x {
@@ -1791,35 +1806,35 @@ pub(crate) mod tests {
 
         /* Test select */
         assert_eq!(
-            dict.select(..).cloned().collect::<Vec<_>>(),
+            dict.range(..).map(|(k, _v)| k).cloned().collect::<Vec<_>>(),
             [3, 24, 28, 30, 35, 38, 44, 47, 52, 66]
         );
         assert_eq!(
-            dict.select(&19..&19).cloned().collect::<Vec<_>>(),
+            dict.range(19..19).map(|(k, _v)| k).cloned().collect::<Vec<_>>(),
             [0u16; 0]
         );
         assert_eq!(
-            dict.select(&35..).cloned().collect::<Vec<_>>(),
+            dict.range(35..).map(|(k, _v)| k).cloned().collect::<Vec<_>>(),
             [35, 38, 44, 47, 52, 66]
         );
         assert_eq!(
-            dict.select(&34..).cloned().collect::<Vec<_>>(),
+            dict.range(34..).map(|(k, _v)| k).cloned().collect::<Vec<_>>(),
             [35, 38, 44, 47, 52, 66]
         );
         assert_eq!(
-            dict.select(&36..).cloned().collect::<Vec<_>>(),
+            dict.range(36..).map(|(k, _v)| k).cloned().collect::<Vec<_>>(),
             [38, 44, 47, 52, 66]
         );
         assert_eq!(
-            dict.select(&34..&66).cloned().collect::<Vec<_>>(),
+            dict.range(34..66).map(|(k, _v)| k).cloned().collect::<Vec<_>>(),
             [35, 38, 44, 47, 52]
         );
         assert_eq!(
-            dict.select(&34..&67).cloned().collect::<Vec<_>>(),
+            dict.range(34..67).map(|(k, _v)| k).cloned().collect::<Vec<_>>(),
             [35, 38, 44, 47, 52, 66]
         );
         assert_eq!(
-            dict.select(&34..&45).cloned().collect::<Vec<_>>(),
+            dict.range(34..45).map(|(k, _v)| k).cloned().collect::<Vec<_>>(),
             [35, 38, 44]
         );
 
@@ -1831,13 +1846,13 @@ pub(crate) mod tests {
         dict_remove!(dict, 47);
         dict_remove!(dict, 3);
 
-        assert_eq!(dict.select(..).cloned().collect::<Vec<_>>(), [28, 30, 35]);
+        assert_eq!(dict.range(..).map(|(k, _v)| k).cloned().collect::<Vec<_>>(), [28, 30, 35]);
 
         dict_remove!(dict, 35);
         dict_remove!(dict, 30);
         dict_remove!(dict, 28);
 
-        assert_eq!(dict.select(..).cloned().collect::<Vec<_>>(), [0u16; 0]);
+        assert_eq!(dict.range(..).map(|(k, _v)| k).cloned().collect::<Vec<_>>(), [0u16; 0]);
 
         // dict.debug_print();
     }

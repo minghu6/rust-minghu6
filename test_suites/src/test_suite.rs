@@ -40,6 +40,8 @@ pub trait TestSuite {
     fn test_fixeddata(&mut self) {
         let test_data = Self::load_fixeddata();
 
+        trace!("[Fixed Data]\n{:#?}", test_data);
+
         for case in test_data.fixeddata {
             self.run_case(case);
         }
