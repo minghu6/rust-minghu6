@@ -1,80 +1,19 @@
 use std::{
     borrow::Borrow,
     cmp::max,
-    collections::{HashMap, VecDeque},
+    collections::VecDeque,
     fmt::{Debug, Display},
-    mem::{replace, MaybeUninit},
+    mem::replace,
     ops::{Bound::*, Index, IndexMut, RangeBounds},
     ptr,
 };
 
 use coll::KVEntry;
 
-////////////////////////////////////////////////////////////////////////////////
-//// Traits
+use crate::{
+    bt::PartialInitArray, DisplayLocOnTree, LocOnTree, PreOrderView, WalkTree,
+};
 
-pub trait WalkTree<'a> {
-    type Node: Borrow<Self::NodeBorrow>;
-    type NodeBorrow;
-
-    fn root(&'a self) -> Option<&'a Self::NodeBorrow>;
-    fn children(
-        &'a self,
-        ptr: &'a Self::NodeBorrow,
-    ) -> Option<Vec<&'a Self::NodeBorrow>>;
-
-    fn pre_order_walk(
-        &'a self,
-    ) -> impl Iterator<Item = (LocOnTree, &'a Self::NodeBorrow)> + 'a {
-        std::iter::from_coroutine(
-            #[coroutine]
-            || {
-                let Some(root) = self.root() else {
-                    return;
-                };
-
-                let mut loc = LocOnTree::new();
-                let mut curlv = vec![vec![root]];
-
-                while !curlv.is_empty() {
-                    loc.ln += 1;
-                    loc.col_group = 0;
-
-                    let mut nextlv = vec![];
-
-                    for child_group in curlv.into_iter() {
-                        loc.col_group += 1;
-                        loc.in_group_id = 0;
-
-                        for child in child_group {
-                            loc.in_group_id += 1;
-
-                            yield (loc, child);
-
-                            if let Some(nxt_child_group) = self.children(child)
-                            {
-                                nextlv.push(nxt_child_group);
-                            }
-                        }
-                    }
-
-                    curlv = nextlv;
-                }
-            },
-        )
-    }
-
-    fn display_fault(
-        &'a self,
-        node: &'a Self::NodeBorrow,
-        reason: &str,
-    ) -> DisplayFaultNodeOfTree<'a, Self, Self::NodeBorrow> {
-        let tree = self;
-        let reason = reason.to_string();
-
-        DisplayFaultNodeOfTree { tree, node, reason }
-    }
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Structures
@@ -83,20 +22,6 @@ enum QueryRangeEndResult {
     /// nodeid, entryid
     Spec(usize, usize),
     Unbound,
-}
-
-pub struct PreOrderView<'a, NB> {
-    /// persisitent sequence
-    pseq: Vec<(LocOnTree, &'a NB)>,
-    locmap: HashMap<*const NB, LocOnTree>,
-}
-
-
-#[derive(Default, Clone, Copy, PartialEq, Eq)]
-pub struct LocOnTree {
-    pub ln: usize,
-    pub col_group: usize,
-    pub in_group_id: usize,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -117,7 +42,7 @@ pub enum Node<K, const M: usize> {
 
 
 #[derive(Clone)]
-pub struct FlatBPT<K, V, const M: usize = 30> {
+pub struct FlatBPT<K, V, const M: usize = 32> {
     /// uncouple data manage (avoid unnecessary mutability check)
     data: LazyDeleteVec<*mut V>,
 
@@ -133,275 +58,8 @@ pub struct LazyDeleteVec<T> {
     deleted: Vec<usize>,
 }
 
-
-#[derive(Debug)]
-pub struct PartialInitArray<T, const CAP: usize> {
-    len: usize,
-    arr: [MaybeUninit<T>; CAP],
-}
-
-pub struct DisplayLocOnTree<'a, T> {
-    pub revref: &'a T,
-    pub max_ln_width: usize,
-    pub max_col_group_width: usize,
-    pub max_in_group_width: usize,
-}
-
-pub struct DisplayFaultNodeOfTree<'a, T: ?Sized, N> {
-    tree: &'a T,
-    node: &'a N,
-    reason: String,
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 //// Implementations
-
-impl<'a, T: WalkTree<'a, NodeBorrow = N> + Display, N> Display
-    for DisplayFaultNodeOfTree<'a, T, N>
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let view = self.tree.pre_order_walk().collect::<PreOrderView<_>>();
-        let node_loc = view[&self.node];
-
-        writeln!(f, "[{node_loc:?}, {}]: {}", self.reason, self.tree)
-    }
-}
-
-impl<'a, T> DisplayLocOnTree<'a, T> {
-    fn display(&self, loc: &LocOnTree) -> String {
-        format!(
-            "{:0ln_width$}.{:0col_group_width$}.{:0in_group_width$}",
-            loc.ln,
-            loc.col_group,
-            loc.in_group_id,
-            ln_width = self.max_ln_width,
-            col_group_width = self.max_col_group_width,
-            in_group_width = self.max_in_group_width
-        )
-    }
-
-    #[cfg(test)]
-    fn display_fault(&self, loc: &LocOnTree) -> String
-    where
-        T: Display,
-    {
-        format!("\n[{}]: {}", self.display(loc), self.revref)
-    }
-
-    #[cfg(test)]
-    fn display_pass(&self) -> String
-    where
-        T: Display,
-    {
-        format!("\n[PASS]: {}", self.revref)
-    }
-}
-
-impl<'a, NB> PreOrderView<'a, NB> {
-    pub fn iter(&'a self) -> impl Iterator<Item = (LocOnTree, &'a NB)> + 'a {
-        self.pseq.iter().cloned()
-    }
-}
-
-impl<'a, NB> FromIterator<(LocOnTree, &'a NB)> for PreOrderView<'a, NB> {
-    fn from_iter<T: IntoIterator<Item = (LocOnTree, &'a NB)>>(iter: T) -> Self {
-        let pseq = iter.into_iter().collect::<Vec<_>>();
-
-        let locmap = HashMap::from_iter(
-            pseq.iter().cloned().map(|(_0, _1)| (_1 as _, _0)),
-        );
-
-        Self { pseq, locmap }
-    }
-}
-
-impl<'a, NB> Index<&NB> for PreOrderView<'a, NB> {
-    type Output = LocOnTree;
-
-    fn index(&self, index: &NB) -> &Self::Output {
-        &self.locmap[&(index as _)]
-    }
-}
-
-impl LocOnTree {
-    pub fn new() -> Self {
-        Default::default()
-    }
-}
-
-impl Debug for LocOnTree {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}.{}.{}", self.ln, self.col_group, self.in_group_id,)
-    }
-}
-
-////////////////////////////////////////
-//// impl PartialInitArray
-
-impl<T, const CAP: usize> PartialInitArray<T, CAP> {
-    pub const fn len(&self) -> usize {
-        self.len
-    }
-
-    pub const fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    pub fn new() -> Self {
-        Self {
-            len: 0,
-            arr: MaybeUninit::uninit_array(),
-        }
-    }
-
-    pub fn exact(&self) -> &[T] {
-        unsafe { MaybeUninit::slice_assume_init_ref(&self.arr[..self.len]) }
-    }
-
-    pub fn insert(&mut self, idx: usize, val: T) {
-        debug_assert!(self.len < CAP, "array is full");
-        debug_assert!(
-            idx <= self.len,
-            "index {idx} overflow for length {} ",
-            self.len
-        );
-
-        if idx < self.len {
-            self.arr[idx..self.len + 1].rotate_right(1);
-        }
-
-        self.arr[idx].write(val);
-        self.len += 1;
-    }
-
-    pub fn remove(&mut self, idx: usize) -> T {
-        debug_assert!(
-            idx < self.len,
-            "index {idx} overflow for lenghth {} ",
-            self.len
-        );
-
-        let val = unsafe { self.arr[idx].assume_init_read() };
-        self.arr[idx..self.len].rotate_left(1);
-
-        self.len -= 1;
-
-        val
-    }
-
-    pub fn push(&mut self, val: T) {
-        self.insert(self.len, val);
-    }
-
-    pub fn pop(&mut self) -> T {
-        self.remove(self.len - 1)
-    }
-
-    /// Binary search and Insert
-    pub fn binary_insert(&mut self, val: T) -> Option<T>
-    where
-        T: Ord,
-    {
-        match self.exact().binary_search(&val) {
-            Ok(idx) => {
-                /* Repalce Data */
-
-                Some(unsafe {
-                    replace(&mut self.arr[idx], MaybeUninit::new(val))
-                        .assume_init()
-                })
-            }
-            Err(idx) => {
-                /* Insert Data */
-
-                self.insert(idx, val);
-
-                None
-            }
-        }
-    }
-
-    /// split off within initialized content
-    pub fn split_off(&mut self, at: usize) -> &[T] {
-        debug_assert!(at < self.len);
-
-        let oldlen = replace(&mut self.len, at);
-
-        unsafe { MaybeUninit::slice_assume_init_ref(&self.arr[at..oldlen]) }
-    }
-
-    pub fn init_with_slice(&mut self, slice: &[T]) {
-        self.len = 0;
-        self.extend_slice(slice);
-    }
-
-    /// Extend without trunction (be careful of overflow)
-    pub fn extend_slice(&mut self, slice: &[T]) {
-        debug_assert!(self.len() + slice.len() <= CAP);
-
-        unsafe {
-            std::ptr::copy(
-                slice.as_ptr(),
-                MaybeUninit::slice_as_mut_ptr(&mut self.arr[self.len..]),
-                slice.len(),
-            );
-        }
-
-        self.len += slice.len();
-    }
-}
-
-
-impl<T, const CAP: usize> Extend<T> for PartialInitArray<T, CAP> {
-    /// Extend without trunction (be careful of overflow)
-    fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
-        for val in iter {
-            self.push(val);
-        }
-    }
-}
-
-impl<T, const CAP: usize> Index<usize> for PartialInitArray<T, CAP> {
-    type Output = T;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        debug_assert!(index < self.len);
-
-        unsafe { self.arr[index].assume_init_ref() }
-    }
-}
-
-impl<T, const CAP: usize> IndexMut<usize> for PartialInitArray<T, CAP> {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        debug_assert!(index < self.len);
-
-        unsafe { self.arr[index].assume_init_mut() }
-    }
-}
-
-impl<T: Clone, const CAP: usize> Clone for PartialInitArray<T, CAP> {
-    fn clone(&self) -> Self {
-        let mut arr = MaybeUninit::uninit_array();
-
-        unsafe {
-            std::ptr::copy(&self.arr, &mut arr, self.len);
-        }
-
-        Self { len: self.len, arr }
-    }
-}
-
-impl<T: Copy, const CAP: usize> Copy for PartialInitArray<T, CAP> {}
-
-impl<T, const CAP: usize> IntoIterator for PartialInitArray<T, CAP> {
-    type Item = T;
-
-    type IntoIter = impl Iterator<Item = Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        unsafe { self.arr.into_iter().take(self.len).map(|x| x.assume_init()) }
-    }
-}
 
 ////////////////////////////////////////
 //// impl LazyDeleteVec
@@ -771,8 +429,7 @@ impl<K: Clone + Ord, V, const M: usize> FlatBPT<K, V, M> {
         self.inner_insert(key, value, nodeid);
     }
 
-    pub fn insert(&mut self, key: K, value: V) -> Option<V>
-    {
+    pub fn insert(&mut self, key: K, value: V) -> Option<V> {
         let (nodeid, ..) = self.complete_search(&key);
 
         self.inner_insert(key, value, nodeid)
@@ -885,7 +542,7 @@ impl<K, V, const M: usize> FlatBPT<K, V, M> {
 
     fn inner_insert(&mut self, key: K, value: V, nodeid: usize) -> Option<V>
     where
-        K: Ord + Clone
+        K: Ord + Clone,
     {
         let mut ptr = nodeid;
         let mut maybe_res_entryid = None;
@@ -1012,14 +669,16 @@ impl<K, V, const M: usize> FlatBPT<K, V, M> {
                                 };
 
                                 if ptr == end_nodeid {
-                                    for KVEntry(key, dataid) in entries.exact()[..=end_entryid].iter() {
+                                    for KVEntry(key, dataid) in
+                                        entries.exact()[..=end_entryid].iter()
+                                    {
                                         yield (key, self.data(*dataid))
                                     }
 
                                     break;
-                                }
-                                else {
-                                    for KVEntry(key, dataid) in entries.exact() {
+                                } else {
+                                    for KVEntry(key, dataid) in entries.exact()
+                                    {
                                         yield (key, self.data(*dataid))
                                     }
                                 }
@@ -1051,7 +710,7 @@ impl<K, V, const M: usize> FlatBPT<K, V, M> {
 
                             maybe_ptr = *next;
                         }
-                    },
+                    }
                 }
             },
         )
@@ -1190,8 +849,7 @@ impl<K, V, const M: usize> FlatBPT<K, V, M> {
         let mut p_node = &self.nodes[p];
 
         Some(if leaf_of_p == 0 {
-            #[allow(unused_assignments)]
-            let mut ptr = leaf;
+            let mut ptr;
             let mut ptr_of_p = leaf_of_p;
 
             loop {
@@ -2281,6 +1939,7 @@ mod tests {
     use test_suites::{bpt_mapping::*, *};
 
     use super::*;
+    use crate::{LocOnTree, PreOrderView};
 
     pub trait Key = Ord + Debug + Clone;
 

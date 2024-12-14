@@ -379,7 +379,7 @@ macro_rules! attr {
     }};
     (self_unsafe_sync_mut | $node:expr) => {{
         if let Some(ref _unr) = $node.0 {
-            unsafe { &mut* _unr.as_ref().as_ref_mut_ptr() }
+            unsafe { &mut* _unr.as_ref().as_mut_ptr() }
         }
         else {
             panic!("MAccess {} on None", stringify!($attr));

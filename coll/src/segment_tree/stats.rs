@@ -1,181 +1,60 @@
 use std::{
-    borrow::Borrow,
     cmp::{Ordering::*, *},
+    iter::Sum,
     marker::PhantomData,
-    ops::{Add, RangeBounds, Sub},
+    ops::{Add, AddAssign, Range, RangeBounds, Sub},
 };
 
-use common::{ Min, max, parse_range };
 use math::gcd;
 
-use super::{
-    left, right, Count, Cursor, RawIntoStats, SegmentTree,
-    TreeLayout,
-};
+use super::{SegmentTree, TreeCursor, TreeLayout};
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Macros
 
-macro_rules! impl_raw_into_stats {
-    (monomorphic | $struct:ident, $for_ty:ty, $stats_ty:ty { $fn:item }) => {
-        impl RawIntoStats<$struct> for $for_ty {
-            type Stats = $stats_ty;
-
-            $fn
-        }
-    };
-    ($struct:ident, $for_ty:ty, $stats_ty:ty { $fn:item }) => {
-        impl RawIntoStats<$struct<$for_ty>> for $for_ty {
-            type Stats = $stats_ty;
-
-            $fn
-        }
+macro_rules! zero {
+    () => {
+        [].into_iter().sum()
     };
 }
 
+////////////////////////////////////////////////////////////////////////////////
+//// Traits
 
-macro_rules! impl_for_num {
-    ($name:ident|all) => {
-        impl_for_num!($name|int);
-        impl_for_num!($name|float);
-    };
-    ($name:ident|int) => {
-        impl_for_num!($name|sint);
-        impl_for_num!($name|uint);
-    };
-    ($name:ident|float) => {
-        impl_for_num!($name|f32);
-        impl_for_num!($name|f64);
-    };
-    ($name:ident|uint) => {
-        impl_for_num!($name|u128);
-        impl_for_num!($name|u64);
-        impl_for_num!($name|usize);
-        impl_for_num!($name|u32);
-        impl_for_num!($name|u16);
-        impl_for_num!($name|u8);
-    };
-    ($name:ident|sint) => {
-        impl_for_num!($name|i128);
-        impl_for_num!($name|i64);
-        impl_for_num!($name|isize);
-        impl_for_num!($name|i32);
-        impl_for_num!($name|i16);
-        impl_for_num!($name|i8);
-    };
-    (sum_stats| $for_ty:ty) => {
-        impl_raw_into_stats!(Sum, $for_ty, $for_ty {
-            fn raw_into_stats(self) -> Self::Stats {
-                self
-            }
-        });
-    };
-    (max_stats| $for_ty:ty) => {
-        impl_raw_into_stats!(Max, $for_ty, $for_ty {
-            fn raw_into_stats(self) -> Self::Stats {
-                self
-            }
-        });
-    };
-    (max_stats_stats| $for_ty:ty) => {
-        impl_raw_into_stats!(MaxStats, $for_ty, ($for_ty, usize) {
-            fn raw_into_stats(self) -> Self::Stats {
-                (self, 1)
-            }
-        });
-    };
-    (gcd_stats| $for_ty:ty) => {
-        impl_raw_into_stats!(GCD, $for_ty, $for_ty {
-            fn raw_into_stats(self) -> Self::Stats {
-                self
-            }
-        });
-    };
-    (gcd_count_sint| $for_ty:ty) => {
-        impl Count for GCD<$for_ty>
-        {
-            type Stats = $for_ty;
-
-            fn combine<'a>(l: &'a Self::Stats, r: &'a Self::Stats) -> Self::Stats {
-                gcd!(l.abs(), r.abs()).abs()
-            }
-
-            fn e() -> Self::Stats {
-                0
-            }
-        }
-    };
-    (gcd_count_uint| $for_ty:ty) => {
-        impl Count for GCD<$for_ty>
-        {
-            type Stats = $for_ty;
-
-            fn combine<'a>(l: &'a Self::Stats, r: &'a Self::Stats) -> Self::Stats {
-                gcd!(l.clone(), r.clone())
-            }
-
-            fn e() -> Self::Stats {
-                0
-            }
-        }
-    };
-    (zero_stats| $for_ty:ty) => {
-        impl_raw_into_stats!(monomorphic|ZeroStats, $for_ty, usize {
-            fn raw_into_stats(self) -> Self::Stats {
-                if self == 0 { 1 } else { 0 }
-            }
-        });
-    };
-    (sub_seg_max_sum_stats| $for_ty:ty) => {
-        impl_raw_into_stats!(SubSegMaxSum, $for_ty, SubSegMaxSumStats<$for_ty> {
-            fn raw_into_stats(self) -> Self::Stats {
-                SubSegMaxSumStats {
-                    sum: self,
-                    pref: self,
-                    suff: self,
-                    ans: self
-                }
-            }
-        });
-    };
-}
-
-
-impl_for_num!(sum_stats | all);
-impl_for_num!(max_stats | int);
-impl_for_num!(max_stats_stats | int);
-impl_for_num!(gcd_stats | int);
-impl_for_num!(zero_stats | int);
-impl_for_num!(sub_seg_max_sum_stats | sint);
-
-
-impl_for_num!(gcd_count_sint | sint);
-impl_for_num!(gcd_count_uint | uint);
+pub(crate) trait Number =
+    Clone + Copy + Ord + Add<Output = Self> + AddAssign + Sum + Sub;
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Structures
 
 #[derive(Clone, Copy)]
-pub struct Sum<T>(PhantomData<T>);
+pub struct RangeSum<T>(PhantomData<T>);
 
-#[derive(Clone, Copy)]
-pub struct Max<T>(PhantomData<T>);
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[repr(transparent)]
+pub struct RangeMax<T>(T);
 
-#[derive(Clone, Copy)]
-pub struct MaxStats<T>(PhantomData<T>);
+/// (max value, max value count)
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct RangeMaxStats<T> {
+    val: T,
+    cnt: usize,
+}
 
-#[derive(Clone, Copy)]
-pub struct GCD<T>(PhantomData<T>);
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[repr(transparent)]
+pub struct RangeGCD<T>(T);
 
-#[derive(Clone, Copy)]
-pub struct ZeroStats;
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[repr(transparent)]
+pub struct RangeZeroStats<T> {
+    cnt: usize,
+    _marker: PhantomData<T>,
+}
 
 /// find max positive sum of a range
-pub struct SubSegMaxSum<T>(PhantomData<T>);
-
-
-
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug)]
 pub struct SubSegMaxSumStats<T> {
     /// total sum of the segment
     pub sum: T,
@@ -187,267 +66,464 @@ pub struct SubSegMaxSumStats<T> {
     pub ans: T,
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //// Implementations
 
-impl<T: Min<T>> Min<SubSegMaxSumStats<T>> for SubSegMaxSumStats<T> {
-    fn min() -> Self {
+// macro_rules! impl_sub_seg_max_sum_stats_from {
+//     ($($ty:ty),*) => {
+//         $(
+//             impl From<$ty> for SubSegMaxSumStats<$ty> {
+//                 fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+//                     iter.reduce(|acc, x| acc + x).unwrap_or(Self(0))
+//                 }
+//             }
+//         )*
+//     };
+// }
+
+impl<T: Number> From<T> for SubSegMaxSumStats<T> {
+    fn from(value: T) -> Self {
         Self {
-            sum: T::min(),
-            pref: T::min(),
-            suff: T::min(),
-            ans: T::min(),
+            sum: value,
+            pref: value,
+            suff: value,
+            ans: value,
         }
     }
 }
 
-impl<T> Count for Sum<T>
-where
-    T: Default,
-    for<'a> &'a T: Add<&'a T, Output = T> + 'a,
-    for<'a> T: 'a,
-{
-    type Stats = T;
-
-    fn combine(l: &Self::Stats, r: &Self::Stats) -> Self::Stats {
-        l.borrow() + r.borrow()
-    }
-
-    fn e() -> Self::Stats {
-        T::default()
+impl<T: Sum> Default for SubSegMaxSumStats<T> {
+    fn default() -> Self {
+        Self {
+            sum: zero!(),
+            pref: zero!(),
+            suff: zero!(),
+            ans: zero!(),
+        }
     }
 }
 
-impl<T> Sum<T>
+impl<T: Number> Sum for SubSegMaxSumStats<T> {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.reduce(|acc, x| acc + x).unwrap_or_default()
+    }
+}
+
+impl<T: Number> Add<Self> for SubSegMaxSumStats<T> {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        let limit_ans = Self::default().ans;
+
+        if self.ans == limit_ans {
+            return rhs;
+        } else if rhs.ans == limit_ans {
+            return self;
+        }
+
+        Self {
+            sum: self.sum + rhs.sum,
+            pref: max(self.pref, self.sum + rhs.pref),
+            suff: max(self.suff + rhs.sum, rhs.suff),
+            ans: [self.ans, rhs.ans, (self.suff + rhs.pref)]
+                .into_iter()
+                .max()
+                .unwrap(),
+        }
+    }
+}
+
+impl<'a, T: Number> Add<Self> for &'a SubSegMaxSumStats<T> {
+    type Output = SubSegMaxSumStats<T>;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        *self + *rhs
+    }
+}
+
+impl<T> RangeZeroStats<T> {
+    pub fn from_cnt(cnt: usize) -> Self {
+        Self {
+            cnt,
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<T> RangeZeroStats<T>
 where
-    T: Default,
     for<'a> &'a T: Add<&'a T, Output = T> + Sub<&'a T, Output = T> + Ord + 'a,
     for<'a> T: 'a,
 {
     pub fn find_nth<L: TreeLayout>(
-        tree: &SegmentTree<T, Self, L>,
-        x: &T,
+        tree: &SegmentTree<RangeZeroStats<T>, L>,
+        n: usize,
     ) -> Option<usize> {
-        if x > &tree[tree.root] {
+        if n + 1 > tree[L::root()].cnt {
             None
         } else {
-            Some(Self::find_nth_(tree, x, tree.root))
+            Some(Self::find_nth_(tree, n, L::root(), tree.root))
         }
     }
 
     fn find_nth_<L: TreeLayout>(
-        tree: &SegmentTree<T, Self, L>,
-        x: &T,
-        c: Cursor,
+        tree: &SegmentTree<RangeZeroStats<T>, L>,
+        n: usize,
+        i: usize,
+        t: TreeCursor,
     ) -> usize {
-        if c.is_end() {
-            c.tl
+        if t.is_end() {
+            t.tl
         } else {
-            let clf = left!(c);
-            let crh = right!(c);
-
-            if &tree[clf] >= x {
-                Self::find_nth_(tree, x, clf)
+            if tree[L::left(i, t)].cnt > n {
+                Self::find_nth_(tree, n, L::left(i, t), t.left())
             } else {
-                Self::find_nth_(tree, &(x - &tree[clf]), crh)
+                Self::find_nth_(
+                    tree,
+                    n - tree[L::left(i, t)].cnt,
+                    L::right(i, t),
+                    t.right(),
+                )
+            }
+        }
+    }
+}
+
+impl<T> Into<usize> for RangeZeroStats<T> {
+    fn into(self) -> usize {
+        self.cnt
+    }
+}
+
+impl<'a, T> Sub<Self> for &'a RangeZeroStats<T> {
+    type Output = RangeZeroStats<T>;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        RangeZeroStats {
+            cnt: self.cnt - rhs.cnt,
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<T: Sum + Eq> From<T> for RangeZeroStats<T> {
+    fn from(value: T) -> Self {
+        Self {
+            cnt: if value == zero!() { 1 } else { 0 },
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<T: Sum + Eq> Sum for RangeZeroStats<T> {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.reduce(|acc, x| acc + x).unwrap_or(RangeZeroStats {
+            cnt: 0,
+            _marker: PhantomData,
+        })
+    }
+}
+
+impl<T> Add<Self> for RangeZeroStats<T> {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self {
+            cnt: self.cnt + rhs.cnt,
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<'a, T> Add<Self> for &'a RangeZeroStats<T> {
+    type Output = RangeZeroStats<T>;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        RangeZeroStats {
+            cnt: self.cnt + rhs.cnt,
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<'a, T> AddAssign<&'a Self> for RangeZeroStats<T> {
+    fn add_assign(&mut self, rhs: &'a Self) {
+        self.cnt += rhs.cnt
+    }
+}
+
+impl<T: Eq> PartialEq<usize> for RangeZeroStats<T> {
+    fn eq(&self, other: &usize) -> bool {
+        self.cnt.eq(other)
+    }
+}
+
+impl<T> From<T> for RangeGCD<T> {
+    fn from(value: T) -> Self {
+        Self(value)
+    }
+}
+
+macro_rules! impl_range_gcd {
+    ($($ty:ty),*) => {
+        $(
+            impl Sum<Self> for RangeGCD<$ty> {
+                fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+                    iter.reduce(|acc, x| acc + x).unwrap_or(Self(0))
+                }
+            }
+
+            impl Add<Self> for RangeGCD<$ty> {
+                type Output = Self;
+
+                fn add(self, rhs: Self) -> Self::Output {
+                    Self(gcd!(self.0, rhs.0))
+                }
+            }
+
+            impl<'a> Add<Self> for &'a RangeGCD<$ty> {
+                type Output = RangeGCD<$ty>;
+
+                fn add(self, rhs: Self) -> Self::Output {
+                    RangeGCD(gcd!(self.0, rhs.0))
+                }
+            }
+
+            impl<'a> AddAssign<&'a Self> for RangeGCD<$ty> {
+                fn add_assign(&mut self, rhs: &'a Self) {
+                    self.0 = gcd!(self.0, rhs.0)
+                }
+            }
+        )*
+    };
+}
+
+impl_range_gcd!(i32, i64, usize);
+
+impl<T> From<T> for RangeMaxStats<T> {
+    fn from(value: T) -> Self {
+        Self { val: value, cnt: 1 }
+    }
+}
+
+impl<T> From<(T, usize)> for RangeMaxStats<T> {
+    fn from(value: (T, usize)) -> Self {
+        Self {
+            val: value.0,
+            cnt: value.1,
+        }
+    }
+}
+
+impl<T: Sum + Ord + Clone + Default> Sum for RangeMaxStats<T> {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.reduce(|acc, x| acc + x).unwrap_or(Self {
+            val: T::default(),
+            cnt: 0,
+        })
+    }
+}
+
+impl<T: Ord + Clone> Add<Self> for RangeMaxStats<T> {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        match self.val.cmp(&rhs.val) {
+            Less => rhs,
+            Equal => RangeMaxStats {
+                val: rhs.val,
+                cnt: self.cnt + rhs.cnt,
+            },
+            Greater => self,
+        }
+    }
+}
+
+impl<'a, T: Ord + Clone> Add<Self> for &'a RangeMaxStats<T> {
+    type Output = RangeMaxStats<T>;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        match self.val.cmp(&rhs.val) {
+            Less => rhs.clone(),
+            Equal => RangeMaxStats {
+                val: self.val.clone(),
+                cnt: self.cnt + rhs.cnt,
+            },
+            Greater => self.clone(),
+        }
+    }
+}
+
+impl<'a, T: Ord + Clone> AddAssign<&'a Self> for RangeMaxStats<T> {
+    fn add_assign(&mut self, rhs: &'a Self) {
+        match self.val.cmp(&rhs.val) {
+            Less => *self = rhs.clone(),
+            Equal => self.cnt += rhs.cnt,
+            Greater => (),
+        };
+    }
+}
+
+impl<T> From<T> for RangeMax<T> {
+    fn from(value: T) -> Self {
+        Self(value)
+    }
+}
+
+impl<T: Sum + Ord> Sum for RangeMax<T> {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        Self(iter.map(|x| x.0).max().unwrap_or(zero!()))
+    }
+}
+
+impl<T: Ord> Add for RangeMax<T> {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self(std::cmp::max(self.0, rhs.0))
+    }
+}
+
+impl<'a, T: Ord + Clone + 'a> Add for &'a RangeMax<T> {
+    type Output = RangeMax<T>;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        RangeMax(std::cmp::max(&self.0, &rhs.0).clone())
+    }
+}
+
+impl<'a, T: Ord + Clone> AddAssign<&'a Self> for RangeMax<T> {
+    fn add_assign(&mut self, rhs: &'a Self) {
+        if rhs > self {
+            *self = rhs.clone();
+        }
+    }
+}
+
+impl<T: Ord> PartialEq<T> for RangeMax<T> {
+    fn eq(&self, other: &T) -> bool {
+        self.0.eq(other)
+    }
+}
+
+impl<T: Ord> PartialOrd<T> for RangeMax<T> {
+    fn partial_cmp(&self, other: &T) -> Option<Ordering> {
+        self.0.partial_cmp(other)
+    }
+}
+
+impl<T> RangeSum<T>
+where
+    for<'a> &'a T: Add<&'a T, Output = T> + Sub<&'a T, Output = T> + Ord + 'a,
+    for<'a> T: 'a,
+{
+    pub fn find_nth<L: TreeLayout>(
+        tree: &SegmentTree<T, L>,
+        x: &T,
+    ) -> Option<usize> {
+        if x > &tree[L::root()] {
+            None
+        } else {
+            Some(Self::find_nth_(tree, x, L::root(), tree.root))
+        }
+    }
+
+    fn find_nth_<L: TreeLayout>(
+        tree: &SegmentTree<T, L>,
+        x: &T,
+        i: usize,
+        t: TreeCursor,
+    ) -> usize {
+        if t.is_end() {
+            t.tl
+        } else {
+            let clf = t.left();
+            let crh = t.right();
+
+            if &tree[L::left(i, t)] >= x {
+                Self::find_nth_(tree, x, L::left(i, t), clf)
+            } else {
+                Self::find_nth_(
+                    tree,
+                    &(x - &tree[L::left(i, t)]),
+                    L::right(i, t),
+                    crh,
+                )
             }
         }
     }
 }
 
 
-impl<T> Count for Max<T>
+impl<T> RangeMax<T>
 where
-    T: Default + Ord + Clone,
-    for<'a> &'a T: Add<&'a T, Output = T> + 'a,
-    for<'a> T: 'a,
-{
-    type Stats = T;
-
-    fn combine(l: &Self::Stats, r: &Self::Stats) -> Self::Stats {
-        match l.cmp(&r) {
-            Less => r,
-            Equal => l,
-            Greater => l,
-        }
-        .clone()
-    }
-
-    fn e() -> Self::Stats {
-        Default::default()
-    }
-}
-
-
-impl<T> Count for MaxStats<T>
-where
-    T: Min<T> + Ord + Clone,
-    for<'a> &'a T: Add<&'a T, Output = T> + 'a,
-    for<'a> T: 'a,
-{
-    type Stats = (T, usize);
-
-    fn combine(l: &Self::Stats, r: &Self::Stats) -> Self::Stats {
-        match l.0.cmp(&r.0) {
-            Less => r.clone(),
-            Equal => (l.0.clone(), l.1 + r.1),
-            Greater => l.clone(),
-        }
-    }
-
-    fn e() -> Self::Stats {
-        (<T as Min<T>>::min(), 0)
-    }
-}
-
-
-impl<T> Max<T>
-where
-    T: Default+ Ord + Clone,
+    T: Ord,
     for<'a> &'a T: Add<&'a T, Output = T> + 'a,
     for<'a> T: 'a,
 {
     pub fn query_first_gt<L: TreeLayout, R: RangeBounds<usize>>(
-        tree: &SegmentTree<T, Self, L>,
+        tree: &SegmentTree<Self, L>,
         range: R,
-        x: &T,
+        x: &Self,
     ) -> Option<usize> {
-        Self::query_first_gt_1(
-            tree,
-            x,
-            parse_range!(range, tree.root.tr + 1),
-            tree.root,
-        )
+        let Range { start, end } = std::slice::range(range, ..tree.len());
+
+        Self::query_first_gt_1(tree, x, (start, end - 1), L::root(), tree.root)
     }
 
     fn query_first_gt_1<L: TreeLayout>(
-        tree: &SegmentTree<T, Self, L>,
-        x: &T,
+        tree: &SegmentTree<Self, L>,
+        x: &Self,
         (l, r): (usize, usize),
-        c: Cursor,
+        i: usize,
+        t: TreeCursor,
     ) -> Option<usize> {
         // left or right
-        if c.tl > r || c.tr < l {
+        if t.tl > r || t.tr < l {
             None
         }
         // inner
-        else if c.tr <= r && c.tl >= l {
-            Self::query_first_gt_2(tree, x, c)
+        else if t.tr <= r && t.tl >= l {
+            Self::query_first_gt_2(tree, x, i, t)
         }
         // cross
         else {
             // avoid bound overflow
 
-            let left_res = Self::query_first_gt_1(tree, x, (l, r), left!(c));
+            let left_res = Self::query_first_gt_1(
+                tree,
+                x,
+                (l, r),
+                L::left(i, t),
+                t.left(),
+            );
 
             if left_res.is_some() {
                 return left_res;
             }
 
-            Self::query_first_gt_1(tree, x, (l, r), right!(c))
+            Self::query_first_gt_1(tree, x, (l, r), L::right(i, t), t.right())
         }
     }
 
     fn query_first_gt_2<L: TreeLayout>(
-        tree: &SegmentTree<T, Self, L>,
-        x: &T,
-        c: Cursor,
+        tree: &SegmentTree<Self, L>,
+        x: &Self,
+        i: usize,
+        t: TreeCursor,
     ) -> Option<usize> {
-        if &tree[c] <= x {
+        if &tree[i] <= x {
             return None;
         }
 
-        if c.is_end() {
-            Some(c.tl)
+        if t.is_end() {
+            Some(t.tl)
         } else {
-            if &tree[left!(c)] > x {
-                Self::query_first_gt_2(tree, x, left!(c))
+            if &tree[L::left(i, t)] > x {
+                Self::query_first_gt_2(tree, x, L::left(i, t), t.left())
             } else {
-                Self::query_first_gt_2(tree, x, right!(c))
+                Self::query_first_gt_2(tree, x, L::right(i, t), t.right())
             }
         }
     }
 }
-
-
-impl Count for ZeroStats {
-    type Stats = usize;
-
-    fn combine(l: &Self::Stats, r: &Self::Stats) -> Self::Stats {
-        *l + *r
-    }
-
-    fn e() -> Self::Stats {
-        0
-    }
-}
-
-
-impl ZeroStats {
-    /// Start from 0
-    pub fn find_nth<L: TreeLayout>(
-        tree: &SegmentTree<usize, Self, L>,
-        n: usize,
-    ) -> Option<usize> {
-        if n + 1 > tree[tree.root] {
-            None
-        } else {
-            Some(Self::find_nth_(tree, n, tree.root))
-        }
-    }
-
-    fn find_nth_<L: TreeLayout>(
-        tree: &SegmentTree<usize, Self, L>,
-        n: usize,
-        c: Cursor,
-    ) -> usize {
-        if c.is_end() {
-            c.tl
-        } else {
-            let clf = left!(c);
-            let crh = right!(c);
-
-            if tree[clf] > n {
-                Self::find_nth_(tree, n, clf)
-            } else {
-                Self::find_nth_(tree, n - tree[clf], crh)
-            }
-        }
-    }
-}
-
-
-impl<T> Count for SubSegMaxSum<T>
-where
-    T: Default + Ord + Clone + Min<T>,
-    for<'a> &'a T: Add<&'a T, Output = T> + Ord + 'a,
-    for<'a> T: 'a,
-{
-    type Stats = SubSegMaxSumStats<T>;
-
-    fn combine(l: &Self::Stats, r: &Self::Stats) -> Self::Stats {
-        let limit_ans = Self::e().ans;
-
-        if l.ans == limit_ans {
-            return r.clone();
-        }
-        else if r.ans == limit_ans {
-            return l.clone();
-        }
-
-        SubSegMaxSumStats {
-            sum: &l.sum + &r.sum,
-            pref: max(&l.pref, &(&l.sum + &r.pref)).clone(),
-            suff: max(&(&l.suff + &r.sum), &r.suff).clone(),
-            ans: max!(&l.ans, &r.ans, &(&l.suff + &r.pref)).clone(),
-        }
-    }
-
-    fn e() -> Self::Stats {
-        SubSegMaxSumStats::<T>::min()
-    }
-}
-
-
-

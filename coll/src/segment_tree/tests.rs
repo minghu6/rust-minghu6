@@ -1,6 +1,6 @@
 use std::{cmp::Ordering::*, ops::Range};
 
-use common::{random_range, Itertools};
+use common::random_range;
 use math::gcd;
 
 use super::*;
@@ -20,8 +20,7 @@ macro_rules! gen_arr {
         gen_arr!(
             50,
             TEST_CAP_RANGE,
-            -(TEST_VALUE_UPPER_LIMIT as isize)
-                ..TEST_VALUE_UPPER_LIMIT as isize,
+            -(TEST_VALUE_UPPER_LIMIT as isize)..TEST_VALUE_UPPER_LIMIT as isize,
             i32
         )
     };
@@ -48,7 +47,6 @@ macro_rules! gen_arr {
     }};
 }
 
-
 macro_rules! gen_query {
     ($cap:expr) => {
         gen_query!(500, $cap)
@@ -72,7 +70,6 @@ macro_rules! gen_query {
     }};
 }
 
-
 macro_rules! gen_update {
     (N-i64| $cap:expr) => {
         gen_update!(100, 0..$cap, 0..TEST_VALUE_UPPER_LIMIT, i64)
@@ -84,8 +81,7 @@ macro_rules! gen_update {
         gen_update!(
             100,
             0..$cap,
-            -(TEST_VALUE_UPPER_LIMIT as isize)
-                ..TEST_VALUE_UPPER_LIMIT as isize,
+            -(TEST_VALUE_UPPER_LIMIT as isize)..TEST_VALUE_UPPER_LIMIT as isize,
             i32
         )
     };
@@ -130,15 +126,15 @@ fn test_segment_tree_build() {
 
     let arr = [1, 2, 3, 4, 5, 6];
 
-    let st = SegmentTree::<i32, Sum<_>>::new(&arr);
-    let stm = SegmentTree::<i32, Sum<_>, DFS>::new(&arr);
+    let st = SegmentTree::<i32, BFS>::new(&arr);
+    let stm = SegmentTree::<i32, DFS>::new(&arr);
 
     assert_eq!(st[1], stm[1]);
 
     for i in 1..1000 {
         for arr in gen_arr!(1, i..i + 1, 1..1000, i32) {
-            let st = SegmentTree::<i32, Sum<_>>::new(&arr);
-            let stm = SegmentTree::<i32, Sum<_>, DFS>::new(&arr);
+            let st = SegmentTree::<i32, BFS>::new(&arr);
+            let stm = SegmentTree::<i32, DFS>::new(&arr);
 
             assert_eq!(
                 st[1], stm[1],
@@ -153,8 +149,8 @@ fn test_segment_tree_build() {
 #[test]
 fn test_segment_tree_sum_nth() {
     for mut arr in gen_arr!(N) {
-        let mut st = SegmentTree::<i32, Sum<_>, BFS>::new(&arr);
-        let mut stm = SegmentTree::<i32, Sum<_>, DFS>::new(&arr);
+        let mut st = SegmentTree::<i32, BFS>::new(&arr);
+        let mut stm = SegmentTree::<i32, DFS>::new(&arr);
 
         /* update */
 
@@ -185,15 +181,18 @@ fn test_segment_tree_sum_nth() {
 
                 Some(*acc)
             })
-            .collect_vec();
+            .collect::<Vec<_>>();
 
         for i in (0..st.query(..)).step_by(100) {
-            let expect =
-                prefix_acc.iter().find_position(|&&x| x >= i).map(|x| x.0);
+            let expect = prefix_acc
+                .iter()
+                .enumerate()
+                .find(|(_, &x)| x >= i)
+                .map(|x| x.0);
 
-            let res = Sum::find_nth(&st, &i);
+            let res = RangeSum::find_nth(&st, &i);
 
-            assert_eq!(res, expect, "res / expect for {i}");
+            assert_eq!(res, expect, "{res:#?} / {expect:#?} for {i}");
         }
     }
 }
@@ -202,13 +201,13 @@ fn test_segment_tree_sum_nth() {
 #[test]
 fn test_segment_tree_max_nth_updater() {
     for mut arr in gen_arr!(N - i64) {
-        let mut st = SegmentTree::<i64, Max<_>>::new(&arr);
+        let mut st = SegmentTree::<RangeMax<i64>>::new(&arr);
 
         /* update */
 
         for (i, v) in gen_update!(N - i64 | arr.len()) {
             arr[i] = v;
-            st.assoc(i, <i64 as RawIntoStats<Max<_>>>::raw_into_stats(v));
+            st.assoc(i, v.into());
         }
 
         /* query */
@@ -227,10 +226,11 @@ fn test_segment_tree_max_nth_updater() {
 
             let expect = arr[q.clone()]
                 .into_iter()
-                .find_position(|&&x| x > qx)
+                .enumerate()
+                .find(|&x| x.1 > &qx)
                 .map(|x| x.0 + q.start);
 
-            let res = Max::<i64>::query_first_gt(&st, q, &qx);
+            let res = RangeMax::<i64>::query_first_gt(&st, q, &qx.into());
 
             assert_eq!(res, expect, "res / expect");
         }
@@ -245,10 +245,12 @@ fn test_segment_tree_max_nth_updater() {
             // println!("{_i:3} +{addend}");
 
             for i in q.clone() {
-                arr[i] += addend;
+                if addend > arr[i] {
+                    arr[i] = addend;
+                }
             }
 
-            updater.assoc(&mut st, q, addend);
+            updater.assoc(&mut st, q, addend.into());
 
             for q2 in gen_query!(50, arr.len()) {
                 let expect =
@@ -266,20 +268,15 @@ fn test_segment_tree_max_nth_updater() {
 #[test]
 fn test_segment_tree_max_stats() {
     for mut arr in gen_arr!(N) {
-        let mut st = SegmentTree::<(i32, usize), MaxStats<_>>::new(&arr);
+        let mut st = SegmentTree::<RangeMaxStats<_>>::new(&arr);
 
         /* update */
-
         for (i, v) in gen_update!(N | arr.len()) {
             arr[i] = v;
-            st.assoc(
-                i,
-                <i32 as RawIntoStats<MaxStats<i32>>>::raw_into_stats(v),
-            );
+            st.assoc(i, v.into());
         }
 
         /* query */
-
         for q in gen_query!(arr.len()) {
             let expect = arr[q.clone()]
                 .into_iter()
@@ -297,7 +294,7 @@ fn test_segment_tree_max_stats() {
 
             let res = st.query(q.clone());
 
-            assert_eq!(res, expect, "res / expect");
+            assert_eq!(res, expect.into(), "res / expect");
         }
     }
 }
@@ -305,18 +302,16 @@ fn test_segment_tree_max_stats() {
 
 #[test]
 fn test_segment_tree_gcd() {
-    for mut arr in gen_arr!(I) {
-        let mut st = SegmentTree::<i32, GCD<_>>::new(&arr);
+    for mut arr in gen_arr!(N) {
+        let mut st = SegmentTree::<RangeGCD<i32>>::new(&arr);
 
         /* update */
-
-        for (i, v) in gen_update!(I | arr.len()) {
+        for (i, v) in gen_update!(N | arr.len()) {
             arr[i] = v;
-            st.assoc(i, <i32 as RawIntoStats<GCD<i32>>>::raw_into_stats(v));
+            st.assoc(i, v.into());
         }
 
         /* update-query */
-
         for q in gen_query!(arr.len()) {
             let expect = arr[q.clone()]
                 .into_iter()
@@ -327,7 +322,7 @@ fn test_segment_tree_gcd() {
 
             let res = st.query(q.clone());
 
-            assert_eq!(res, expect, "res / expect");
+            assert_eq!(res, expect.into(), "res / expect");
         }
     }
 }
@@ -336,17 +331,15 @@ fn test_segment_tree_gcd() {
 #[test]
 fn test_segment_tree_zero_nth() {
     for mut arr in gen_arr!(I) {
-        let mut st = SegmentTree::<_, ZeroStats>::new(&arr);
+        let mut st = SegmentTree::<RangeZeroStats<_>>::new(&arr);
 
         /* update */
-
         for (i, v) in gen_update!(I | arr.len()) {
             arr[i] = v;
-            st.assoc(i, <i32 as RawIntoStats<ZeroStats>>::raw_into_stats(v));
+            st.assoc(i, v.into());
         }
 
         /* update-query */
-
         for q in gen_query!(arr.len()) {
             let expect =
                 arr[q.clone()].into_iter().filter(|&&x| x == 0).count();
@@ -357,7 +350,6 @@ fn test_segment_tree_zero_nth() {
         }
 
         /* verify nth */
-
         let nth_acc = arr[..]
             .into_iter()
             .scan(0, |acc, &x| {
@@ -367,15 +359,15 @@ fn test_segment_tree_zero_nth() {
 
                 Some(*acc)
             })
-            .collect_vec();
+            .collect::<Vec<_>>();
 
-
-        for i in 0..st.query(..) {
-            let nth_res = ZeroStats::find_nth(&st, i);
+        for i in 0..st.query(..).into() {
+            let nth_res = RangeZeroStats::find_nth(&st, i);
 
             let nth_expect = nth_acc
                 .iter()
-                .find_position(|&&nth| nth == i + 1)
+                .enumerate()
+                .find(|&nth| *nth.1 == i + 1)
                 .map(|x| x.0);
 
             assert_eq!(nth_res, nth_expect, "res / expect");
@@ -384,12 +376,12 @@ fn test_segment_tree_zero_nth() {
 }
 
 
-
 #[test]
 fn test_segment_tree_sub_seg_max_sum() {
     let calc_sub_seg_max_sum = |arr: &[i32]| {
         arr
         .into_iter()
+        // DP algorithm
         .scan(0, |st, &x| {
             *st = max(x, x+*st);
             Some(*st)
@@ -399,20 +391,18 @@ fn test_segment_tree_sub_seg_max_sum() {
 
     for mut arr in gen_arr!(I) {
         let mut st =
-            SegmentTree::<SubSegMaxSumStats<i32>, SubSegMaxSum<_>>::new(&arr);
+            SegmentTree::<SubSegMaxSumStats<i32>>::new(&arr);
 
         /* update */
-
         for (i, v) in gen_update!(I | arr.len()) {
             arr[i] = v;
             st.assoc(
                 i,
-                <i32 as RawIntoStats<SubSegMaxSum<_>>>::raw_into_stats(v),
+                v.into(),
             );
         }
 
         /* update-query */
-
         for q in gen_query!(50, arr.len()) {
             let expect = calc_sub_seg_max_sum(&arr[q.clone()]).unwrap();
             let res = st.query(q.clone());
@@ -420,10 +410,4 @@ fn test_segment_tree_sub_seg_max_sum() {
             assert_eq!(res.ans, expect, "res / expect {res:#?}");
         }
     }
-}
-
-
-#[test]
-fn verify_default() {
-    println!("i32: {}", i32::default())
 }

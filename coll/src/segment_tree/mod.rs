@@ -6,12 +6,11 @@ pub(crate) mod tests;
 
 use std::{
     cmp::*,
+    iter::Sum,
     marker::PhantomData,
-    ops::{Add, AddAssign, Index, IndexMut, RangeBounds},
+    ops::{Add, AddAssign, Index, IndexMut, Range, RangeBounds},
     slice::SliceIndex,
 };
-
-use common::parse_range;
 
 pub use stats::*;
 
@@ -19,135 +18,21 @@ pub use stats::*;
 ////////////////////////////////////////////////////////////////////////////////
 //// Macros
 
-macro_rules! tm {
-    ($tl:expr, $tr:expr) => {
-        ($tl + $tr) / 2
+macro_rules! zero {
+    () => {
+        [].into_iter().sum()
     };
 }
-
-
-macro_rules! left {
-    ($c:expr) => {
-        $c.godown_left::<L>()
-    };
-}
-
-
-macro_rules! right {
-    ($c:expr) => {
-        $c.godown_right::<L>()
-    };
-}
-
-
-macro_rules! impl_index {
-    (slice_index|
-        impl <$($generic:ident $(:$trait:ident)?),+>
-        for $struct:ident
-        with ($($field:ident).+)) =>
-    {
-        impl<$($generic $(:$trait)?),+, Idx> Index<Idx> for $struct<$($generic),+>
-        where
-            Idx: SliceIndex<[T], Output = T>,
-        {
-            type Output = T;
-
-            fn index(&self, idx: Idx) -> &Self::Output {
-                &(self.$($field).+)[idx]
-            }
-        }
-    };
-    (index|
-        impl <$($generic:ident $(:$trait:path)?),+>
-        for $struct:ident : $cursor:ty => $output:ident
-        with tuple
-        ($($c_field:ident).+)
-    ) =>
-    {
-        impl<$($generic $(:$trait)?),+> Index<$cursor> for $struct<$($generic),+>
-        {
-            type Output = $output;
-
-            fn index(&self, idx: $cursor) -> &Self::Output {
-                &(self.0)[idx.$($c_field).+]
-            }
-        }
-
-        impl<$($generic $(:$trait)?),+> IndexMut<$cursor> for $struct<$($generic),+>
-        {
-            fn index_mut(&mut self, idx: $cursor) -> &mut T {
-                &mut (self.0)[idx.$($c_field).+]
-            }
-        }
-    };
-    (index|
-        impl <$($generic:ident $(:$trait:path)?),+>
-        for $struct:ident : $cursor:ty => $output:ident
-        with
-        ($($field:ident).+)
-        ($($c_field:ident).+)
-    ) =>
-    {
-        impl<$($generic $(:$trait)?),+> Index<$cursor> for $struct<$($generic),+>
-        {
-            type Output = $output;
-
-            fn index(&self, idx: $cursor) -> &Self::Output {
-                &(self.$($field).+)[idx.$($c_field).+]
-            }
-        }
-
-        impl<$($generic $(:$trait)?),+> IndexMut<$cursor> for $struct<$($generic),+>
-        {
-            fn index_mut(&mut self, idx: $cursor) -> &mut T {
-                &mut (self.$($field).+)[idx.$($c_field).+]
-            }
-        }
-    };
-}
-
-
-use left;
-use right;
-
-
-
-impl_index!(slice_index|
-    impl<T, S: Count, L: TreeLayout> for SegmentTree with (data)
-);
-impl_index!(index|
-    impl<T, S: Count, L: TreeLayout> for SegmentTree: Cursor => T
-    with (data) (i)
-);
-impl_index!(index|
-    impl<T, S: Count<Stats = T>, L: TreeLayout> for UpdaterAdd: Cursor => T
-    with tuple (i)
-);
-
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Trait
-
-/// Raw data type Into spec Segment Stats Type
-pub trait RawIntoStats<S: Count<Stats = Self::Stats>> {
-    type Stats;
-
-    fn raw_into_stats(self) -> Self::Stats;
-}
-
-
-pub trait Count {
-    type Stats;
-
-    fn combine<'a>(l: &'a Self::Stats, r: &'a Self::Stats) -> Self::Stats;
-    /// identity element: any stats combine with e results itself
-    fn e() -> Self::Stats;
-}
-
+//// Traits
 
 pub trait TreeLayout: private::Sealed {
-    fn left_i(c: Cursor) -> usize;
-    fn right_i(c: Cursor) -> usize;
+    fn left(i: usize, t: TreeCursor) -> usize;
+    fn right(i: usize, t: TreeCursor) -> usize;
+    fn root() -> usize {
+        1
+    }
     fn size(cap: usize) -> usize;
 }
 
@@ -163,44 +48,50 @@ mod private {
 ////////////////////////////////////////////////////////////////////////////////
 //// Structures
 
-pub struct SegmentTree<T, C: Count, L: TreeLayout = DFS> {
+pub struct SegmentTree<T, L = DFS> {
     data: Vec<T>,
-    root: Cursor,
-    _note: PhantomData<(C, L)>,
+    root: TreeCursor,
+    _marker: PhantomData<L>,
 }
 
-
-/// (i, tl, tr)
+/// (tl, tr)
 #[derive(Debug, Clone, Copy)]
-pub struct Cursor {
-    i: usize,
+pub struct TreeCursor {
     tl: usize,
     tr: usize,
 }
-
 
 pub struct BFS;
 /// Euler tour traversal (memory efficient)
 pub struct DFS;
 
-
 #[repr(transparent)]
-pub struct UpdaterAdd<T, C: Count<Stats = T>, L: TreeLayout>(
-    Vec<T>,
-    PhantomData<(C, L)>,
-);
-
+pub struct UpdaterAdd<T, L>(Vec<T>, PhantomData<L>);
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Implementations
 
+impl<T, L, I: SliceIndex<[T]>> Index<I> for UpdaterAdd<T, L> {
+    type Output = I::Output;
+
+    fn index(&self, index: I) -> &Self::Output {
+        &self.0[index]
+    }
+}
+
+impl<T, L, I: SliceIndex<[T]>> IndexMut<I> for UpdaterAdd<T, L> {
+    fn index_mut(&mut self, index: I) -> &mut Self::Output {
+        &mut self.0[index]
+    }
+}
+
 impl TreeLayout for BFS {
-    fn left_i(c: Cursor) -> usize {
-        c.i * 2
+    fn left(i: usize, _t: TreeCursor) -> usize {
+        i * 2
     }
 
-    fn right_i(c: Cursor) -> usize {
-        c.i * 2 + 1
+    fn right(i: usize, _t: TreeCursor) -> usize {
+        i * 2 + 1
     }
 
     fn size(cap: usize) -> usize {
@@ -208,16 +99,14 @@ impl TreeLayout for BFS {
     }
 }
 
-
-
 impl TreeLayout for DFS {
-    fn left_i(c: Cursor) -> usize {
-        c.i + 1
+    fn left(i: usize, _t: TreeCursor) -> usize {
+        i + 1
     }
 
-    fn right_i(c: Cursor) -> usize {
+    fn right(i: usize, t: TreeCursor) -> usize {
         // i + 2(n(left))
-        c.i + 2 * (tm!(c.tl, c.tr) - c.tl + 1)
+        i + 2 * ((t.tl + t.tr) / 2 - t.tl + 1)
     }
 
     fn size(cap: usize) -> usize {
@@ -225,100 +114,130 @@ impl TreeLayout for DFS {
     }
 }
 
+impl<T, L> SegmentTree<T, L> {
+    /// Tree len size
+    pub fn len(&self) -> usize {
+        self.root.tr + 1
+    }
+}
 
-impl<T: Clone, C: Count<Stats = T>, L: TreeLayout> SegmentTree<T, C, L> {
-    pub fn new<U>(raw: &[U]) -> Self
-    where
-        U: Clone + RawIntoStats<C, Stats = T>,
-    {
+impl<T, L> SegmentTree<T, L>
+where
+    L: TreeLayout,
+    T: Sum + Clone + Add<Output = T>,
+    for<'a> &'a T: Add<&'a T, Output = T>,
+{
+    pub fn new<U: Clone + Into<T>>(raw: &[U]) -> Self {
         assert!(!raw.is_empty());
 
-        let mut data = vec![C::e(); L::size(raw.len())];
+        let mut data = vec![zero!(); L::size(raw.len())];
 
-        let root = Cursor::init(raw.len());
+        let root = TreeCursor::root(raw.len());
 
-        Self::build(&mut data, raw, root);
+        Self::build(&mut data, raw, L::root(), root);
 
         Self {
             data,
             root,
-            _note: PhantomData::<(C, L)>,
+            _marker: PhantomData::<L>,
         }
     }
 
     pub fn query<R: RangeBounds<usize>>(&self, range: R) -> T {
-        self.query_(parse_range!(range, self.root.tr + 1), self.root)
+        let Range { start, end } = std::slice::range(range, ..self.root.tr + 1);
+
+        self.query_((start, end - 1), L::root(), self.root)
     }
 
+    /// Update
     pub fn assoc(&mut self, i: usize, new_val: T) {
         assert!(i <= self.root.tr);
 
-        self.assoc_(self.root, i, new_val)
+        self.assoc_(L::root(), self.root, i, new_val)
     }
 
     /// Create an batch add updater
-    pub fn create_updater(&self) -> UpdaterAdd<T, C, L> {
-        UpdaterAdd(vec![C::e(); self.data.len()], PhantomData)
+    pub fn create_updater(&self) -> UpdaterAdd<T, L> {
+        UpdaterAdd(vec![zero!(); self.data.len()], PhantomData)
     }
 
     ////////////////////////////////////////////////////////////////////////////
     /// Inner Method
 
-    fn build<U>(data: &mut [T], arr: &[U], c: Cursor)
-    where
-        U: Clone + RawIntoStats<C, Stats = T>,
-    {
-        if c.is_end() {
-            data[c.i] = arr[c.tl].clone().raw_into_stats();
+    fn build<U: Clone + Into<T>>(
+        data: &mut [T],
+        arr: &[U],
+        i: usize,
+        t: TreeCursor,
+    ) {
+        if t.is_end() {
+            data[i] = arr[t.tl].clone().into();
         } else {
-            Self::build(data, arr, left!(c));
-            Self::build(data, arr, right!(c));
+            Self::build(data, arr, L::left(i, t), t.left());
+            Self::build(data, arr, L::right(i, t), t.right());
 
-            data[c.i] = C::combine(&data[left!(c).i], &data[right!(c).i])
+            data[i] = &data[L::left(i, t)] + &data[L::right(i, t)];
         }
     }
 
-    fn query_(&self, (l, r): (usize, usize), c: Cursor) -> T {
+    fn query_(&self, (l, r): (usize, usize), i: usize, t: TreeCursor) -> T {
         if l > r {
-            return C::e();
+            return zero!();
         }
 
-        if c.is_matched((l, r)) {
-            self[c].clone()
+        if t.is_matched((l, r)) {
+            self[i].clone()
         } else {
-            C::combine(
-                &self.query_((l, min(left!(c).tr, r)), left!(c)),
-                &self.query_((max(right!(c).tl, l), r), right!(c))
-            )
+            let lf =
+                self.query_((l, min(t.left().tr, r)), L::left(i, t), t.left());
+
+            let rh = self.query_(
+                (max(t.right().tl, l), r),
+                L::right(i, t),
+                t.right(),
+            );
+
+            lf + rh
         }
     }
 
-    fn assoc_(&mut self, c: Cursor, ti: usize, new_val: T) {
-        if c.is_end() {
-            self.data[c.i] = new_val;
+    fn assoc_(&mut self, i: usize, t: TreeCursor, ti: usize, new_val: T) {
+        if t.is_end() {
+            self.data[i] = new_val;
         } else {
-            let clf = left!(c);
-            let crh = right!(c);
+            let lfi = L::left(i, t);
+            let rhi = L::right(i, t);
 
-            if ti <= clf.tr {
-                self.assoc_(clf, ti, new_val);
+            if ti <= t.left().tr {
+                self.assoc_(lfi, t.left(), ti, new_val);
             } else {
-                self.assoc_(crh, ti, new_val);
+                self.assoc_(rhi, t.right(), ti, new_val);
             }
 
-            self.data[c.i] = C::combine(&self.data[clf.i], &self.data[crh.i]);
+            self.data[i] = &self.data[lfi] + &self.data[rhi];
         }
     }
 }
 
+impl<T, L, I: SliceIndex<[T]>> Index<I> for SegmentTree<T, L> {
+    type Output = I::Output;
 
+    fn index(&self, index: I) -> &Self::Output {
+        &self.data[index]
+    }
+}
 
-impl Cursor {
-    fn init(raw_len: usize) -> Self {
+impl<T, L, I: SliceIndex<[T]>> IndexMut<I> for SegmentTree<T, L> {
+    fn index_mut(&mut self, index: I) -> &mut Self::Output {
+        &mut self.data[index]
+    }
+}
+
+impl TreeCursor {
+    fn root(raw_len: usize) -> Self {
         debug_assert!(raw_len > 0);
 
         Self {
-            i: 1,
             tl: 0,
             tr: raw_len - 1,
         }
@@ -332,148 +251,150 @@ impl Cursor {
         self.tl == l && self.tr == r
     }
 
-    fn godown_left<L: TreeLayout>(self) -> Self {
+    fn left(&self) -> Self {
         Self {
-            i: L::left_i(self),
             tl: self.tl,
-            tr: tm!(self.tl, self.tr),
+            tr: (self.tl + self.tr) / 2,
         }
     }
 
-    fn godown_right<L: TreeLayout>(self) -> Self {
+    fn right(&self) -> Self {
         Self {
-            i: L::right_i(self),
-            tl: tm!(self.tl, self.tr) + 1,
+            tl: (self.tl + self.tr) / 2 + 1,
             tr: self.tr,
         }
     }
 }
 
-
-
-impl<T, C: Count<Stats = T>, L: TreeLayout> UpdaterAdd<T, C, L>
+impl<T, L: TreeLayout> UpdaterAdd<T, L>
 where
-    T: Default + Ord + Clone + Add<Output = T> + AddAssign,
-    for<'a> &'a T: Ord + Add<&'a T, Output = T> + 'a,
-    for<'a> T: 'a,
+    T: Clone + Sum + Add<Output = T> + Ord,
+    for<'a> T: AddAssign<&'a T>,
+    for<'a> &'a T: Add<&'a T, Output = T>,
 {
     pub fn assoc<R: RangeBounds<usize>>(
         &mut self,
-        tree: &mut SegmentTree<T, C, L>,
+        tree: &mut SegmentTree<T, L>,
         range: R,
         addend: T,
     ) {
+        let Range { start, end } = std::slice::range(range, ..tree.len());
+
         self.assoc_(
             tree,
-            parse_range!(range, tree.root.tr + 1),
+            (start, end - 1),
             addend,
+            L::root(),
             tree.root,
         )
     }
 
     pub fn query<R: RangeBounds<usize>>(
         &mut self,
-        tree: &mut SegmentTree<T, C, L>,
+        tree: &mut SegmentTree<T, L>,
         range: R,
-    ) -> T
-    {
+    ) -> T {
+        let Range { start, end } = std::slice::range(range, ..tree.len());
+
         self.query_(
             tree,
-            parse_range!(range, tree.root.tr + 1),
+            (start, end - 1),
+            L::root(),
             tree.root,
         )
     }
 
-    fn is_marked(&self, c: Cursor) -> bool {
-        if self[c] != C::e() {
-            true
-        } else {
-            false
-        }
-    }
-
     /// Lazy propagation
-    fn propagate(&mut self, tree: &mut SegmentTree<T, C, L>, c: Cursor) {
-        if self.is_marked(c) {
-            tree[left!(c)] += self[c].clone();
-            self[left!(c)] = &self[left!(c)] + &self[c];
+    fn propagate(
+        &mut self,
+        tree: &mut SegmentTree<T, L>,
+        i: usize,
+        t: TreeCursor,
+    ) {
+        if self[i] != zero!() {
+            let lfi = L::left(i, t);
+            let rhi = L::right(i, t);
 
-            tree[right!(c)] += self[c].clone();
-            self[right!(c)] = &self[right!(c)] + &self[c];
+            tree[lfi] += &self[i];
+            self[lfi] = &self[lfi] + &self[i];
 
-            self[c] = C::e();
+            tree[rhi] += &self[i];
+            self[rhi] = &self[rhi] + &self[i];
+
+            self[i] = zero!();
         }
     }
 
     fn assoc_(
         &mut self,
-        tree: &mut SegmentTree<T, C, L>,
+        tree: &mut SegmentTree<T, L>,
         (l, r): (usize, usize),
         addend: T,
-        c: Cursor,
-    )
-    {
+        i: usize,
+        t: TreeCursor,
+    ) {
         if l > r {
             return;
         }
 
-        if c.is_matched((l, r)) {
-            tree[c] += addend.clone();
-            self[c] += addend;
+        if t.is_matched((l, r)) {
+            tree[i] += &addend;
+            self[i] += &addend;
         } else {
-            self.propagate(tree, c);
+            self.propagate(tree, i, t);
 
             self.assoc_(
                 tree,
-                (l, min(r, left!(c).tr)),
+                (l, min(r, t.left().tr)),
                 addend.clone(),
-                left!(c),
+                L::left(i, t),
+                t.left(),
             );
             self.assoc_(
                 tree,
-                (max(l, right!(c).tl), r),
+                (max(l, t.right().tl), r),
                 addend,
-                right!(c),
+                L::right(i, t),
+                t.right(),
             );
 
-            tree[c] = C::combine(&tree[left!(c)], &tree[right!(c)]);
+            tree[i] = &tree[L::left(i, t)] + &tree[L::right(i, t)];
         }
     }
 
     fn query_(
         &mut self,
-        tree: &mut SegmentTree<T, C, L>,
+        tree: &mut SegmentTree<T, L>,
         (l, r): (usize, usize),
-        c: Cursor,
-    ) -> T
-    {
+        i: usize,
+        t: TreeCursor,
+    ) -> T {
         if l > r {
-            return C::e();
+            return zero!();
         }
 
-        if c.is_matched((l, r)) {
-            tree[c].clone()
+        if t.is_matched((l, r)) {
+            tree[i].clone()
         } else {
-            self.propagate(tree, c);
+            self.propagate(tree, i, t);
 
-            C::combine(
-                &self.query_(
-                    tree,
-                    (l, min(r, left!(c).tr)),
-                    left!(c),
-                ),
-                &self.query_(
-                    tree,
-                    (max(l, right!(c).tl), r),
-                    right!(c)
-                )
-            )
+            let lf = self.query_(
+                tree,
+                (l, min(r, t.left().tr)),
+                L::left(i, t),
+                t.left(),
+            );
+            let rh = self.query_(
+                tree,
+                (max(l, t.right().tl), r),
+                L::right(i, t),
+                t.right(),
+            );
+
+            lf + rh
         }
     }
 }
-
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Functions

@@ -5,13 +5,13 @@ edition = "2021"
 
 [dependencies]
 paste = "1.0"
+derive_more = { version = "1.0.0", features = ["add", "add_assign"]}
 
 m6arr = { path = "../../m6coll/m6arr" }
 m6entry = { path = "../../m6coll/m6entry" }
 
 common = { package = "m6-common", path = "../common" }
 math = { package = "m6-math", path = "../math" }
-
 
 [dev-dependencies]
 lazy_static = "1.4.0"

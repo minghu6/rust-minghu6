@@ -1,6 +1,5 @@
 use crate::impl_unpack;
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //// Structures
 
@@ -33,7 +32,7 @@ impl<T> UnsafeSendSync<T> {
         &self.0
     }
 
-    pub unsafe fn as_ref_mut_ptr(&self) -> *mut T {
+    pub unsafe fn as_mut_ptr(&self) -> *mut T {
         &self.0 as *const _ as *mut _
     }
 }

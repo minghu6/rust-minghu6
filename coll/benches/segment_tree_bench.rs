@@ -8,12 +8,10 @@ use test::Bencher;
 use lazy_static::lazy_static;
 
 use common::random_range;
-use m6_coll::{segment_tree::{SegmentTree, Sum, BFS, DFS}, fenwick_tree::BIT};
-
+use m6_coll::segment_tree::{SegmentTree, BFS, DFS};
 
 const ARR_CAP: usize = 0_100_000;
 const Q_BATCH: usize = 0_050_000;
-
 
 lazy_static! {
     static ref FIXED_ARR: Vec<i32> = {
@@ -42,7 +40,7 @@ lazy_static! {
 
 #[bench]
 fn bench_segement_tree_sum_bfs(b: &mut Bencher) {
-    let st = SegmentTree::<i32, Sum<_>, BFS>::new(&FIXED_ARR);
+    let st = SegmentTree::<i32, BFS>::new(&FIXED_ARR);
 
     b.iter(|| {
         for q in QS.iter() {
@@ -54,7 +52,7 @@ fn bench_segement_tree_sum_bfs(b: &mut Bencher) {
 
 #[bench]
 fn bench_segement_tree_sum_dfs(b: &mut Bencher) {
-    let st = SegmentTree::<i32, Sum<_>, DFS>::new(&FIXED_ARR);
+    let st = SegmentTree::<i32, DFS>::new(&FIXED_ARR);
 
     b.iter(|| {
         for q in QS.iter() {
@@ -90,14 +88,13 @@ fn bench_segement_tree_sum_manually(b: &mut Bencher) {
     })
 }
 
+// #[bench]
+// fn bench_segement_tree_sum_bit(b: &mut Bencher) {
+//     let bit = BIT::<i32>::new(&FIXED_ARR);
 
-#[bench]
-fn bench_segement_tree_sum_bit(b: &mut Bencher) {
-    let bit = BIT::<i32>::new(&FIXED_ARR);
-
-    b.iter(|| {
-        for q in QS.iter() {
-            black_box(bit.query(q.clone()));
-        }
-    })
-}
+//     b.iter(|| {
+//         for q in QS.iter() {
+//             black_box(bit.query(q.clone()));
+//         }
+//     })
+// }

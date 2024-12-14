@@ -2,8 +2,11 @@
 #![feature(exact_size_is_empty)]
 #![feature(let_chains)]
 #![feature(int_roundings)]
+#![feature(slice_range)]
+#![feature(trait_alias)]
 
 
+pub mod ptr;
 pub mod fenwick_tree;
 pub mod frac_casc;
 pub mod segment_tree;
