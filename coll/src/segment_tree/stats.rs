@@ -69,18 +69,6 @@ pub struct SubSegMaxSumStats<T> {
 ////////////////////////////////////////////////////////////////////////////////
 //// Implementations
 
-// macro_rules! impl_sub_seg_max_sum_stats_from {
-//     ($($ty:ty),*) => {
-//         $(
-//             impl From<$ty> for SubSegMaxSumStats<$ty> {
-//                 fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
-//                     iter.reduce(|acc, x| acc + x).unwrap_or(Self(0))
-//                 }
-//             }
-//         )*
-//     };
-// }
-
 impl<T: Number> From<T> for SubSegMaxSumStats<T> {
     fn from(value: T) -> Self {
         Self {

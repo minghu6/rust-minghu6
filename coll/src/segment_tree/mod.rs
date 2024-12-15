@@ -36,14 +36,12 @@ pub trait TreeLayout: private::Sealed {
     fn size(cap: usize) -> usize;
 }
 
-
 mod private {
     pub trait Sealed {}
 
     impl Sealed for super::BFS {}
     impl Sealed for super::DFS {}
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Structures

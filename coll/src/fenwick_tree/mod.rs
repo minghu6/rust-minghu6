@@ -28,13 +28,8 @@ pub struct BIT<T> {
     data: Vec<T>,
 }
 
-
 #[repr(transparent)]
-pub struct RangeAddQuerySum<T>(BIT<T>)
-where
-    T: Sum,
-    for<'a> &'a T: Add<&'a T, Output = T> + 'a,
-    for<'a> T: 'a;
+pub struct RangeAddQuerySum<T>(BIT<T>);
 
 
 ////////////////////////////////////////////////////////////////////////////////
