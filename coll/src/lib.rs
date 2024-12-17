@@ -6,7 +6,6 @@
 #![feature(trait_alias)]
 
 
-pub mod ptr;
 pub mod fenwick_tree;
 pub mod frac_casc;
 pub mod segment_tree;
@@ -21,3 +20,4 @@ pub use beyond_god::*;
 pub use paste::paste;
 pub use m6arr::*;
 pub use m6entry::*;
+pub use m6ptr::*;

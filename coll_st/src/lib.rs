@@ -37,7 +37,7 @@ pub trait WalkTree<'a> {
     fn children(
         &'a self,
         ptr: &'a Self::NodeBorrow,
-    ) -> Option<Vec<&'a Self::NodeBorrow>>;
+    ) -> impl Iterator<Item = &'a Self::NodeBorrow>;
 
     fn pre_order_walk(
         &'a self,
@@ -67,8 +67,10 @@ pub trait WalkTree<'a> {
 
                             yield (loc, child);
 
-                            if let Some(nxt_child_group) = self.children(child)
-                            {
+                            let nxt_child_group =
+                                self.children(child).collect::<Vec<_>>();
+
+                            if !nxt_child_group.is_empty() {
                                 nextlv.push(nxt_child_group);
                             }
                         }

@@ -1586,17 +1586,14 @@ impl<'a, K: Ord, V, const M: usize> WalkTree<'a> for FlatBPT<K, V, M> {
     fn children(
         &'a self,
         ptr: &'a Self::NodeBorrow,
-    ) -> Option<Vec<&'a Self::NodeBorrow>> {
-        match ptr {
-            Node::Leaf { .. } => None,
-            Node::Internal { children, .. } => Some(
-                children
-                    .exact()
-                    .iter()
-                    .map(|KVEntry(_, nodeid)| &self.nodes[*nodeid])
-                    .collect(),
-            ),
-        }
+    ) -> impl Iterator<Item = &'a Self::NodeBorrow> {
+        std::iter::from_coroutine(#[coroutine] move || {
+            if let Node::Internal { children, .. } = ptr {
+                for KVEntry(_, nodeid) in children.exact().iter() {
+                    yield &self.nodes[*nodeid];
+                }
+            }
+        })
     }
 }
 

@@ -2,7 +2,7 @@
 
 use std::{fmt::Debug, marker::PhantomData};
 
-use coll::{ptr::*, KVEntry};
+use coll::{OwnedPtr, Ptr, KVEntry};
 
 
 ////////////////////////////////////////////////////////////////////////////////

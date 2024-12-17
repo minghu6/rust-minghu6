@@ -1,10 +1,11 @@
+//! Aho–Corasick algorithm
 
 use std::collections::{BTreeMap, VecDeque};
 use std::ptr;
 
 
 
-pub struct TrieTree<'a> {
+pub struct ACTrie<'a> {
     root_ptr: *mut TrieNode<'a>,
     pub keys: &'a Vec<String>,
 }
@@ -19,11 +20,11 @@ struct TrieNode<'a> {
 }
 
 
-impl<'a> TrieTree<'a> {
+impl<'a> ACTrie<'a> {
     pub fn new(keys: &'a Vec<String>) -> Self {
-        let root_ptr = TrieTree::build_ac_automaton(keys);
+        let root_ptr = ACTrie::build_ac_automaton(keys);
 
-        TrieTree { root_ptr, keys }
+        ACTrie { root_ptr, keys }
     }
 
     fn build_ac_automaton(target_strings: &Vec<String>) -> *mut TrieNode {
@@ -45,7 +46,8 @@ impl<'a> TrieTree<'a> {
                 let matched_child = unsafe { &mut *matched_child_ptr };
                 if matched_child.elem == c {
                     node = matched_child;
-                } else {
+                }
+                else {
                     matched_child.next_ptr = TrieNode::new(c);
                     node = unsafe { &mut *matched_child.next_ptr };
                 }
@@ -58,37 +60,37 @@ impl<'a> TrieTree<'a> {
         let root = unsafe { &*root_ptr };
         queue.push_back(root);
 
-        while !queue.is_empty() {
-            if let Some(node) = queue.pop_front() {
-                let child_ptr = node.child_ptr;
+        while let Some(node) = queue.pop_front() {
+            let child_ptr = node.child_ptr;
 
-                if !child_ptr.is_null() {
-                    let mut children_sibling_ptr = child_ptr;
+            if !child_ptr.is_null() {
+                let mut children_sibling_ptr = child_ptr;
 
-                    while !children_sibling_ptr.is_null() {
-                        let children_sibling = unsafe { &mut *children_sibling_ptr };
-                        let mut failed_ptr = node.failed_ptr;
+                while !children_sibling_ptr.is_null() {
+                    let children_sibling =
+                        unsafe { &mut *children_sibling_ptr };
+                    let mut failed_ptr = node.failed_ptr;
 
-                        loop {
-                            if failed_ptr.is_null() {
-                                children_sibling.failed_ptr = root_ptr;
-                                break;
-                            }
-
-                            let failed_node = unsafe { &mut *failed_ptr };
-
-                            if let Some(matched_ptr) = failed_node.find_child(children_sibling.elem)
-                            {
-                                children_sibling.failed_ptr = matched_ptr;
-                                break;
-                            }
-
-                            failed_ptr = failed_node.failed_ptr;
+                    loop {
+                        if failed_ptr.is_null() {
+                            children_sibling.failed_ptr = root_ptr;
+                            break;
                         }
 
-                        queue.push_back(children_sibling);
-                        children_sibling_ptr = children_sibling.next_ptr;
+                        let failed_node = unsafe { &mut *failed_ptr };
+
+                        if let Some(matched_ptr) =
+                            failed_node.find_child(children_sibling.elem)
+                        {
+                            children_sibling.failed_ptr = matched_ptr;
+                            break;
+                        }
+
+                        failed_ptr = failed_node.failed_ptr;
                     }
+
+                    queue.push_back(children_sibling);
+                    children_sibling_ptr = children_sibling.next_ptr;
                 }
             }
         }
@@ -115,10 +117,15 @@ impl<'a> TrieTree<'a> {
 
                     // solve subword scenario like `she` and `he`
                     let mut match_node = &mut *matched_child;
+
                     while !match_node.failed_ptr.is_null() {
                         if match_node.word.len() > 0 {
-                            if let Some(list) = result.get_mut(match_node.word) {
-                                list.push(i + c.to_string().len() - match_node.word.len());
+                            if let Some(list) = result.get_mut(match_node.word)
+                            {
+                                list.push(
+                                    i + c.to_string().len()
+                                        - match_node.word.len(),
+                                );
                             }
                         }
 
@@ -127,7 +134,8 @@ impl<'a> TrieTree<'a> {
 
                     state_node = matched_child;
                     break;
-                } else if state_node.failed_ptr.is_null() {
+                }
+                else if state_node.failed_ptr.is_null() {
                     state_node = unsafe { &mut *root_ptr };
                     break;
                 }
@@ -180,7 +188,8 @@ impl<'a> TrieNode<'a> {
         let result = unsafe { &*result_ptr };
         if result.elem == elem {
             Some(result_ptr)
-        } else {
+        }
+        else {
             None
         }
     }
@@ -213,13 +222,15 @@ impl<'a> TrieNode<'a> {
                     || tail.len() == 0 && i + c_len == whole_word.len()
                 {
                     mark_str.push_str(format!("[{}]", c).as_str());
-                } else {
+                }
+                else {
                     mark_str.push(c);
                 }
             }
 
             mark_str
-        } else {
+        }
+        else {
             String::from("???")
         }
     }
@@ -228,7 +239,7 @@ impl<'a> TrieNode<'a> {
 
 #[allow(unused)]
 #[cfg(test)]
-fn bfs_trie_tree(tree: &TrieTree) {
+fn bfs_trie_tree(tree: &ACTrie) {
     let mut queue: VecDeque<&TrieNode> = VecDeque::new();
     let root = unsafe { &mut *tree.root_ptr };
     queue.push_back(root);
@@ -274,17 +285,16 @@ mod tests {
 
     use common::btreemap;
 
-    use super::{ *, super::* };
+    use super::{super::*, *};
 
     #[test]
     fn test_ac_automaton_fixeddata() {
-        let mut result = TrieTree::new(&vec![
+        let mut result = ACTrie::new(&vec![
             "bcd".to_string(),
             "cdfkcdf".to_string(),
             "cde".to_string(),
             "abcdef".to_string(),
             "abhab".to_string(),
-
             "ebc".to_string(),
             "fab".to_string(),
             "zzzz".to_string(),
@@ -295,7 +305,6 @@ mod tests {
             "abcdefg".to_string(),
             "habk".to_string(),
             "bkka".to_string(),
-
         ])
         .index_of("bcabcdebcedfabcdefababkabhabk");
 
@@ -321,7 +330,7 @@ mod tests {
             }
         );
 
-        result = TrieTree::new(&vec![
+        result = ACTrie::new(&vec![
             "she".to_string(),
             "shr".to_string(),
             "say".to_string(),
@@ -341,7 +350,7 @@ mod tests {
             }
         );
 
-        result = TrieTree::new(&vec![
+        result = ACTrie::new(&vec![
             "你好".to_string(),
             "你好棒".to_string(),
             "今天".to_string(),
@@ -360,11 +369,9 @@ mod tests {
     #[test]
     fn test_ac_automaton_randomdata() {
         for (pats, text, res) in gen_test_case_multiple() {
-            let tree = TrieTree::new(&pats);
+            let tree = ACTrie::new(&pats);
 
             assert_eq!(tree.index_of(text.as_str()), res);
         }
     }
-
-
 }

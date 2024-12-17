@@ -3,7 +3,7 @@
 use std::hint::black_box;
 
 use m6_algs::string::{
-    ac::TrieTree,
+    ac::ACTrie,
     bm::*,
     // bm_badimpl::BMPattern as BMBadImplPattern,
     create_npows,
@@ -150,7 +150,7 @@ fn ac_automaton(b: &mut Bencher) {
     let gen = || {
         let tested_texts = gen_tested_text();
         let tested_patterns = gen_tested_pattern();
-        let trie_tree = TrieTree::new(&tested_patterns);
+        let trie_tree = ACTrie::new(&tested_patterns);
 
         for text in &tested_texts {
             black_box(trie_tree.index_of(text.as_str()));

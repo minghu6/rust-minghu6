@@ -9,6 +9,8 @@ derive_more = { version = "1.0.0", features = ["add", "add_assign"]}
 
 m6arr = { path = "../../m6coll/m6arr" }
 m6entry = { path = "../../m6coll/m6entry" }
+m6ptr = { path = "../../m6coll/m6ptr" }
+
 
 common = { package = "m6-common", path = "../common" }
 math = { package = "m6-math", path = "../math" }

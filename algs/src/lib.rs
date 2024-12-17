@@ -7,6 +7,7 @@
 #![feature(maybe_uninit_uninit_array)]
 #![feature(generic_arg_infer)]
 #![feature(associated_const_equality)]
+#![feature(str_as_str)]
 
 
 use std::cmp::Ordering::{ self, * };

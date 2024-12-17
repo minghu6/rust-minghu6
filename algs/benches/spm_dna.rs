@@ -3,7 +3,7 @@
 use paste::paste;
 
 use m6_algs::string::{
-    ac::TrieTree,
+    ac::ACTrie,
     bm::*,
     gen_dna_pattern, gen_random_dna_string,
     kmp::{ComputeNext, KMPPattern},
@@ -124,7 +124,7 @@ fn ac_automaton_dna(b: &mut Bencher) {
     let gen = || {
         let tested_texts = gen_tested_text();
         let tested_patterns = gen_tested_pattern();
-        let trie_tree = TrieTree::new(&tested_patterns);
+        let trie_tree = ACTrie::new(&tested_patterns);
 
         for text in &tested_texts {
             trie_tree.index_of(text.as_str());

@@ -1,4 +1,5 @@
 pub mod ac;
+pub mod ac2;
 pub mod bm;
 pub mod kmp;
 pub mod rk;
