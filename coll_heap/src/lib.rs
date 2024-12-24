@@ -1,11 +1,13 @@
 #![feature(macro_metavar_expr)]
+#![feature(let_chains)]
+#![feature(const_vec_string_slice)]
 
 
 pub mod fib;
 pub mod dary;
+pub mod sdary;
 
 use std::{collections::BinaryHeap, cmp::Reverse};
-
 
 
 /// Test heap push/pop

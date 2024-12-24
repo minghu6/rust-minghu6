@@ -170,7 +170,7 @@ impl<K: Ord, V> RB <K, V> {
 
     fn fix_red_violation(&mut self, ent: Node<K, V>)
     {
-        let mut i = ent;
+        let i = ent;
         let p = paren!(i).upgrade();
 
         if p.is_black() { return }
@@ -202,16 +202,12 @@ impl<K: Ord, V> RB <K, V> {
         }
         else {  // psib is red
             p.color_flip();
-            pp.color_flip();
             psib.color_flip();
 
-            if self.root.is_red() {
-                color!(self.root, Black);
+            if !pp.rc_eq(&self.root) {
+                pp.color_flip();
+                self.fix_red_violation(pp);
             }
-
-            i = pp;
-            self.fix_red_violation(i);
-
         }
     }
 

@@ -3,7 +3,8 @@
 use std::hint::black_box;
 
 use m6_algs::string::{
-    ac::ACTrie,
+    ac,
+    ac2,
     bm::*,
     // bm_badimpl::BMPattern as BMBadImplPattern,
     create_npows,
@@ -31,6 +32,7 @@ macro_rules! bench {
                 let gen = || {
                     let tested_strings = gen_tested_text();
                     let tested_patterns = gen_tested_pattern();
+
                     for pattern in &tested_patterns {
                         let pat = $patten::from(pattern);
 
@@ -150,10 +152,25 @@ fn ac_automaton(b: &mut Bencher) {
     let gen = || {
         let tested_texts = gen_tested_text();
         let tested_patterns = gen_tested_pattern();
-        let trie_tree = ACTrie::new(&tested_patterns);
+        let trie_tree = ac::ACTrie::new(&tested_patterns);
 
         for text in &tested_texts {
             black_box(trie_tree.index_of(text.as_str()));
+        }
+    };
+
+    b.iter(|| gen())
+}
+
+#[bench]
+fn ac_automaton2(b: &mut Bencher) {
+    let gen = || {
+        let tested_texts = gen_tested_text();
+        let tested_patterns = gen_tested_pattern();
+        let trie_tree = ac2::ACTrie::with_keys(tested_patterns);
+
+        for text in &tested_texts {
+            black_box(trie_tree.search(text.as_str()));
         }
     };
 

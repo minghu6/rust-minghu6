@@ -2,101 +2,80 @@
 
 extern crate test;
 
-use std::collections::{BinaryHeap, HashMap, HashSet};
+use std::collections::{BinaryHeap, HashSet};
 
 use common::*;
 
 use m6_coll_heap::{
-    dary::{DaryHeap, DaryHeap1, DaryHeap5},
+    dary,
+    sdary,
     fib::FibHeap,
 };
 
 use test::Bencher;
 
-const BATCH_NUM: usize = 2_000;
+lazy_static::lazy_static!{
+    pub static ref BASIC_BNECH_DATA: Vec<(usize, isize)> = {
+        let mut unique = gen_unique();
+        (0..400_000).map(|_| (unique(), random())).collect()
+    };
 
-
-
-
-fn heap_prepare_basic() -> Vec<(usize, isize)> {
-    let mut unique = gen_unique();
-
-    (0..BATCH_NUM).map(|_| (unique(), random())).collect()
+    pub static ref CLASSIC_BNECH_SET: (Vec<(usize, usize)>, Vec<Vec<(usize, usize)>>) = {
+        heap_prepare_classic(2_000)
+    };
 }
 
+
+macro_rules! bench_heap_basic {
+    ($name:ident, $heap:expr, @$push_method:ident) => {
+        coll::paste! (
+            #[allow(non_snake_case)]
+            #[bench]
+            fn [<bench_heap_basic _ $name>] (b: &mut Bencher) {
+                b.iter(|| {
+                    let mut heap = $heap;
+
+                    #[allow(unused)]
+                    for (k, v) in BASIC_BNECH_DATA.iter() {
+                        push!(@$push_method heap, k, v);
+                    }
+
+                    while heap.pop().is_some() {}
+                })
+            }
+        );
+    };
+}
+
+macro_rules! push {
+    (@indexed_heap $heap:ident, $i:expr, $v:expr) => {
+        $heap.insert($i, $v);
+    };
+    (@basic_heap $heap:ident, $i:expr, $v:expr) => {
+        $heap.push($v);
+    };
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Bench Heap Basic
 
-#[bench]
-fn bench_heap_basic_binaryheap(b: &mut Bencher) {
-    let batch = heap_prepare_basic();
+bench_heap_basic!(SDaryHeap1, sdary::DaryHeap::<1, _>::new(), @basic_heap);
 
-    b.iter(|| {
-        let mut heap = BinaryHeap::new();
-        let mut index = HashMap::new();
-        for (_, v) in batch.iter() {
-            heap.push(*v);
-            index.insert(*v, *v);
-        }
+bench_heap_basic!(SDaryHeap2, sdary::DaryHeap::<2, _>::new(), @basic_heap);
 
-        while let Some(v) = heap.pop() {
-            index.remove(&v);
-        }
-    })
-}
+bench_heap_basic!(SDaryHeap3, sdary::DaryHeap::<3, _>::new(), @basic_heap);
 
+bench_heap_basic!(SDaryHeap4, sdary::DaryHeap::<4, _>::new(), @basic_heap);
 
-#[bench]
-fn bench_heap_basic_fibheap(b: &mut Bencher) {
-    let batch = heap_prepare_basic();
+bench_heap_basic!(SDaryHeap5, sdary::DaryHeap::<5, _>::new(), @basic_heap);
 
-    b.iter(|| {
-        let mut heap = FibHeap::new();
-        for (k, v) in batch.iter() {
-            heap.push(*k, *v);
-        }
-
-        while heap.pop().is_some() {}
-    })
-}
-
-
-#[bench]
-fn bench_heap_basic_dary5heap(b: &mut Bencher) {
-    let batch = heap_prepare_basic();
-
-    b.iter(|| {
-        let mut heap = DaryHeap5::new();
-        for (k, v) in batch.iter() {
-            heap.insert(*k, *v);
-        }
-
-        while heap.pop().is_some() {}
-    })
-}
-
-
-#[bench]
-fn bench_heap_basic_dary1heap(b: &mut Bencher) {
-    let batch = heap_prepare_basic();
-
-    b.iter(|| {
-        let mut heap = DaryHeap1::new();
-        for (k, v) in batch.iter() {
-            heap.insert(*k, *v);
-        }
-
-        while heap.pop().is_some() {}
-    })
-}
-
+bench_heap_basic!(BinaryHeap, BinaryHeap::new(), @basic_heap);
 
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Bench Heap Advanced (classic with decrease-key and pop)
 
-fn heap_prepare_classic() -> (Vec<(usize, usize)>, Vec<Vec<(usize, usize)>>) {
+fn heap_prepare_classic(batch_num: usize) -> (Vec<(usize, usize)>, Vec<Vec<(usize, usize)>>) {
     let mut insert_map = Vec::new();
     let mut update_set = vec![];
     let mut auxheap = FibHeap::new();
@@ -104,7 +83,7 @@ fn heap_prepare_classic() -> (Vec<(usize, usize)>, Vec<Vec<(usize, usize)>>) {
     let mut get_unique_v = gen_unique();
     let mut unique_v_set = HashSet::new();
 
-    for i in 0..BATCH_NUM {
+    for i in 0..batch_num {
         let v = get_unique_v();
         insert_map.push((i, v));
         auxheap.push(i, v);
@@ -112,8 +91,8 @@ fn heap_prepare_classic() -> (Vec<(usize, usize)>, Vec<Vec<(usize, usize)>>) {
         unique_v_set.insert(v);
     }
 
-    for _ in 0..BATCH_NUM {
-        let update_num = (random::<usize>() % (BATCH_NUM / 10)) + 1;
+    for _ in 0..batch_num {
+        let update_num = (random::<usize>() % (batch_num / 10)) + 1;
 
         let indexset: HashSet<usize> = (0..update_num)
             .map(|_| {
@@ -168,14 +147,6 @@ fn heap_prepare_classic() -> (Vec<(usize, usize)>, Vec<Vec<(usize, usize)>>) {
 }
 
 
-lazy_static::lazy_static!{
-    pub static ref CLASSIC_BNECH_SET: (Vec<(usize, usize)>, Vec<Vec<(usize, usize)>>) = {
-        heap_prepare_classic()
-    };
-}
-
-
-
 #[bench]
 fn bench_heap_classic_fibheap(b: &mut Bencher) {
     let (insert_batch, dk_batch) = &*CLASSIC_BNECH_SET;
@@ -201,7 +172,7 @@ fn bench_heap_classic_dary8heap(b: &mut Bencher) {
     let (insert_batch, dk_batch) = &*CLASSIC_BNECH_SET;
 
     b.iter(|| {
-        let mut heap = DaryHeap::<8, usize, usize>::new();
+        let mut heap = dary::DaryHeap::<8, usize, usize>::new();
         for (i, w) in insert_batch.iter().cloned() {
             heap.insert(i, w);
         }
@@ -221,7 +192,7 @@ fn bench_heap_classic_dary5heap(b: &mut Bencher) {
     let (insert_batch, dk_batch) = &*CLASSIC_BNECH_SET;
 
     b.iter(|| {
-        let mut heap = DaryHeap5::new();
+        let mut heap = dary::DaryHeap5::new();
         for (i, w) in insert_batch.iter().cloned() {
             heap.insert(i, w);
         }
@@ -241,7 +212,7 @@ fn bench_heap_classic_dary1heap(b: &mut Bencher) {
     let (insert_batch, dk_batch) = &*CLASSIC_BNECH_SET;
 
     b.iter(|| {
-        let mut heap = DaryHeap1::new();
+        let mut heap = dary::DaryHeap1::new();
         for (i, w) in insert_batch.iter().cloned() {
             heap.insert(i, w);
         }

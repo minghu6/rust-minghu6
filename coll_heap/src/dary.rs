@@ -1,35 +1,18 @@
 //! D-ary in place heap
-//!
-//!
 
 use std::{
     borrow::Borrow,
     cmp::{min, Ordering::*},
     collections::HashMap,
     hash::Hash,
+    mem::replace,
 };
-
-use m6arr::Array;
 
 use coll::easycoll::EasyCollGet;
 
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Macros
-
-macro_rules! normalize_cap {
-    ($raw_cap:expr) => {{
-        let raw_cap = $raw_cap;
-        // Note!! '!' is bitnot = C '~'
-        // raw_cap >> E + if raw_cap & !(!0 << E) > 0 { 1 } else { 0 }
-
-        // quick mod
-        let e = 4;
-        let extra = if raw_cap & !(!0 << e) > 0 { 1 } else { 0 };
-
-        (raw_cap >> e + extra) << e
-    }};
-}
 
 macro_rules! base {
     () => {{
@@ -134,9 +117,8 @@ macro_rules! child {
 /// Min Heap, I is unique, T is weight
 #[derive(Clone)]
 pub struct DaryHeap<const E: usize, I, T> {
-    len: usize,
     index: HashMap<I, usize>,
-    raw: Array<Option<(I, T)>>,
+    raw: Vec<(I, T)>,
 }
 
 pub type DaryHeap1<I, T> = DaryHeap<1, I, T>;
@@ -150,16 +132,12 @@ pub type DaryHeap5<I, T> = DaryHeap<5, I, T>;
 
 /// Basic Implementation
 impl<const E: usize, I, T> DaryHeap<E, I, T> {
-    pub fn cap(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.raw.len()
     }
 
-    pub fn len(&self) -> usize {
-        self.len
-    }
-
     fn w(&self, idx: usize) -> &T {
-        &self.raw[idx].as_ref().unwrap().1
+        &self.raw[idx].1
     }
 }
 
@@ -171,26 +149,25 @@ impl<const E: usize, I: Clone, T: Clone> DaryHeap<E, I, T> {
     }
 
     /// Truely entry-point
-    pub fn with_capacity(cap: usize) -> Self {
+    pub fn with_capacity(capacity: usize) -> Self {
         debug_assert!(E > 0);
 
         Self {
-            len: 0,
-            index: HashMap::with_capacity(cap),
-            raw: Array::new_with_clone(None, normalize_cap!(cap)),
+            index: HashMap::with_capacity(capacity),
+            raw: Vec::with_capacity(capacity),
         }
     }
 
-    pub fn top_item(&self) -> Option<&(I, T)> {
-        if self.len > 0 {
-            Some(&self.raw[0].as_ref().unwrap())
+    pub fn top_item(&self) -> Option<(&I, &T)> {
+        if self.len() > 0 {
+            Some((&self.raw[0].0, &self.raw[0].1))
         } else {
             None
         }
     }
 
     pub fn top(&self) -> Option<&T> {
-        self.top_item().map(|x| &(*x).1)
+        self.top_item().map(|x| x.1)
     }
 }
 
@@ -198,8 +175,8 @@ impl<const E: usize, I: Clone, T: Clone> DaryHeap<E, I, T> {
 /// Main Algorithm Implementation
 impl<const E: usize, I, T> DaryHeap<E, I, T>
 where
-    I: Ord + Hash + Clone,
-    T: Ord + Clone
+    I: Eq + Hash + Clone,
+    T: Ord,
 {
     ////////////////////////////////////////////////////////////////////////////
     //// Public method
@@ -207,7 +184,7 @@ where
     /// ReplaceOrPush
     pub fn insert(&mut self, i: I, v: T) -> Option<T> {
         if let Some(idx) = self.index.remove(&i) {
-            let (_, oldv) = self.raw[idx].replace((i.clone(), v)).unwrap();
+            let (_, oldv) = replace(&mut self.raw[idx], (i.clone(), v));
 
             let newidx = match self.w(idx).cmp(&oldv) {
                 Less => self.sift_up(idx),
@@ -225,21 +202,17 @@ where
     }
 
     pub fn pop_item(&mut self) -> Option<(I, T)> {
-        if self.len == 0 {
+        if self.len() == 0 {
             return None;
         }
 
-        if self.len == 1 {
-            Some(self.remove(0))
-        } else {
-            self.swap(0, self.len - 1);
+        self.swap(0, self.raw.len() - 1);
 
-            let (i, v) = self.remove(self.len - 1);
+        let (i, v) = self.raw.pop().unwrap();
 
-            self.sift_down(0);
+        self.sift_down(0);
 
-            Some((i, v))
-        }
+        Some((i, v))
     }
 
     pub fn get<Q>(&self, i: &Q) -> Option<&T>
@@ -262,7 +235,6 @@ where
         self.pop_item().map(|x| x.1)
     }
 
-    #[inline]
     pub fn decrease_key(&mut self, i: I, v: T) -> Option<T> {
         #[cfg(debug_assertions)]
         {
@@ -274,25 +246,14 @@ where
         self.update(i, v)
     }
 
-
     ////////////////////////////////////////////////////////////////////////////
     //// Assistant method
 
     fn push(&mut self, i: I, v: T) {
-        if self.cap() == 0 {
-            self.recap(E);
-        } else if self.len >= self.cap() {
-            self.recap(self.cap() << 1);
-        }
+        self.raw.push((i.clone(), v));
+        self.index.insert(i, self.len() - 1);
 
-        let ent = self.len;
-
-        self.raw[ent] = Some((i.clone(), v));
-        self.index.insert(i, ent);
-
-        self.sift_up(ent);
-
-        self.len += 1;
+        self.sift_up(self.len() - 1);
     }
 
     /// ReplaceOrSkip
@@ -303,7 +264,7 @@ where
             return None;
         };
 
-        let (_, oldv) = self.raw[idx].replace((i.clone(), v)).unwrap();
+        let (_, oldv) = replace(&mut self.raw[idx], (i.clone(), v));
 
         let newidx = match self.w(idx).cmp(&oldv) {
             Less => self.sift_up(idx),
@@ -314,10 +275,6 @@ where
         self.index.insert(i, newidx);
 
         Some(oldv)
-    }
-
-    fn recap(&mut self, new_cap: usize) {
-        self.raw.resize(new_cap);
     }
 
     /// return insert_idx
@@ -340,47 +297,42 @@ where
 
     /// return insert_idx
     fn sift_down(&mut self, idx: usize) -> usize {
-        let mut cur = idx;
+        let mut cur_idx = idx;
 
-        loop {
-            if let Some(child) = self.min_child(cur) {
-                if self.w(child) < self.w(cur) {
-                    self.swap(cur, child);
-                    cur = child;
-                    continue;
-                }
-            }
-
-            break cur;
+        while let Some((child_idx, child_w)) = self.min_child(cur_idx)
+            && child_w < &self.raw[cur_idx].1
+        {
+            self.swap(cur_idx, child_idx);
+            cur_idx = child_idx;
         }
+
+        cur_idx
     }
 
     fn swap(&mut self, idx1: usize, idx2: usize) {
-        let (k1, _v1) = self.raw[idx1].as_ref().unwrap();
-        let (k2, _v2) = self.raw[idx2].as_ref().unwrap();
+        if idx1 == idx2 {
+            return;
+        }
 
-        self.index.insert(k1.clone(), idx2);
-        self.index.insert(k2.clone(), idx1);
+        self.raw.swap(idx1, idx2);
 
-        let tmp1 = self.raw[idx1].take();
-        self.raw[idx1] = self.raw[idx2].take();
-        self.raw[idx2] = tmp1;
+        self.index.insert(self.raw[idx1].0.clone(), idx1);
+        self.index.insert(self.raw[idx2].0.clone(), idx2);
     }
 
-    fn min_child(&self, idx: usize) -> Option<usize> {
+    fn min_child(&self, idx: usize) -> Option<(usize, &T)> {
         let start = child!(idx);
-        let end = min(self.len, start + base!());
+        let end = min(self.len(), start + base!());
 
-        (start..end).min_by_key(|&x| self.w(x))
-    }
+        if end <= start {
+            return None;
+        }
 
-    /// remain None, update self.len
-    fn remove(&mut self, idx: usize) -> (I, T) {
-        let (i, v) = self.raw[idx].take().unwrap();
-        self.index.remove(&i);
-        self.len -= 1;
-
-        (i, v)
+        self.raw[start..end]
+            .iter()
+            .enumerate()
+            .min_by_key(|(_, (_, w))| w)
+            .map(|(i, (_, w))| (start + i, w))
     }
 }
 
@@ -388,7 +340,7 @@ where
 impl<const E: usize, I, T> EasyCollGet<I, T> for DaryHeap<E, I, T>
 where
     I: Hash + Eq + Ord + Clone,
-    T: Ord + Clone
+    T: Ord + Clone,
 {
     type Target = T;
 
@@ -407,7 +359,7 @@ mod tests {
     use crate::{
         dary::{DaryHeap, DaryHeap1},
         fib::FibHeap,
-        *
+        *,
     };
 
 
@@ -483,7 +435,7 @@ mod tests {
 
                 for _ in 0..batch_num / 3 {
                     let newkey = get_one();
-                    let i = random::<usize>() % heap.len;
+                    let i = random::<usize>() % heap.len();
                     // println!("update: i:{i}, w:{newkey}");
                     heap.update(i as i32, newkey.clone());
 

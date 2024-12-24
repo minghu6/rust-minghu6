@@ -5,6 +5,9 @@ test-flatbpt:
 trace-flatbpt:
 	RUST_LOG=trace cargo test flatbpt -- --nocapture
 
+test-rb:
+	cargo test test_bst_rb -- --nocapture
+
 bench-dict-get:
 	cargo bench dict_get
 	# cargo bench --bench dict_get
