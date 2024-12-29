@@ -8,4 +8,4 @@
 mod vec;
 
 pub mod trievec;
-
+pub mod trievec2;

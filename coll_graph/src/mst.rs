@@ -92,7 +92,7 @@ pub fn mst_prim(g: &Graph) -> Vec<(usize, usize)> {
     /* init dis heap && dis edge map */
 
     // let mut dis = FibHeap::new();
-    let mut dis = DaryHeap::<5, usize, isize>::with_capacity(rest.len() + 1);
+    let mut dis = DaryHeap::<3, usize, isize>::with_capacity(rest.len() + 1);
 
     let mut dis_edge = HashMap::new();
 

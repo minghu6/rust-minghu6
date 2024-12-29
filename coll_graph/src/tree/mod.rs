@@ -107,7 +107,6 @@ impl EulerSeq1 {
 }
 
 
-
 impl EulerSeq2 {
     pub fn new(g: &Graph, start: usize) -> Self {
         fn dfs(
@@ -139,12 +138,8 @@ impl EulerSeq2 {
 }
 
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //// Functions
-
-
 
 /// Include itself no weight property,
 pub fn furthest_vertex_no_w(g: &Graph, u: usize) -> (isize, Vec<usize>) {
@@ -251,8 +246,6 @@ pub fn center(g: &Graph) -> Center {
 }
 
 
-
-
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
@@ -266,7 +259,6 @@ mod tests {
         },
         Graph,
     };
-
 
     fn setup_ud_tree_data() -> Vec<Graph> {
         // u->v, w

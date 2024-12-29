@@ -2,10 +2,7 @@
 //!
 //!
 
-use std::{
-    cmp::min,
-    collections::{BTreeMap, HashMap, HashSet},
-};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use coll::{
     aux::{VerifyError, VerifyResult},
@@ -115,13 +112,16 @@ pub fn scc_tarjan(g: &Graph) -> Vec<Vec<usize>> {
             if vertexs[v].index.is_none() {
                 dfs_scc(g, v, comps, stack, index, vertexs);
 
-                vertexs[u].lowlink =
-                    min(vertexs[u].lowlink, vertexs[v].lowlink);
+                if vertexs[v].lowlink < vertexs[u].lowlink {
+                    vertexs[u].lowlink = vertexs[v].lowlink;
+                }
+
             } else if vertexs[v].index < vertexs[u].index
                 && vertexs[v].on_stack
             {
-                vertexs[u].lowlink =
-                    min(vertexs[u].lowlink, vertexs[v].index.unwrap());
+                if vertexs[v].index.unwrap() < vertexs[u].lowlink {
+                    vertexs[u].lowlink = vertexs[v].index.unwrap();
+                }
             }
         }
 
@@ -142,7 +142,6 @@ pub fn scc_tarjan(g: &Graph) -> Vec<Vec<usize>> {
             ordered_insert!(comps, new_comp, |x: &Vec<usize>| x[0]);
         }
     }
-
 
     let mut comps = Vec::new();
 

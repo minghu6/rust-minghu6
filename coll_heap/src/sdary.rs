@@ -152,6 +152,22 @@ where
 
         Some(v)
     }
+
+    pub fn push_mod_k<const K: usize>(&mut self, v: T) {
+        if self.len() < K {
+            self.push(v);
+        }
+        else {
+            if self.len() == K {
+                self.raw.push(v);
+            }
+            else {
+                self.raw[K] = v;
+            }
+
+            self.sift_up(K);
+        }
+    }
 }
 
 impl<const E: usize, T> DaryHeap<E, T>

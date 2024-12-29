@@ -3,14 +3,10 @@
 ////////////////////////////////////////////////////////////////////////////////
 //// Structures
 
-use std::collections::{HashSet, HashMap};
+use std::collections::{HashMap, HashSet};
 
-use coll::{
-    apush,
-    easycoll::M2,
-    get, getopt, set, stack,
-};
-use coll_heap::dary::DaryHeap5;
+use coll::{apush, easycoll::M2, get, getopt, set, stack};
+use coll_heap::{ dary, sdary };
 
 use super::Graph;
 
@@ -130,6 +126,12 @@ impl<'a> SPDijkstra<'a> {
         Self { g, src, spw, pre }
     }
 
+    pub fn new2(g: &'a Graph, src: usize) -> Self {
+        let (spw, pre) = sp_dijkstra2(g, src);
+
+        Self { g, src, spw, pre }
+    }
+
     pub fn query(&self, dst: usize) -> (isize, Vec<usize>) {
         (get!(self.spw => dst), pre_to_path!(dst, &self.pre))
     }
@@ -177,7 +179,8 @@ impl<'a> SPJohnson<'a> {
 
 fn sp_floyd(
     g: &Graph,
-) -> Result<(HashMap<(usize, usize), isize>, M2<usize, usize, usize>), Vec<usize>> {
+) -> Result<(HashMap<(usize, usize), isize>, M2<usize, usize, usize>), Vec<usize>>
+{
     let mut vertexs: Vec<usize> = g.vertexs().collect();
     vertexs.sort_unstable();
 
@@ -207,10 +210,12 @@ fn sp_floyd(
                 let y = vertexs[y];
                 let k = vertexs[k];
 
-                if let Some(w_xk) = getopt!(spw => (x, k)) &&
-                   let Some(w_ky) = getopt!(spw => (k, y))
+                if let Some(w_xk) = getopt!(spw => (x, k))
+                    && let Some(w_ky) = getopt!(spw => (k, y))
                 {
-                    if getopt!(spw => (x, y)).is_none() || w_xk + w_ky < get!(spw => (x, y)) {
+                    if getopt!(spw => (x, y)).is_none()
+                        || w_xk + w_ky < get!(spw => (x, y))
+                    {
                         set!(spw => (x, y) => w_xk + w_ky);
                         set!(next => (x, y) => get!(next => (x, k)));
 
@@ -291,15 +296,15 @@ pub fn sp_fa(
 
     set!(dis => src => 0);
 
-    // use stack instead of queue dst quick find negative circle
+    // avoid duplicated elements
     let mut vis = HashSet::new();
+    // use stack instead of queue dst quick find negative circle
     let mut stack = stack![src];
 
     let mut c = None;
 
     'outer: while let Some(u) = stack.pop() {
         vis.remove(&u);
-        // println!("test through {u}");
 
         for v in get!(g.e => u => vec![]) {
             // 无向图不存在这条路径
@@ -327,13 +332,6 @@ pub fn sp_fa(
                 }
             }
         }
-
-        // /* print pre */
-        // for v in g.vertexs() {
-        //     println!("{src}->{v}: {:?}", pre_to_path!(v, &pre));
-        // }
-        // println!("=============== round {r:02} end  ==============\n");
-        // r += 1;
     }
 
     if let Some(mut c) = c {
@@ -385,8 +383,7 @@ pub fn sp_fa_early_termination(
 
                     i += 1;
                     if i == n {
-                        if let Some(cycle) = detect_negative_cycle(n, v, &pre)
-                        {
+                        if let Some(cycle) = detect_negative_cycle(n, v, &pre) {
                             return Err(cycle);
                         }
 
@@ -406,33 +403,27 @@ pub fn sp_fa_early_termination(
 }
 
 
-fn sp_dijkstra(g: &Graph, src: usize) -> (HashMap<usize, isize>, HashMap<usize, usize>) {
+fn sp_dijkstra(
+    g: &Graph,
+    src: usize,
+) -> (HashMap<usize, isize>, HashMap<usize, usize>) {
     let mut pre = HashMap::new();
     let mut dis_m1 = HashMap::new();
 
-    let mut dis = DaryHeap5::new();
-    let mut rest = HashSet::new();
+    let mut dis = dary::DaryHeap::<3, _, _>::new();
 
-    let infi = isize::MAX / 2;
-
-    for v in g.vertexs() {
-        rest.insert(v);
-        if v == src {
-            dis.insert(v, 0);
-        } else {
-            dis.insert(v, infi);
-        }
-    }
+    dis.insert(src, 0);
 
     while let Some((u, dis_u)) = dis.pop_item() {
-        rest.remove(&u);
         set!(dis_m1 => u => dis_u);
 
         for v in get!(g.e => u) {
-            if rest.contains(&v) {
+            if !dis_m1.contains_key(&v) {
                 let w = dis_u + get!(g.w => (u, v));
-                if w < get!(dis => v) {
-                    dis.decrease_key(v, w);
+                let maybe_dis_v  = dis.get(&v).cloned();
+
+                if maybe_dis_v.is_none() || w < maybe_dis_v.unwrap() {
+                    dis.insert(v, w);
                     set!(pre => v => u);
                 }
             }
@@ -442,6 +433,37 @@ fn sp_dijkstra(g: &Graph, src: usize) -> (HashMap<usize, isize>, HashMap<usize, 
     (dis_m1, pre)
 }
 
+fn sp_dijkstra2(
+    g: &Graph,
+    src: usize,
+) -> (HashMap<usize, isize>, HashMap<usize, usize>) {
+    let mut pre = HashMap::new();
+    let mut dis_m1 = HashMap::new();
+
+    let mut dis = sdary::DaryHeap::<3, _>::new();
+
+    dis.push((0, src));
+
+    while let Some((dis_u, u)) = dis.pop() {
+        if dis_m1.contains_key(&u) { continue }
+
+        set!(dis_m1 => u => dis_u);
+
+        for v in get!(g.e => u) {
+            if dis_m1.contains_key(&v) { continue }
+
+            let w: isize = dis_u + get!(g.w => (u, v));
+            let maybe_dis_v  = dis_m1.get(&v).cloned();
+
+            if maybe_dis_v.is_none() || w < maybe_dis_v.unwrap() {
+                dis.push((w, v));
+                set!(pre => v => u);
+            }
+        }
+    }
+
+    (dis_m1, pre)
+}
 
 fn sp_johnson(
     g: &Graph,
@@ -553,20 +575,22 @@ fn detect_negative_cycle(
 
 #[cfg(test)]
 mod tests {
-    use common::{ min, same };
+    use common::{min, same};
     use resource_config::RES;
 
     use super::{SPBellmanFord, SPFloyd};
     use crate::{
-        test:: { batch_graph, GraphGenOptions },
         sp::{SPDijkstra, SPJohnson, SPFA},
+        test::{batch_graph, GraphGenOptions},
         Graph,
     };
 
 
     #[test]
     fn test_sp_fixeddata() {
-        let mut g = Graph::read_from_csv(&mut RES.graph().sp().sp_5_csv().open()).unwrap();
+        let mut g =
+            Graph::read_from_csv(&mut RES.graph().sp().sp_5_csv().open())
+                .unwrap();
         g.is_dir = false;
         assert!(g.is_connected());
 
@@ -604,6 +628,7 @@ mod tests {
                 let sp_bellmanford = SPBellmanFord::new(&g, src).unwrap();
                 let sp_fa = SPFA::new(&g, src).unwrap();
                 let sp_dijkstra = SPDijkstra::new(&g, src);
+                let sp_dijkstra2 = SPDijkstra::new2(&g, src);
 
                 for dst in g.vertexs() {
                     let (w_bellmanford, p_bellmanford) =
@@ -612,16 +637,19 @@ mod tests {
                     let (w_flod, p_flod) = sp_flod.query(src, dst);
                     let (w_johnson, p_johnson) = sp_johnson.query(src, dst);
                     let (w_spdijkstra, p_spdijkstra) = sp_dijkstra.query(dst);
+                    let (w_spdijkstra2, p_spdijkstra2) = sp_dijkstra2.query(dst);
 
                     g.verify_path(src, dst, &p_bellmanford).unwrap();
                     g.verify_path(src, dst, &p_flod).unwrap();
                     g.verify_path(src, dst, &p_spfa).unwrap();
                     g.verify_path(src, dst, &p_spdijkstra).unwrap();
+                    g.verify_path(src, dst, &p_spdijkstra2).unwrap();
                     g.verify_path(src, dst, &p_johnson).unwrap();
 
                     assert_eq!(w_bellmanford, w_flod);
                     assert_eq!(w_bellmanford, w_spfa);
                     assert_eq!(w_bellmanford, w_spdijkstra);
+                    assert_eq!(w_bellmanford, w_spdijkstra2);
                     assert_eq!(w_bellmanford, w_johnson);
                 }
             }
@@ -645,8 +673,7 @@ mod tests {
         let graphs: Vec<Graph> = graphs
             .into_iter()
             .filter(|g| {
-                let negative_edges =
-                    g.w.values().filter(|&&w| w < 0).count();
+                let negative_edges = g.w.values().filter(|&&w| w < 0).count();
                 negative_edges > 0
             })
             .collect();
@@ -655,7 +682,8 @@ mod tests {
             // assert!(g.is_connected());
             let negative_edges = g.w.values().filter(|&&w| w < 0).count();
 
-            println!("g {i:03} sparisity {:02}, negative edges: {negative_edges:02}",
+            println!(
+                "g {i:03} sparisity {:02}, negative edges: {negative_edges:02}",
                 g.sparisity()
             );
         }
@@ -676,9 +704,7 @@ mod tests {
             let sp_floyd = match SPFloyd::new(&g) {
                 Ok(it) => it,
                 Err(_) => {
-                    println!(
-                        "Found negative cycle for spfloyd... skip {i:03}"
-                    );
+                    println!("Found negative cycle for spfloyd... skip {i:03}");
                     continue;
                 }
             };

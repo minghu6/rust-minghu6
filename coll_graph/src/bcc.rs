@@ -1,6 +1,6 @@
 //! Biconnected Components (undirected graph)
 
-use std::{cmp::min, collections::HashSet};
+use std::collections::HashSet;
 
 use coll::{
     aux::{VerifyError, VerifyResult},
@@ -205,8 +205,9 @@ pub fn bcc_tarjan(g: &Graph) -> Vec<Vec<(usize, usize)>> {
                 stack.push((u, v));
                 dfs_bcc(g, v, u, bccs, stack, index, vertexs);
 
-                vertexs[u].lowpt =
-                    min(vertexs[u].lowpt, vertexs[v].lowpt);
+                if vertexs[v].lowpt < vertexs[u].lowpt {
+                    vertexs[u].lowpt = vertexs[v].lowpt;
+                }
 
                 if vertexs[u].index.unwrap() == vertexs[u].lowpt {
                     // u is cut point
@@ -230,8 +231,10 @@ pub fn bcc_tarjan(g: &Graph) -> Vec<Vec<(usize, usize)>> {
                 }
             } else if vertexs[v].index < vertexs[u].index && v != p {
                 stack.push((u, v));
-                vertexs[u].lowpt =
-                    min(vertexs[u].lowpt, vertexs[v].index.unwrap());
+
+                if vertexs[v].index.unwrap() < vertexs[u].lowpt {
+                    vertexs[u].lowpt = vertexs[v].index.unwrap();
+                }
             }
         }
     }
