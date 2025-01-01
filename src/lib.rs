@@ -20,6 +20,8 @@
 #![feature(adt_const_params)]
 #![feature(const_trait_impl)]
 #![feature(f128)]
+#![feature(str_from_utf16_endian)]
+#![feature(iter_collect_into)]
 
 pub mod text;
 pub mod io;

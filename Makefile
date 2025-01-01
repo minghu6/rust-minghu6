@@ -21,3 +21,9 @@ clean-ice:
 
 clean: clean-ice
 	@ rm -f *.dot
+
+test-utf16:
+	cargo test utf16 -- --nocapture
+
+test-utf8:
+	cargo test utf8 -- --nocapture
