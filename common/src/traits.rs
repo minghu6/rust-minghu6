@@ -1,83 +1,6 @@
 use std::{mem::size_of, ptr::copy_nonoverlapping};
 
 ////////////////////////////////////////////////////////////////////////////////
-//// Macros
-
-macro_rules! impl_for_num {
-    ($name:ident|all) => {
-        impl_for_num!($name | int);
-        impl_for_num!($name | float);
-    };
-    ($name:ident|int) => {
-        impl_for_num!($name | sint);
-        impl_for_num!($name | uint);
-    };
-    ($name:ident|float) => {
-        impl_for_num!($name | f32);
-        impl_for_num!($name | f64);
-    };
-    ($name:ident|uint) => {
-        impl_for_num!($name | u128);
-        impl_for_num!($name | u64);
-        impl_for_num!($name | usize);
-        impl_for_num!($name | u32);
-        impl_for_num!($name | u16);
-        impl_for_num!($name | u8);
-    };
-    ($name:ident|sint) => {
-        impl_for_num!($name | i128);
-        impl_for_num!($name | i64);
-        impl_for_num!($name | isize);
-        impl_for_num!($name | i32);
-        impl_for_num!($name | i16);
-        impl_for_num!($name | i8);
-    };
-    (max| $for_ty:ty) => {
-        impl Max<$for_ty> for $for_ty {
-            fn max() -> $for_ty {
-                <$for_ty>::MAX
-            }
-        }
-    };
-    (min| $for_ty:ty) => {
-        impl Min<$for_ty> for $for_ty {
-            fn min() -> $for_ty {
-                <$for_ty>::MIN
-            }
-        }
-    };
-    (float| $for_ty:ty) => {
-        impl Float<$for_ty> for $for_ty {}
-        impl_for_num!(num | $for_ty);
-    };
-    (uint| $for_ty:ty) => {
-        impl UInt<$for_ty> for $for_ty {}
-        impl_for_num!(int | $for_ty);
-    };
-    (sint| $for_ty:ty) => {
-        impl SInt<$for_ty> for $for_ty {}
-        impl_for_num!(int | $for_ty);
-    };
-    (int| $for_ty:ty) => {
-        impl Int<$for_ty> for $for_ty {}
-        impl_for_num!(num | $for_ty);
-    };
-    (num| $for_ty:ty) => {
-        impl Num<$for_ty> for $for_ty {}
-    };
-}
-
-
-impl_for_num!(sint | sint);
-impl_for_num!(uint | uint);
-impl_for_num!(float | float);
-
-
-impl_for_num!(max | all);
-impl_for_num!(min | all);
-
-
-////////////////////////////////////////////////////////////////////////////////
 //// Traits
 
 
@@ -107,39 +30,8 @@ pub trait TrimInPlace {
     fn trim_in_place(&mut self);
 }
 
-pub trait Max<T> {
-    fn max() -> T;
-}
-
-pub trait Min<T> {
-    fn min() -> T;
-}
-
-pub trait Num<T> {}
-
-pub trait Int<T> {}
-
-pub trait UInt<T> {}
-
-pub trait SInt<T> {}
-
-pub trait Float<T> {}
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //// Implements
-
-// no negative bounds
-// impl<T: Int<T>> Num<T> for T {}
-
-// impl<T: SInt<T>> Int<T> for T {}
-
-// impl<T: SInt<T>> !UInt<T> for T {}
-
-// impl<T: UInt<T>> !SInt<T> for T {}
-
-// impl<T: UInt<T>> Int<T> for T {}
-
 
 impl BitLen for usize {
     fn bit_len(&self) -> usize {

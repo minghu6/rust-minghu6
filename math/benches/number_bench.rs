@@ -6,7 +6,7 @@ use std::{hint::black_box, ops::Range};
 
 use common::random_range;
 use lazy_static::lazy_static;
-use m6_math::{gcd, is_prime, number::*};
+use m6_math::{is_prime, gcd_rem, gcd_sub, number::*};
 use test::Bencher;
 
 
@@ -36,10 +36,10 @@ lazy_static! {
 
 
 #[bench]
-fn bench_gcd_mod(b: &mut Bencher) {
+fn bench_gcd_rem(b: &mut Bencher) {
     b.iter(|| {
         for (m, n) in GCD_PAIRS.iter().cloned() {
-            black_box(gcd!(mod| m, n));
+            black_box(gcd_rem!(m, n));
         }
     })
 }
@@ -49,17 +49,7 @@ fn bench_gcd_mod(b: &mut Bencher) {
 fn bench_gcd_sub(b: &mut Bencher) {
     b.iter(|| {
         for (m, n) in GCD_PAIRS.iter().cloned() {
-            black_box(gcd!(sub | m, n));
-        }
-    })
-}
-
-
-#[bench]
-fn bench_gcd_smart(b: &mut Bencher) {
-    b.iter(|| {
-        for (m, n) in GCD_PAIRS.iter().cloned() {
-            black_box(gcd!(u64 | m, n));
+            black_box(gcd_sub!(m, n));
         }
     })
 }

@@ -94,246 +94,6 @@ lazy_static! {
     };
 }
 
-
-////////////////////////////////////////////////////////////////////////////////
-//// Macros
-
-/// replacement for
-///
-/// #![feature(int_log)]
-///
-/// a.ilog2()
-#[macro_export]
-macro_rules! ilog2 {
-    ($x:expr) => {{
-        let mut x = $x;
-        debug_assert!(x > 0);
-
-        let mut i = 0;
-
-        while x > 0 {
-            x >>= 1;
-            i += 1;
-        }
-
-        i
-    }};
-}
-
-
-///
-/// m, n shouldb e uint
-///
-#[macro_export]
-macro_rules! gcd {
-    (mod| $m:expr, $n:expr) => {{
-        let mut m = $m;
-        let mut n = $n;
-
-        while n > 0 {
-            (m, n) = (n, m % n);
-        }
-
-        m
-    }};
-    (sub| $m:expr, $n:expr) => {{
-        use std::cmp::Ordering::*;
-
-        let mut m = $m;
-        let mut n = $n;
-
-        if m < n {
-            (m, n) = (n, m);
-        }
-
-        if n != 0 {
-            loop {
-                match m.cmp(&n) {
-                    Less => n -= m,
-                    Greater => m -= n,
-                    Equal => break
-                }
-            }
-        }
-
-        m
-    }};
-    (brute| $m:expr, $n:expr) => {{
-        use std::cmp::min;
-
-        let mut m = $m;
-        let n = $n;
-
-        let smaller = min(m, n);
-
-        for i in (1..=smaller).rev() {
-            if m % i == 0 && n % i == 0 {
-                m = i;
-                break;
-            }
-        }
-
-        m
-    }};
-    ($ty:ty| $m:expr, $n:expr) => {{
-        let mut m: $ty = $m;
-        let mut n: $ty = $n;
-
-        if m < n {
-            (m, n) = (n, m);
-        }
-
-        if n == 0 {
-            m
-        }
-        else {
-            // big int
-            // use std::mem::size_of;
-            // if size_of::<$ty>() * 8 - m.leading_zeros() as usize > 31 {
-            //     if size_of::<$ty>() * 8 - (m/n).leading_zeros() as usize > 15
-            //         && n % 2 != 0
-            //     {
-            //         while m % 2 == 0 {
-            //             m >>= 1;
-            //         }
-            //     }
-
-            //     gcd!(mod|m, n)
-            // }
-            // else {
-            //     gcd!(mod|m, n)
-            // }
-
-            if n % 2 != 0 {
-                while m % 2 == 0 {
-                    m >>= 1;
-                }
-            }
-
-            gcd!(mod|m, n)
-        }
-    }};
-    ($m:expr, $n:expr) => {
-        gcd!(mod|$m, $n)
-    };
-}
-
-
-#[macro_export]
-macro_rules! ext_gcd {
-    ($m:expr,$n:expr) => {{
-        let (mut m1, mut n1) = ($m, $n);
-        let (mut x, mut y) = (1, 0);
-        let (mut x1, mut y1) = (0, 1);
-
-        while n1 > 0 {
-            let q = m1 / n1;
-
-            (x, x1) = (x1, x - q * x1);
-            (y, y1) = (y1, y - q * y1);
-            (m1, n1) = (n1, m1 - q * n1);
-        }
-
-        (m1, x, y)
-    }};
-}
-
-
-/// define any lcm with 0 is 0
-#[macro_export]
-macro_rules! lcm {
-    (brute|$m:expr, $n:expr) => {{
-        let mut m = $m;
-        let mut n = $n;
-
-        if m < n {
-            (m, n) = (n, m);
-        }
-
-        if n == 0 {
-            0
-        } else {
-            for i in m..=m * n {
-                if i % m == 0 && i % n == 0 {
-                    m = i;
-                    break;
-                }
-            }
-
-            m
-        }
-    }};
-    ($ty:ty|$m:expr, $n:expr) => {{
-        let m = $m;
-        let n = $n;
-
-        if m == 0 || n == 0 {
-            0
-        } else {
-            (m * n) / gcd!($ty | m, n)
-        }
-    }};
-}
-
-#[macro_export]
-macro_rules! is_prime {
-    ($n:expr; $ty:ty) => {{
-        let n = $n;
-
-        'ret: loop {
-            if n <= 1 {
-                break false;
-            }
-
-            if n == 2 || n == 3 {
-                break true;
-            }
-
-            if n % 2 == 0 || n % 3 == 0 {
-                break false;
-            }
-
-            for i in (5..=<$ty>::isqrt(n)).step_by(6) {
-                if n % i == 0 || n % (i + 2) == 0 {
-                    break 'ret false;
-                }
-            }
-
-            break true;
-        }
-    }};
-}
-
-#[macro_export]
-macro_rules! is_perfect_square {
-    ($n: expr) => {{
-        let n = $n;
-
-        n.isqrt().pow(2) == n
-    }};
-}
-
-#[macro_export]
-macro_rules! isqrt_ceil {
-    ($n: expr) => {{
-        let n = $n;
-
-        let root = n.isqrt();
-
-        if root * root < n {
-            root + 1
-        } else {
-            root
-        }
-    }};
-}
-
-macro_rules! boxit {
-    ($e:expr $(,)?) => {
-        Box::new($e)
-    };
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 //// Structures
 
@@ -353,7 +113,7 @@ struct WStruct {
 /// Eratosthenes Sieve
 pub fn e_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
     if n == 0 {
-        return boxit!(iter::empty());
+        return Box::new(iter::empty());
     }
 
     let mut bits = BitVec::from_elem(n + 1, true);
@@ -366,7 +126,7 @@ pub fn e_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
         }
     }
 
-    boxit!(bits
+    Box::new(bits
         .into_iter()
         .enumerate()
         .skip(2)
@@ -415,7 +175,7 @@ pub fn e_seg_sieve(n: usize) -> impl Iterator<Item = usize> {
 
 pub fn e_seg_sieve_p(n: usize) -> Box<dyn Iterator<Item = usize>> {
     if n == 0 {
-        return boxit!(iter::empty());
+        return Box::new(iter::empty());
     }
 
     let delta = n.isqrt();
@@ -480,7 +240,7 @@ pub fn e_seg_sieve_p(n: usize) -> Box<dyn Iterator<Item = usize>> {
             .collect::<Vec<usize>>()
     });
 
-    boxit!(pris.into_iter().chain(ans.into_iter()))
+    Box::new(pris.into_iter().chain(ans.into_iter()))
 }
 
 
@@ -539,11 +299,11 @@ pub fn e_inc_sieve_reentrant(pris: &mut Vec<usize>, n: usize) {
 pub fn e_inc_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
     if n <= 3 {
         if n == 3 {
-            return boxit!([2, 3].into_iter());
+            return Box::new([2, 3].into_iter());
         } else if n == 2 {
-            return boxit!([2].into_iter());
+            return Box::new([2].into_iter());
         } else {
-            return boxit!(iter::empty());
+            return Box::new(iter::empty());
         }
     }
 
@@ -551,7 +311,7 @@ pub fn e_inc_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
 
     e_inc_sieve_reentrant(&mut pris, n);
 
-    boxit!(pris.into_iter())
+    Box::new(pris.into_iter())
 }
 
 #[cfg(test)]
@@ -691,7 +451,7 @@ pub fn mairson_sieve(n: usize) -> impl Iterator<Item = usize> {
 
 pub fn mairson_dual_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
     if n <= 1 {
-        return boxit!(iter::empty());
+        return Box::new(iter::empty());
     }
 
     let mut bits = BitVec::from_elem(n + 1, true);
@@ -715,7 +475,7 @@ pub fn mairson_dual_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
         }
     }
 
-    boxit!(pris.into_iter().chain(
+    Box::new(pris.into_iter().chain(
         bits.into_iter()
             .enumerate()
             .skip(1 + n / 2)
@@ -1003,7 +763,7 @@ pub fn fixed_wheel_seg_sieve_p(n: usize) -> Box<dyn Iterator<Item = usize>> {
     let WStruct { wheel_gap: wg, .. } = &W[k];
 
     if n == 0 {
-        return boxit!(std::iter::empty());
+        return Box::new(std::iter::empty());
     }
 
     let delta = n.isqrt();
@@ -1021,7 +781,7 @@ pub fn fixed_wheel_seg_sieve_p(n: usize) -> Box<dyn Iterator<Item = usize>> {
 
         for i in 1..=k {
             if P[i] > n {
-                return boxit!(ans.into_iter());
+                return Box::new(ans.into_iter());
             }
 
             ans.push(P[i]);
@@ -1034,7 +794,7 @@ pub fn fixed_wheel_seg_sieve_p(n: usize) -> Box<dyn Iterator<Item = usize>> {
             vi = (vi + 1) % wg.len();
         }
 
-        return boxit!(ans.into_iter());
+        return Box::new(ans.into_iter());
     }
 
     fn sieve_subtask(
@@ -1156,7 +916,7 @@ pub fn fixed_wheel_seg_sieve_p(n: usize) -> Box<dyn Iterator<Item = usize>> {
             .collect::<Vec<usize>>()
     });
 
-    boxit!(pris.into_iter().chain(ans.into_iter()))
+    Box::new(pris.into_iter().chain(ans.into_iter()))
 }
 
 /// odd factorization
@@ -1165,7 +925,7 @@ pub fn sundaram_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
     // up to 2n+2
 
     if n <= 1 {
-        return boxit!(iter::empty());
+        return Box::new(iter::empty());
     }
 
     let k = (n - 1) / 2;
@@ -1181,7 +941,7 @@ pub fn sundaram_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
         }
     }
 
-    boxit!(
+    Box::new(
         once(2).chain(bits.into_iter().enumerate().skip(1).filter_map(
             |(i, flag)| if flag { Some(2 * i + 1) } else { None },
         ))
@@ -1191,7 +951,7 @@ pub fn sundaram_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
 /// odd factorization
 pub fn sundaram_sieve_improved(n: usize) -> Box<dyn Iterator<Item = usize>> {
     if n <= 1 {
-        return boxit!(iter::empty());
+        return Box::new(iter::empty());
     }
 
     let k: usize = (n - 1) / 2;
@@ -1214,7 +974,7 @@ pub fn sundaram_sieve_improved(n: usize) -> Box<dyn Iterator<Item = usize>> {
         }
     }
 
-    boxit!(
+    Box::new(
         once(2).chain(bits.into_iter().enumerate().skip(1).filter_map(
             |(i, flag)| if flag { Some(2 * i + 1) } else { None },
         )),
@@ -1225,7 +985,7 @@ pub fn sundaram_sieve_improved(n: usize) -> Box<dyn Iterator<Item = usize>> {
 // pub fn sundaram_sieve_improved_seg(n: usize) -> Box<dyn Iterator<Item = usize>> {
 //     sieve_spec_case!(n; [0, 10]);
 
-//     boxit!(std::iter::from_coroutine(
+//     Box::new(std::iter::from_coroutine(
 //         #[coroutine]
 //         move || {
 //             for p in [2, 3, 5, 7] {
@@ -1391,6 +1151,8 @@ pub fn atkin_sieve_enum_lattice(n: usize) -> impl Iterator<Item = usize> {
 
     use atkin::*;
     use common::def_stats;
+
+    use crate::isqrt_ceil;
 
     def_stats!(Watch, { algs1, algs2, algs3, remove_p });
 
@@ -1662,7 +1424,7 @@ pub fn atkin_sieve_simple(n: usize) -> impl Iterator<Item = usize> {
 /// Space: O(n)
 pub fn gpf_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
     if n <= 1 {
-        return boxit!(iter::empty());
+        return Box::new(iter::empty());
     }
 
     let mut p = 2;
@@ -1698,7 +1460,7 @@ pub fn gpf_sieve(n: usize) -> Box<dyn Iterator<Item = usize>> {
         p = i;
     }
 
-    boxit!(pris.into_iter().chain(
+    Box::new(pris.into_iter().chain(
         bits.into_iter()
             .enumerate()
             .skip(n / 2 + 1)
@@ -1921,40 +1683,6 @@ mod tests {
     use derive_where::derive_where;
 
     use super::*;
-
-
-    #[test]
-    fn test_gcd() {
-        for i in 0..=1000 {
-            for j in 0..=1000 {
-                let r1 = gcd!(mod| i, j);
-                let r2 = gcd!(sub | i, j);
-                let r3 = gcd!(i32 | i, j);
-
-                let (r4, x, y) = ext_gcd!(i, j);
-                assert_eq!(x * i + y * j, r4);
-
-                assert_eq!(r1, r2);
-                assert_eq!(r2, r3);
-                assert_eq!(r4, r3);
-
-                // brute too slow
-                // assert_eq!(r1, gcd!(brute|i, j), "for gcd({i},{j})");
-            }
-        }
-    }
-
-    #[test]
-    fn test_lcm() {
-        for i in 0..=100 {
-            for j in 0..=100 {
-                let r1 = lcm!(i32 | i, j);
-                let r2 = lcm!(brute | i, j);
-
-                assert_eq!(r1, r2);
-            }
-        }
-    }
 
     #[ignore = "for debug"]
     #[allow(deprecated)]
@@ -2272,7 +2000,7 @@ mod tests {
 
         let mairson_dual_sieve_factorization =
             |n: usize| -> Box<dyn Iterator<Item = usize>> {
-                boxit!(mairson_dual_sieve_factorization(n).0.into_iter())
+                Box::new(mairson_dual_sieve_factorization(n).0.into_iter())
             };
 
         let fixed_list = [169, 1690, 16900];
