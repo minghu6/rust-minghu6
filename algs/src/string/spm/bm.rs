@@ -55,30 +55,23 @@ pub struct BMPattern<'a, M> {
     k: usize,
 }
 
-
 pub struct SimplifiedBMPattern<'a> {
     pat_bytes: &'a [u8],
     delta1: [usize; 256],
 }
-
-
 pub struct HorspoolPattern<'a, M> {
     pat: &'a [M],
     _delta1: Box<dyn GetDelta1<Item = M> + 'a>,
 }
-
-
 pub struct SundayPattern<'a, M> {
     pat: &'a [M],
     _delta1: Box<dyn GetDelta1<Item = M> + 'a>,
 }
 
-
 pub struct B5STimePattern<'a, M> {
     pat: &'a [M],
     _delta1: Box<dyn GetDelta1<Item = M> + 'a>,
 }
-
 
 pub struct B5SSpacePattern<'a, M> {
     pat: &'a [M],
@@ -86,7 +79,6 @@ pub struct B5SSpacePattern<'a, M> {
     /// patpatlastpos delta1
     skip: usize,
 }
-
 
 /// patlen: 5   fp_rate: 0.03
 ///
@@ -646,21 +638,29 @@ impl<'a> From<&'a [u8]> for B5SSpacePattern<'a, u8> {
     fn from(pat: &'a [u8]) -> Self {
         let (patalphabet, skip) = B5SSpacePattern::build(pat);
 
-        Self { pat, patalphabet, skip }
+        Self {
+            pat,
+            patalphabet,
+            skip,
+        }
     }
 }
 
 impl<'a> B5SSpacePattern<'a, u8> {
     fn build(pat: &'a [u8]) -> (SimpleBloomFilter, usize) {
+        debug_assert!(!pat.is_empty());
+
         let mut patalphabet = SimpleBloomFilter::new();
         //let mut alphabet = FastBloomFilter::with_rate(p.len(), 0.15);
         let lastpos = pat.len() - 1;
+        let lastc = pat[lastpos];
+
         let mut skip = pat.len();
 
-        for i in 0..pat.len() - 1 {
+        for i in 0..lastpos {
             patalphabet.insert(&pat[i]);
 
-            if pat[i] == pat[lastpos] {
+            if pat[i] == lastc {
                 skip = lastpos - i;
             }
         }
@@ -683,7 +683,7 @@ impl<'a> B5SSpacePattern<'a, u8> {
 
         while i < stringlen {
             if string[i] == self.pat[patlastpos] {
-                if string[i-patlastpos..i] == self.pat[..patlastpos] {
+                if string[i - patlastpos..i] == self.pat[..patlastpos] {
                     return Some(i - patlastpos);
                 }
 
@@ -961,10 +961,11 @@ mod tests {
     fn horspool_find_all_randomdata_works() {
         for (pat, string, result) in gen_test_case() {
             assert_eq!(
-                HorspoolPattern::from(&pat).find_all(&string).collect::<Vec<_>>(),
+                HorspoolPattern::from(&pat)
+                    .find_all(&string)
+                    .collect::<Vec<_>>(),
                 result
             );
-
         }
     }
 

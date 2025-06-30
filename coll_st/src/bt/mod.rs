@@ -333,12 +333,12 @@ impl<T, const C: usize> PartialInitArray<T, C> {
     pub fn new() -> Self {
         Self {
             len: 0,
-            arr: MaybeUninit::uninit_array(),
+            arr: [const { MaybeUninit::uninit() }; C],
         }
     }
 
     pub fn exact(&self) -> &[T] {
-        unsafe { MaybeUninit::slice_assume_init_ref(&self.arr[..self.len]) }
+        unsafe { self.arr[..self.len].assume_init_ref() }
     }
 
     pub fn insert(&mut self, idx: usize, val: T) {
@@ -410,7 +410,7 @@ impl<T, const C: usize> PartialInitArray<T, C> {
 
         let oldlen = replace(&mut self.len, at);
 
-        unsafe { MaybeUninit::slice_assume_init_ref(&self.arr[at..oldlen]) }
+        unsafe { self.arr[at..oldlen].assume_init_ref() }
     }
 
     pub fn init_with_slice(&mut self, slice: &[T]) {
@@ -465,7 +465,7 @@ impl<T, const C: usize> IndexMut<usize> for PartialInitArray<T, C> {
 
 impl<T: Clone, const C: usize> Clone for PartialInitArray<T, C> {
     fn clone(&self) -> Self {
-        let mut arr = MaybeUninit::uninit_array();
+        let mut arr = [const { MaybeUninit::uninit() }; C];
 
         unsafe {
             std::ptr::copy(&self.arr, &mut arr, self.len);

@@ -1,6 +1,5 @@
 #![feature(macro_metavar_expr)]
 #![feature(let_chains)]
-#![feature(const_vec_string_slice)]
 
 
 pub mod fib;

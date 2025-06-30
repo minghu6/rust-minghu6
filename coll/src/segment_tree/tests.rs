@@ -1,7 +1,7 @@
 use std::{cmp::Ordering::*, ops::Range};
 
 use common::random_range;
-use math::gcd;
+use math::gcd_rem as gcd;
 
 use super::*;
 

@@ -5,7 +5,7 @@ use std::{
     ops::{Add, AddAssign, Range, RangeBounds, Sub},
 };
 
-use math::gcd;
+use math::gcd_rem as gcd;
 
 use super::{SegmentTree, TreeCursor, TreeLayout};
 

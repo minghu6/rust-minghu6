@@ -364,34 +364,6 @@ impl TraitImplHeader {
             .map(|bounds| bounds.bound_type(name))
             .unwrap()
     }
-
-    // pub fn resolve_argument_references(
-    //     &self,
-    // ) -> MaybeAngleBracketedGenericArguments {
-    //     MaybeAngleBracketedGenericArguments {
-    //         value: self.maybe_args.value.clone().map(
-    //             |AngleBracketedPositionalReferences {
-    //                  lt_token,
-    //                  mut args,
-    //                  gt_token,
-    //              }| {
-
-    //                 AngleBracketedGenericArguments {
-    //                     colon2_token: None,
-    //                     lt_token,
-    //                     args: args.into_iter().map(|pos| {
-    //                        match self.generics.params.get(pos.int()).unwrap() {
-    //                         GenericParam::Lifetime(lifetime_param) => GenericArgument::Lifetime(lifetime_param.lifetime.clone()),
-    //                         GenericParam::Type(type_param) => GenericArgument::Type(Type),
-    //                         GenericParam::Const(const_param) => todo!(),
-    //                     }
-    //                     }).collect(),
-    //                     gt_token,
-    //                 }
-    //             },
-    //         ),
-    //     }
-    // }
 }
 
 impl PositionalReference {
