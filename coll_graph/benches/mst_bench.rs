@@ -33,7 +33,7 @@ fn prepare_low_density_graphs() -> Vec<Graph> {
     for _ in 0..BATCH_NUM {
         let sparsity = random::<usize>() % 3 + 1;
 
-        let g = Graph::gen(&opt, vrange, sparsity, wrange.clone());
+        let g = Graph::generate(&opt, vrange, sparsity, wrange.clone());
         res.push(g);
     }
 
@@ -50,7 +50,7 @@ fn prepare_high_density_graphs() -> Vec<Graph> {
     for _ in 0..BATCH_NUM {
         let sparsity = random::<usize>() % 3 + 8;
 
-        let g = Graph::gen(&opt, vrange, sparsity, wrange.clone());
+        let g = Graph::generate(&opt, vrange, sparsity, wrange.clone());
         res.push(g);
     }
 

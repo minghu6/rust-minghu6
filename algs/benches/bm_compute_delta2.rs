@@ -29,25 +29,25 @@ fn gen_some_random_pattern(b: &mut Bencher) {
 #[ignore]
 #[bench]
 fn compute_delta2_naive(b: &mut Bencher) {
-    let gen = || {
+    let generate = || {
         let tested_patterns = gen_tested_pattern();
         for pattern in &tested_patterns {
             build_delta2_table_naive(pattern.as_bytes());
         }
     };
 
-    b.iter(|| gen())
+    b.iter(|| generate())
 }
 
 
 #[bench]
 fn compute_delta2_minghu6(b: &mut Bencher) {
-    let gen = || {
+    let generate = || {
         let tested_patterns = gen_tested_pattern();
         for pattern in &tested_patterns {
             build_delta2_table_improved_minghu6(pattern.as_bytes());
         }
     };
 
-    b.iter(|| gen())
+    b.iter(|| generate())
 }

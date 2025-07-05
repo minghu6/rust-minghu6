@@ -187,7 +187,7 @@ fn test_segment_tree_sum_nth() {
             let expect = prefix_acc
                 .iter()
                 .enumerate()
-                .find(|(_, &x)| x >= i)
+                .find(|(_, x)| **x >= i)
                 .map(|x| x.0);
 
             let res = RangeSum::find_nth(&st, &i);

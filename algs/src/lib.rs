@@ -4,7 +4,6 @@
 #![feature(iter_from_coroutine)]
 #![feature(coroutines)]
 #![feature(generic_const_exprs)]
-#![feature(generic_arg_infer)]
 #![feature(associated_const_equality)]
 #![feature(str_as_str)]
 

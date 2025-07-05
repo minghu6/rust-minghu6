@@ -2,7 +2,6 @@
 #![feature(macro_metavar_expr)]
 #![feature(iter_from_coroutine)]
 #![feature(coroutines)]
-#![feature(let_chains)]
 #![feature(stmt_expr_attributes)]
 #![feature(maybe_uninit_slice)]
 #![feature(mem_copy_fn)]

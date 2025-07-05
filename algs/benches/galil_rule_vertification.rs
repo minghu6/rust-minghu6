@@ -20,7 +20,7 @@ macro_rules! bench {
         paste! {
             #[bench]
             fn [<bench_ $name periodic_spm>](b: &mut Bencher) {
-                let gen = || {
+                let generate = || {
                     let tested_strings = gen_tested_text();
                     let tested_patterns = gen_tested_pattern();
 
@@ -36,7 +36,7 @@ macro_rules! bench {
                     }
                 };
 
-                b.iter(|| gen())
+                b.iter(|| generate())
             }
         }
     };

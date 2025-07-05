@@ -1,7 +1,7 @@
 [package]
 name = "m6-coll-heap"
-version = "0.1.8"
-edition = "2021"
+version = "0.1.9"
+edition = "2024"
 
 [dependencies]
 common = { package = "m6-common", path = "../common" }

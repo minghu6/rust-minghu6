@@ -388,7 +388,7 @@ fn impl_abciu<G>(
                 }
                 AEVNE => {
                     let v1 = loop {
-                        let v1 = g.gen();
+                        let v1 = g.generate();
 
                         if v1 != v {
                             break v1;
@@ -414,7 +414,7 @@ fn impl_abciu<G>(
         }
         QNE | ANE | DNE => {
             let k1 = loop {
-                let k1 = g.gen();
+                let k1 = g.generate();
 
                 if tracer.cg.get(&k1).is_none() {
                     break k1;
@@ -442,7 +442,7 @@ fn impl_abciu<G>(
         }
         RInNEInNE => {
             let k1 = loop {
-                let k1 = g.gen();
+                let k1 = g.generate();
 
                 if tracer.cg.get(&k1).is_none() {
                     break k1;
@@ -450,7 +450,7 @@ fn impl_abciu<G>(
             };
 
             let k2 = loop {
-                let k2 = g.gen();
+                let k2 = g.generate();
 
                 if tracer.cg.get(&k2).is_none() && k2 >= k1 {
                     break k2;

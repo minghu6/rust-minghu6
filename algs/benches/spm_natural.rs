@@ -29,7 +29,7 @@ macro_rules! bench {
         paste! {
             #[bench]
             fn [<bench_ $name _spm>](b: &mut Bencher) {
-                let gen = || {
+                let generate = || {
                     let tested_strings = gen_tested_text();
                     let tested_patterns = gen_tested_pattern();
 
@@ -45,7 +45,7 @@ macro_rules! bench {
                     }
                 };
 
-                b.iter(|| gen())
+                b.iter(|| generate())
             }
         }
     };
@@ -85,7 +85,7 @@ fn gen_some_random_text(b: &mut Bencher) {
 #[ignore]
 #[bench]
 fn kmp_spm(b: &mut Bencher) {
-    let gen = || {
+    let generate = || {
         let tested_texts = gen_tested_text();
         let tested_patterns = gen_tested_pattern();
         for text in &tested_texts {
@@ -96,13 +96,13 @@ fn kmp_spm(b: &mut Bencher) {
         }
     };
 
-    b.iter(|| gen())
+    b.iter(|| generate())
 }
 
 #[ignore]
 #[bench]
 fn kmp_spm_naive(b: &mut Bencher) {
-    let gen = || {
+    let generate = || {
         let tested_texts = gen_tested_text();
         let tested_patterns = gen_tested_pattern();
         for text in &tested_texts {
@@ -113,7 +113,7 @@ fn kmp_spm_naive(b: &mut Bencher) {
         }
     };
 
-    b.iter(|| gen())
+    b.iter(|| generate())
 }
 
 bench!(horspool, HorspoolPattern);
@@ -131,7 +131,7 @@ bench!(b5s_space, B5SSpacePattern);
 
 #[bench]
 fn simplified_bm_spm(b: &mut Bencher) {
-    let gen = || {
+    let generate = || {
         let tested_texts = gen_tested_text();
         let tested_patterns = gen_tested_pattern();
         for text in &tested_texts {
@@ -142,14 +142,14 @@ fn simplified_bm_spm(b: &mut Bencher) {
         }
     };
 
-    b.iter(|| gen())
+    b.iter(|| generate())
 }
 
 
 
 #[bench]
 fn ac_automaton(b: &mut Bencher) {
-    let gen = || {
+    let generate = || {
         let tested_texts = gen_tested_text();
         let tested_patterns = gen_tested_pattern();
         let trie_tree = ac::ACTrie::new(&tested_patterns);
@@ -159,12 +159,12 @@ fn ac_automaton(b: &mut Bencher) {
         }
     };
 
-    b.iter(|| gen())
+    b.iter(|| generate())
 }
 
 #[bench]
 fn ac_automaton2(b: &mut Bencher) {
-    let gen = || {
+    let generate = || {
         let tested_texts = gen_tested_text();
         let tested_patterns = gen_tested_pattern();
         let trie_tree = ac2::ACTrie::with_keys(tested_patterns);
@@ -174,7 +174,7 @@ fn ac_automaton2(b: &mut Bencher) {
         }
     };
 
-    b.iter(|| gen())
+    b.iter(|| generate())
 }
 
 #[bench]
@@ -183,7 +183,7 @@ fn rk_spm(b: &mut Bencher) {
     let p = alphabet.prime();
     let npows = create_npows(p, 1000);
 
-    let gen = || {
+    let generate = || {
         let tested_texts = gen_tested_text();
         let tested_patterns = gen_tested_pattern();
 
@@ -200,5 +200,5 @@ fn rk_spm(b: &mut Bencher) {
         }
     };
 
-    b.iter(|| gen())
+    b.iter(|| generate())
 }

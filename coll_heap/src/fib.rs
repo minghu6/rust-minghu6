@@ -787,7 +787,7 @@ mod tests {
     #[test]
     fn test_fibheap_fixeddata() {
         let mut heap = FibHeap::<usize, usize>::new();
-        let mut auto = common::gen();
+        let mut auto = common::generate();
 
         heap.insert(auto(), 2);
         heap.insert(auto(), 4);

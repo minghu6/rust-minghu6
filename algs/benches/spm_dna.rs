@@ -20,7 +20,7 @@ macro_rules! bench {
         paste! {
             #[bench]
             fn [<$name _dna_spm>](b: &mut Bencher) {
-                let gen = || {
+                let generate = || {
                     let tested_strings = gen_tested_text();
                     let tested_patterns = gen_tested_pattern();
                     for pattern in &tested_patterns {
@@ -35,7 +35,7 @@ macro_rules! bench {
                     }
                 };
 
-                b.iter(|| gen())
+                b.iter(|| generate())
             }
         }
     };
@@ -72,7 +72,7 @@ fn gen_some_random_text(b: &mut Bencher) {
 #[ignore]
 #[bench]
 fn kmp_dna_spm(b: &mut Bencher) {
-    let gen = || {
+    let generate = || {
         let tested_texts = gen_tested_text();
         let tested_patterns = gen_tested_pattern();
         for pattern in &tested_patterns {
@@ -84,13 +84,13 @@ fn kmp_dna_spm(b: &mut Bencher) {
         }
     };
 
-    b.iter(|| gen())
+    b.iter(|| generate())
 }
 
 
 #[bench]
 fn simplified_bm_dna_spm(b: &mut Bencher) {
-    let gen = || {
+    let generate = || {
         let tested_texts = gen_tested_text();
         let tested_patterns = gen_tested_pattern();
         for pattern in &tested_patterns {
@@ -101,7 +101,7 @@ fn simplified_bm_dna_spm(b: &mut Bencher) {
         }
     };
 
-    b.iter(|| gen())
+    b.iter(|| generate())
 }
 
 
@@ -121,7 +121,7 @@ bench!(b5s_space, B5SSpacePattern);
 #[ignore]
 #[bench]
 fn ac_automaton_dna(b: &mut Bencher) {
-    let gen = || {
+    let generate = || {
         let tested_texts = gen_tested_text();
         let tested_patterns = gen_tested_pattern();
         let trie_tree = ACTrie::new(&tested_patterns);
@@ -131,5 +131,5 @@ fn ac_automaton_dna(b: &mut Bencher) {
         }
     };
 
-    b.iter(|| gen())
+    b.iter(|| generate())
 }

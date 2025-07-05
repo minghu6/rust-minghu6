@@ -354,7 +354,7 @@ where
 #[cfg(test)]
 mod tests {
 
-    use common::{gen, random};
+    use common::{generate, random};
 
     use crate::{
         dary::{DaryHeap, DaryHeap1},
@@ -365,7 +365,7 @@ mod tests {
 
     #[test]
     fn test_daryheap_fixeddata() {
-        let mut auto = gen();
+        let mut auto = generate();
         let mut heap = DaryHeap::<1, usize, usize>::new();
 
         heap.insert(auto(), 2);

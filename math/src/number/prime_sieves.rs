@@ -880,7 +880,7 @@ pub fn fixed_wheel_seg_sieve_p(n: usize) -> Box<dyn Iterator<Item = usize>> {
             .iter()
             .enumerate()
             .rev()
-            .find(|(_, &p)| p * p <= n)
+            .find(|(_, p)| **p * **p <= n)
             .map(|(i, _)| i + 1)
             .unwrap_or(0);
 

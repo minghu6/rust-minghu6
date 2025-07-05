@@ -1,6 +1,4 @@
 #![feature(macro_metavar_expr)]
-#![feature(let_chains)]
-
 
 pub mod fib;
 pub mod dary;

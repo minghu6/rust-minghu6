@@ -23,7 +23,7 @@ pub trait BulkLoad: Load {
         len: usize,
     ) -> Self {
         let mut input = (0..len)
-            .map(|_| g.gen())
+            .map(|_| g.generate())
             .collect::<Vec<_>>();
 
         input.sort();

@@ -103,7 +103,7 @@ mod tests {
         let mut gs = vec![];
 
         for _ in 0..50 {
-            let g = Graph::gen(&opt, 30, 0, 1..2);
+            let g = Graph::generate(&opt, 30, 0, 1..2);
             gs.push(g);
         }
 

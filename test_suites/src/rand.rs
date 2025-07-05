@@ -7,7 +7,7 @@ use m6entry::KVEntry;
 //// Traits
 
 pub trait GenerateRandomValue<T> {
-    fn gen(&mut self) -> T;
+    fn generate(&mut self) -> T;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,7 +41,7 @@ impl GenerateI32100 {
 }
 
 impl GenerateRandomValue<i32> for GenerateI32100 {
-    fn gen(&mut self) -> i32 {
+    fn generate(&mut self) -> i32 {
         self.rng.gen_range(0..100)
     }
 }
@@ -53,7 +53,7 @@ impl GenerateI3210000 {
 }
 
 impl GenerateRandomValue<i32> for GenerateI3210000 {
-    fn gen(&mut self) -> i32 {
+    fn generate(&mut self) -> i32 {
         self.rng.gen_range(0..10000)
     }
 }
@@ -65,20 +65,20 @@ impl GenerateI32Any {
 }
 
 impl GenerateRandomValue<i32> for GenerateI32Any {
-    fn gen(&mut self) -> i32 {
-        Rng::gen(&mut self.rng)
+    fn generate(&mut self) -> i32 {
+        Rng::r#gen(&mut self.rng)
     }
 }
 
 impl GenerateRandomValue<i32> for ThreadRng {
-    fn gen(&mut self) -> i32 {
-        Rng::gen(self)
+    fn generate(&mut self) -> i32 {
+        Rng::r#gen(self)
     }
 }
 
 impl<T: Clone, G: GenerateRandomValue<T>> GenerateRandomValue<KVEntry<T, T>> for G {
-    fn gen(&mut self) -> KVEntry<T, T> {
-        let k = self.gen();
+    fn generate(&mut self) -> KVEntry<T, T> {
+        let k = self.generate();
         let v = k.clone();
 
         KVEntry(k, v)

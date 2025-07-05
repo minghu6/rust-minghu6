@@ -1,7 +1,7 @@
 [package]
 name = "m6-common"
-version = "0.1.9"
-edition = "2021"
+version = "0.1.10"
+edition = "2024"
 
 [dependencies]
 extern_rand = { package = "rand", version = "^0.8" }

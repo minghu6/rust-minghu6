@@ -206,7 +206,7 @@ pub mod tests {
 
     #[bench]
     fn simple_bloom_filter_basic_op(b: &mut Bencher) {
-        let gen = || {
+        let generate = || {
             let mut bloom_filter = BytesBloomFilter64::with_len(6);
 
             for b in gen_test_text().as_bytes() {
@@ -216,12 +216,12 @@ pub mod tests {
             }
         };
 
-        b.iter(|| gen())
+        b.iter(|| generate())
     }
 
     #[bench]
     fn fast_bloom_filter_basic_op(b: &mut Bencher) {
-        let gen = || {
+        let generate = || {
             let mut bloom_filter = HashBloomFilter::with_rate(100, 0.15);
 
             for b in gen_test_text().as_bytes() {
@@ -231,12 +231,12 @@ pub mod tests {
             }
         };
 
-        b.iter(|| gen())
+        b.iter(|| generate())
     }
 
     #[bench]
     fn bitvec_bloom_filter_basic_op(b: &mut Bencher) {
-        let gen = || {
+        let generate = || {
             let mut bits = BitVec::from_elem(128, false);
 
             for b in gen_test_text().as_bytes() {
@@ -259,6 +259,6 @@ pub mod tests {
             }
         };
 
-        b.iter(|| gen())
+        b.iter(|| generate())
     }
 }

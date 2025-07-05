@@ -22,7 +22,7 @@ pub fn sub_palindromes_to_longest_palindromes(
             max_even_r * 2,
             d2.into_iter()
                 .enumerate()
-                .filter(|(_, &x)| x == max_even_r)
+                .filter(|(_, x)| **x == max_even_r)
                 .map(|(i, _)| i - max_even_r)
                 .collect(),
         )
@@ -32,7 +32,7 @@ pub fn sub_palindromes_to_longest_palindromes(
             max_odd_r * 2 - 1,
             d1.into_iter()
                 .enumerate()
-                .filter(|(_, &x)| x == max_odd_r)
+                .filter(|(_, x)| **x == max_odd_r)
                 .map(|(i, _)| i + 1 - max_odd_r)
                 .collect(),
         )

@@ -1,7 +1,7 @@
 [package]
 name = "m6-coll"
-version = "0.3.4"
-edition = "2021"
+version = "0.3.5"
+edition = "2024"
 
 [dependencies]
 paste = "1.0"

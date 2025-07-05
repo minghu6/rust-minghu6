@@ -18,7 +18,7 @@ use UTF16DecodeError::*;
 macro_rules! split_u16 {
     ($expr:expr) => {{
         let cached_value = $expr as u16;
-        &[
+        [
             (cached_value & 0xFF) as u8,
             ((cached_value & 0xFF00) >> 8) as u8,
         ]
@@ -96,10 +96,10 @@ pub fn encode_utf16_cp_le(
     ch: u32,
 ) -> Result<(), UTF16EncodeError> {
     match encode_utf16_cp_(ch)? {
-        BMP(w) => bytes.extend_from_slice(split_u16!(w)),
+        BMP(w) => bytes.extend_from_slice(&split_u16!(w)),
         SMP(w1, w2) => {
-            let &[b0, b1] = split_u16!(w1);
-            let &[b2, b3] = split_u16!(w2);
+            let [b0, b1] = split_u16!(w1);
+            let [b2, b3] = split_u16!(w2);
 
             bytes.extend_from_slice(&[b0, b1, b2, b3]);
         }
@@ -114,12 +114,12 @@ pub fn encode_utf16_cp_be(
 ) -> Result<(), UTF16EncodeError> {
     match encode_utf16_cp_(ch)? {
         BMP(w) => {
-            let &[b0, b1] = split_u16!(w);
+            let [b0, b1] = split_u16!(w);
             bytes.extend_from_slice(&[b1, b0]);
         }
         SMP(w1, w2) => {
-            let &[b0, b1] = split_u16!(w1);
-            let &[b2, b3] = split_u16!(w2);
+            let [b0, b1] = split_u16!(w1);
+            let [b2, b3] = split_u16!(w2);
 
             bytes.extend_from_slice(&[b1, b0, b3, b2]);
         }

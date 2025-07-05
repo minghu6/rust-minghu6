@@ -20,7 +20,7 @@ fn gen_case() -> Vec<Vec<Entry<usize, usize>>> {
 
 #[bench]
 fn bench_heap_sv(b: &mut Bencher) {
-    let gen = || {
+    let generate = || {
         for case in gen_case() {
             let mut heap = BinaryHeap::with_capacity(UNIT_LEN);
 
@@ -35,13 +35,13 @@ fn bench_heap_sv(b: &mut Bencher) {
         }
     };
 
-    b.iter(|| gen())
+    b.iter(|| generate())
 }
 
 
 #[bench]
 fn bench_sortedvec_sv(b: &mut Bencher) {
-    let gen = || {
+    let generate = || {
         for case in gen_case() {
             let mut sortvec = SortedVec::with_capacity(UNIT_LEN);
 
@@ -51,5 +51,5 @@ fn bench_sortedvec_sv(b: &mut Bencher) {
         }
     };
 
-    b.iter(|| gen())
+    b.iter(|| generate())
 }

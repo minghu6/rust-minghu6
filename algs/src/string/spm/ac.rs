@@ -27,7 +27,7 @@ impl<'a> ACTrie<'a> {
         ACTrie { root_ptr, keys }
     }
 
-    fn build_ac_automaton(target_strings: &Vec<String>) -> *mut TrieNode {
+    fn build_ac_automaton(target_strings: &'_ Vec<String>) -> *mut TrieNode<'_> {
         let root_ptr = TrieNode::new('_');
 
         for target in target_strings.iter() {

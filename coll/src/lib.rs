@@ -1,6 +1,5 @@
 #![feature(macro_metavar_expr)]
 #![feature(exact_size_is_empty)]
-#![feature(let_chains)]
 #![feature(int_roundings)]
 #![feature(slice_range)]
 #![feature(trait_alias)]

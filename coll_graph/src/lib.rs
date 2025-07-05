@@ -1,5 +1,4 @@
 #![feature(iter_from_coroutine)]
-#![feature(let_chains)]
 #![feature(coroutines)]
 #![feature(type_alias_impl_trait)]
 

@@ -76,7 +76,7 @@ impl Graph {
     ///
     ///
     /// it ranges exponentially
-    pub fn gen(
+    pub fn generate(
         opt: &GraphGenOptions,
         vrange: usize,
         sparsity: usize,
@@ -172,7 +172,7 @@ impl Graph {
             }
         }
 
-        /* gen spanning tree */
+        /* generate spanning tree */
 
         if !opt.allow_cycle {
             let mut visited = HashSet::new();
@@ -241,7 +241,7 @@ pub fn batch_graph(
     for _ in 0..n {
         let sparsity = random::<usize>() % 10 + 1;
 
-        let g = Graph::gen(opt, vrange, sparsity, wrange.clone());
+        let g = Graph::generate(opt, vrange, sparsity, wrange.clone());
         res.push(g);
     }
 
@@ -260,7 +260,7 @@ mod tests {
 
     #[test]
     fn test_gen_ud_graph() {
-        let g = Graph::gen(&GraphGenOptions::undir_conn(), 30, 4, 1..15);
+        let g = Graph::generate(&GraphGenOptions::undir_conn(), 30, 4, 1..15);
 
         assert!(g.is_connected());
 
@@ -288,9 +288,9 @@ mod tests {
 
         //     // println!("sparsity: {sparsity}");
 
-        //     let g = Graph::gen(&ucgopt(), 100, 10, -10..20);
+        //     let g = Graph::generate(&ucgopt(), 100, 10, -10..20);
         // }
 
-        // let g = Graph::gen(&ucgopt(), 10, 10, -10..20);
+        // let g = Graph::generate(&ucgopt(), 10, 10, -10..20);
     }
 }

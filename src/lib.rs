@@ -11,7 +11,6 @@
 #![feature(type_alias_impl_trait)]
 #![feature(iter_from_coroutine)]
 #![feature(trace_macros)]
-#![feature(let_chains)]
 #![feature(f16)]
 #![feature(debug_closure_helpers)]
 #![feature(adt_const_params)]

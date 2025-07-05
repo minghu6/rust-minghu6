@@ -118,7 +118,7 @@ fn main() {
     let shape = cli.shape;
 
     let (gen_opt, render_opt) = shape.get_config();
-    let g = Graph::gen(&gen_opt, vn, sparsity, wrange.0);
+    let g = Graph::generate(&gen_opt, vn, sparsity, wrange.0);
 
     let mut csv_fn = cli.r#fn.clone();
     csv_fn.set_extension("csv");

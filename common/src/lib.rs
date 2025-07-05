@@ -14,4 +14,4 @@ pub mod utils;
 pub use itertools::{EitherOrBoth, Itertools};
 pub use rand::*;
 pub use traits::*;
-pub use utils::{gen, gen_unique, *};
+pub use utils::{generate, gen_unique, *};

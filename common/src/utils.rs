@@ -246,7 +246,7 @@ pub fn normalize<T: Ord>(raw_data: &[T]) -> Vec<usize> {
 }
 
 
-pub fn gen() -> impl FnMut() -> usize {
+pub fn generate() -> impl FnMut() -> usize {
     let mut _inner = 0;
     move || {
         let old = _inner;
