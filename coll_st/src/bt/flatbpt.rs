@@ -180,7 +180,7 @@ impl<K, V, const M: usize> FlatBPT<K, V, M> {
     }
 
     /// `>= 2`
-    const fn internal_cap_low_bound() -> usize {
+    const fn internal_cap_lower_bound() -> usize {
         M.div_floor(2)
     }
 }
@@ -219,7 +219,7 @@ impl<K: Clone + Ord, V, const M: usize> FlatBPT<K, V, M> {
         let node_redundancy = 1;
         // avoid tree promote and unpromote
         let leaf_min_cap = 1 + node_redundancy;
-        let internal_min_cap = Self::internal_cap_low_bound() + node_redundancy;
+        let internal_min_cap = Self::internal_cap_lower_bound() + node_redundancy;
 
         /* compute nodes number per level */
 
@@ -556,7 +556,7 @@ impl<K, V, const M: usize> FlatBPT<K, V, M> {
             let p_children = self.nodes[p].get_children();
 
             (ptr, maybe_res_entryid) = match p_children
-                .exact()
+                .as_slice()
                 .binary_search_by_key(&&key, |KVEntry(key, _)| key)
             {
                 Ok(idx) => (p_children[idx].1, Some(Ok(0))),
@@ -573,7 +573,7 @@ impl<K, V, const M: usize> FlatBPT<K, V, M> {
         let res_entryid = maybe_res_entryid.unwrap_or_else(|| {
             self.nodes[ptr]
                 .get_entries()
-                .exact()
+                .as_slice()
                 .binary_search_by_key(&&key, |KVEntry(key, _)| key)
         });
 
@@ -646,14 +646,14 @@ impl<K, V, const M: usize> FlatBPT<K, V, M> {
 
                         if start_nodeid == end_nodeid {
                             for KVEntry(key, dataid) in
-                                &self.nodes[start_nodeid].get_entries().exact()
+                                &self.nodes[start_nodeid].get_entries().as_slice()
                                     [start_entryid..=end_entryid]
                             {
                                 yield (key, self.data(*dataid))
                             }
                         } else {
                             for KVEntry(key, dataid) in
-                                &self.nodes[start_nodeid].get_entries().exact()
+                                &self.nodes[start_nodeid].get_entries().as_slice()
                                     [start_entryid..]
                             {
                                 yield (key, self.data(*dataid))
@@ -670,14 +670,14 @@ impl<K, V, const M: usize> FlatBPT<K, V, M> {
 
                                 if ptr == end_nodeid {
                                     for KVEntry(key, dataid) in
-                                        entries.exact()[..=end_entryid].iter()
+                                        entries.as_slice()[..=end_entryid].iter()
                                     {
                                         yield (key, self.data(*dataid))
                                     }
 
                                     break;
                                 } else {
-                                    for KVEntry(key, dataid) in entries.exact()
+                                    for KVEntry(key, dataid) in entries.as_slice()
                                     {
                                         yield (key, self.data(*dataid))
                                     }
@@ -690,7 +690,7 @@ impl<K, V, const M: usize> FlatBPT<K, V, M> {
                     QueryRangeEndResult::Unbound => {
                         for KVEntry(key, dataid) in &self.nodes[start_nodeid]
                             .get_entries()
-                            .exact()[start_entryid..]
+                            .as_slice()[start_entryid..]
                         {
                             yield (key, self.data(*dataid))
                         }
@@ -704,7 +704,7 @@ impl<K, V, const M: usize> FlatBPT<K, V, M> {
                                 unreachable!()
                             };
 
-                            for KVEntry(key, dataid) in entries.exact() {
+                            for KVEntry(key, dataid) in entries.as_slice() {
                                 yield (key, self.data(*dataid))
                             }
 
@@ -736,7 +736,7 @@ impl<K, V, const M: usize> FlatBPT<K, V, M> {
                 };
 
                 match entries
-                    .exact()
+                    .as_slice()
                     .binary_search_by_key(&k, |KVEntry(key, _)| key.borrow())
                 {
                     Ok(idx) => Some((ptr, idx)),
@@ -774,7 +774,7 @@ impl<K, V, const M: usize> FlatBPT<K, V, M> {
                 };
 
                 match entries
-                    .exact()
+                    .as_slice()
                     .binary_search_by_key(&k, |KVEntry(key, _)| key.borrow())
                 {
                     Ok(idx) => Some(QueryRangeEndResult::Spec(ptr, idx)),
@@ -795,7 +795,7 @@ impl<K, V, const M: usize> FlatBPT<K, V, M> {
                 };
 
                 match entries
-                    .exact()
+                    .as_slice()
                     .binary_search_by_key(&k, |KVEntry(key, _)| key.borrow())
                 {
                     Ok(idx) => {
@@ -869,7 +869,7 @@ impl<K, V, const M: usize> FlatBPT<K, V, M> {
 
                 let p_of_pp = pp_node
                     .get_children()
-                    .exact()
+                    .as_slice()
                     .binary_search_by_key(&p_node_k, |KVEntry(k, _)| k.borrow())
                     .unwrap();
 
@@ -881,7 +881,7 @@ impl<K, V, const M: usize> FlatBPT<K, V, M> {
             let mut ptr_node = &self.nodes[ptr];
 
             while matches!(ptr_node, Node::Internal { .. }) {
-                ptr = ptr_node.get_children().exact().last().unwrap().1;
+                ptr = ptr_node.get_children().as_slice().last().unwrap().1;
                 ptr_node = &self.nodes[ptr];
             }
 
@@ -905,7 +905,7 @@ impl<K, V, const M: usize> FlatBPT<K, V, M> {
         let mut ptr = self.root;
 
         while let Node::Internal { children, .. } = &self.nodes[ptr] {
-            ptr = children.exact().last().unwrap().1;
+            ptr = children.as_slice().last().unwrap().1;
         }
 
         ptr
@@ -924,7 +924,7 @@ impl<K, V, const M: usize> FlatBPT<K, V, M> {
 
         while let Node::Internal { children, .. } = &self.nodes[ptr] {
             let ptr_of_p = match children
-                .exact()
+                .as_slice()
                 .binary_search_by_key(&k, |KVEntry(key, _)| key.borrow())
             {
                 Ok(idx) => idx,
@@ -957,7 +957,7 @@ impl<K, V, const M: usize> FlatBPT<K, V, M> {
 
         while let Node::Internal { children, .. } = &self.nodes[ptr] {
             let x_of_p = match children
-                .exact()
+                .as_slice()
                 .binary_search_by_key(&k, |KVEntry(key, _)| key.borrow())
             {
                 Ok(idx) => idx,
@@ -976,7 +976,7 @@ impl<K, V, const M: usize> FlatBPT<K, V, M> {
 
         self.nodes[ptr]
             .get_entries()
-            .exact()
+            .as_slice()
             .binary_search_by_key(&k, |KVEntry(key, _)| key.borrow())
             .ok()
             .map(|entryid| (ptr, entryid, maybe_x_of_p))
@@ -1059,7 +1059,7 @@ impl<K, V, const M: usize> FlatBPT<K, V, M> {
             unreachable!()
         };
 
-        x_entries.extend_slice(entries.exact());
+        x_entries.extend_slice(entries.as_slice());
         *x_next = next;
 
         /* update key */
@@ -1162,11 +1162,11 @@ impl<K, V, const M: usize> FlatBPT<K, V, M> {
         K: Clone,
     {
         debug_assert!(
-            self.nodes[x].len() == Self::internal_cap_low_bound() - 1
+            self.nodes[x].len() == Self::internal_cap_lower_bound() - 1
         );
         debug_assert!(x_of_p > 0);
         debug_assert!(
-            self.nodes[sib_lf].len() > Self::internal_cap_low_bound()
+            self.nodes[sib_lf].len() > Self::internal_cap_lower_bound()
         );
 
         let child = self.nodes[sib_lf].get_children_mut().pop();
@@ -1192,16 +1192,16 @@ impl<K, V, const M: usize> FlatBPT<K, V, M> {
         K: Clone + Ord,
     {
         debug_assert!(
-            self.nodes[x].len() == Self::internal_cap_low_bound() - 1
+            self.nodes[x].len() == Self::internal_cap_lower_bound() - 1
         );
         debug_assert!(x_of_p > 0);
         debug_assert!(
-            self.nodes[sib_lf].len() == Self::internal_cap_low_bound()
+            self.nodes[sib_lf].len() == Self::internal_cap_lower_bound()
         );
 
         let x_node = self.nodes.remove(x).unwrap();
 
-        let x_children = x_node.get_children().exact();
+        let x_children = x_node.get_children().as_slice();
 
         self.nodes[sib_lf]
             .get_children_mut()
@@ -1232,17 +1232,17 @@ impl<K, V, const M: usize> FlatBPT<K, V, M> {
         K: Clone + Ord,
     {
         debug_assert!(
-            self.nodes[x].len() == Self::internal_cap_low_bound() - 1
+            self.nodes[x].len() == Self::internal_cap_lower_bound() - 1
         );
         debug_assert!(
             self.nodes[p].len() >= 2 && x_of_p < self.nodes[p].len() - 1
         );
         debug_assert!(
-            self.nodes[sib_rh].len() == Self::internal_cap_low_bound()
+            self.nodes[sib_rh].len() == Self::internal_cap_lower_bound()
         );
 
         let sib_rh_node = self.nodes.remove(sib_rh).unwrap();
-        let sib_rh_children = sib_rh_node.get_children().exact();
+        let sib_rh_children = sib_rh_node.get_children().as_slice();
 
         self.nodes[x]
             .get_children_mut()
@@ -1273,13 +1273,13 @@ impl<K, V, const M: usize> FlatBPT<K, V, M> {
         K: Clone,
     {
         debug_assert!(
-            self.nodes[x].len() == Self::internal_cap_low_bound() - 1
+            self.nodes[x].len() == Self::internal_cap_lower_bound() - 1
         );
         debug_assert!(
             self.nodes[p].len() >= 2 && x_of_p < self.nodes[p].len() - 1
         );
         debug_assert!(
-            self.nodes[sib_rh].len() > Self::internal_cap_low_bound()
+            self.nodes[sib_rh].len() > Self::internal_cap_lower_bound()
         );
 
         let sib_rh_children = self.nodes[sib_rh].get_children_mut();
@@ -1309,13 +1309,13 @@ impl<K, V, const M: usize> FlatBPT<K, V, M> {
             x == self.root && self.nodes[x].len() >= 1
                 || x != self.root
                     && self.nodes[x].len()
-                        >= Self::internal_cap_low_bound() - 1
+                        >= Self::internal_cap_lower_bound() - 1
         );
 
         // x be either root or not root
 
         let x_len = self.nodes[x].len();
-        let bound = Self::internal_cap_low_bound();
+        let bound = Self::internal_cap_lower_bound();
 
         if x == self.root && x_len == 1 {
             /* pop level */
@@ -1332,7 +1332,7 @@ impl<K, V, const M: usize> FlatBPT<K, V, M> {
             let p = *paren;
             let p_children = self.nodes[p].get_children();
             let x_of_p =
-                p_children.exact().binary_search(&children[0]).unwrap();
+                p_children.as_slice().binary_search(&children[0]).unwrap();
 
             if x_of_p > 0 {
                 let sib_lf = p_children[x_of_p - 1].1;
@@ -1383,7 +1383,7 @@ impl<K, V, const M: usize> FlatBPT<K, V, M> {
             let p = self.nodes[ptr].paren();
             let p_children = self.nodes[p].get_children_mut();
 
-            let Ok(x_of_p) = p_children.exact().binary_search(&old_key_entry)
+            let Ok(x_of_p) = p_children.as_slice().binary_search(&old_key_entry)
             else {
                 panic!(
                     // "{}",
@@ -1589,7 +1589,7 @@ impl<'a, K: Ord, V, const M: usize> WalkTree<'a> for FlatBPT<K, V, M> {
     ) -> impl Iterator<Item = &'a Self::NodeBorrow> {
         std::iter::from_coroutine(#[coroutine] move || {
             if let Node::Internal { children, .. } = ptr {
-                for KVEntry(_, nodeid) in children.exact().iter() {
+                for KVEntry(_, nodeid) in children.as_slice().iter() {
                     yield &self.nodes[*nodeid];
                 }
             }
@@ -1850,10 +1850,10 @@ impl<K, const M: usize> Node<K, M> {
     pub fn get_keys(&self) -> Vec<&K> {
         match self {
             Self::Internal { children, .. } => {
-                children.exact().iter().map(|KVEntry(k, _)| k).collect()
+                children.as_slice().iter().map(|KVEntry(k, _)| k).collect()
             }
             Self::Leaf { entries, .. } => {
-                entries.exact().iter().map(|KVEntry(k, _)| k).collect()
+                entries.as_slice().iter().map(|KVEntry(k, _)| k).collect()
             }
         }
     }
@@ -1888,7 +1888,7 @@ impl<K, const M: usize> Node<K, M> {
 
     pub fn children(&self) -> Vec<usize> {
         self.get_children()
-            .exact()
+            .as_slice()
             .iter()
             .map(|KVEntry(_, child)| child)
             .cloned()
@@ -1972,18 +1972,18 @@ mod tests {
                         } else {
                             assert!(
                                 children.len()
-                                    >= Self::internal_cap_low_bound(),
+                                    >= Self::internal_cap_lower_bound(),
                                 "{}",
                                 dlot.display_fault(&loc)
                             );
                         }
                         assert!(
-                            children.exact().iter().is_sorted(),
+                            children.as_slice().iter().is_sorted(),
                             "{}",
                             dlot.display_fault(&loc)
                         );
 
-                        for KVEntry(child_k, child) in children.exact().iter() {
+                        for KVEntry(child_k, child) in children.as_slice().iter() {
                             let child_node = &self.nodes[*child];
 
                             assert_eq!(
@@ -2008,12 +2008,12 @@ mod tests {
                             dlot.display_fault(&loc)
                         );
                         assert!(
-                            entries.exact().is_sorted(),
+                            entries.as_slice().is_sorted(),
                             "{}",
                             dlot.display_fault(&loc)
                         );
 
-                        let lastk = &entries.exact().last().unwrap().0;
+                        let lastk = &entries.as_slice().last().unwrap().0;
 
                         next.inspect(|next| {
                             assert!(

@@ -29,3 +29,12 @@ macro_rules! gen_data {
     }};
 }
 
+#[macro_export]
+macro_rules! dict_introspection {
+    ($dict:ident @height $($tail:tt)*) => {
+        println!("h: {}", $dict.height());
+
+        dict_introspection!($dict $($tail)*)
+    };
+    ($dict:ident) => ();
+}

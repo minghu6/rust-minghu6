@@ -121,7 +121,6 @@ bench_dict_all!(BPT_32, bpt::BPT::<_, _, 32>);
 // bench_dict_all!(BPT2_20, bpt2::BPT2::<_, _, 20>);
 bench_dict_all!(BPT2_32, bpt2::BPT2::<_, _, 32>);
 // bench_dict_all!(BPT2_40, bpt2::BPT2::<_, _, 40>);
-
 // bench_dict_all!(FBPT_11, flatbpt::FlatBPT::<_, _, 11>);
 // bench_dict_all!(FBPT_20, flatbpt::FlatBPT::<_, _, 20>);
 // bench_dict_all!(FBPT_26, flatbpt::FlatBPT::<_, _, 26>);

@@ -1,7 +1,6 @@
 use std::{
-    borrow::{Borrow, BorrowMut},
-    mem::{replace, MaybeUninit},
-    ops::{Index, IndexMut, Range, RangeBounds},
+    mem::{MaybeUninit, replace},
+    ops::{Deref, DerefMut, Range, RangeBounds},
 };
 
 use coll::*;
@@ -81,7 +80,7 @@ pub struct PartialInitArray<T, const C: usize> {
 
 pub struct StackVec<T, const C: usize> {
     len: usize,
-    arr: [Option<T>; C],
+    arr: [MaybeUninit<T>; C],
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -99,38 +98,54 @@ impl<T, const C: usize> StackVec<T, C> {
         self.len() == 0
     }
 
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             len: 0,
-            arr: [const { None }; C],
+            arr: [const { MaybeUninit::uninit() }; C],
         }
     }
 
     pub fn insert(&mut self, idx: usize, val: T) {
-        debug_assert!(self.len < C, "array is full");
+        debug_assert!(self.len < C, "StackVec is full");
         debug_assert!(
             idx <= self.len,
-            "index {idx} overflow for length {} ",
+            "StackVec index {idx} overflow for length {} ",
             self.len
         );
 
         if idx < self.len {
-            self.arr[idx..self.len + 1].rotate_right(1);
+            // self.arr[idx..self.len + 1].rotate_right(1);
+            unsafe {
+                core::ptr::copy(
+                    self.arr[idx..].as_ptr(),
+                    self.arr[idx + 1..].as_mut_ptr(),
+                    self.len - idx,
+                );
+            }
         }
 
+        self.arr[idx].write(val);
+
         self.len += 1;
-        self.arr[idx].replace(val);
     }
 
     pub fn remove(&mut self, idx: usize) -> T {
         debug_assert!(
             idx < self.len,
-            "index {idx} overflow for lenghth {} ",
+            "index {idx} overflow for length {} ",
             self.len
         );
 
-        let val = self.arr[idx].take().unwrap();
-        self.arr[idx..self.len].rotate_left(1);
+        let val = unsafe { self.arr[idx].assume_init_read() };
+
+        // self.arr[idx..self.len].rotate_left(1);
+        unsafe {
+            core::ptr::copy(
+                self.arr[idx + 1..].as_ptr(),
+                self.arr[idx..].as_mut_ptr(),
+                self.len - idx - 1,
+            );
+        }
 
         self.len -= 1;
 
@@ -141,29 +156,12 @@ impl<T, const C: usize> StackVec<T, C> {
         self.insert(self.len, val);
     }
 
-    pub fn pop(&mut self) -> T {
-        self.remove(self.len - 1)
-    }
-
-    /// Binary search and Insert
-    pub fn binary_insert(&mut self, val: T) -> Option<T>
-    where
-        T: Ord,
-    {
-        match self[..].binary_search(&val) {
-            Ok(idx) => {
-                /* Repalce Data */
-
-                self.arr[idx].replace(val)
-            }
-            Err(idx) => {
-                /* Insert Data */
-
-                self.insert(idx, val);
-
-                None
-            }
+    pub fn pop(&mut self) -> Option<T> {
+        if self.len == 0 {
+            return None;
         }
+
+        Some(self.remove(self.len - 1))
     }
 
     /// split off within initialized content
@@ -171,19 +169,20 @@ impl<T, const C: usize> StackVec<T, C> {
         debug_assert!(at < self.len);
 
         let off_len = self.len - at;
-        let mut off_arr = [const { None }; C];
+        let mut off = Self::new();
 
-        for i in at..self.len {
-            // KEY: ship with ownership
-            off_arr[i - at] = self.arr[i].take();
-        }
+        unsafe {
+            core::ptr::copy_nonoverlapping(
+                self.arr[at..].as_ptr(),
+                off.arr.as_mut_ptr(),
+                off_len,
+            )
+        };
+        off.len = off_len;
 
         self.len = at;
 
-        Self {
-            len: off_len,
-            arr: off_arr,
-        }
+        off
     }
 
     ///
@@ -206,117 +205,55 @@ impl<T, const C: usize> StackVec<T, C> {
                     std::slice::range(range, ..self.len());
 
                 for i in start..end {
-                    yield self.arr[i].take().unwrap();
+                    yield unsafe { self.arr[i].assume_init_read() };
                 }
 
-                unsafe {
-                    let ptr = self.arr.as_mut_ptr();
+                let drain_len = end - start;
 
-                    std::ptr::copy(
-                        ptr.add(end),
-                        ptr.add(start),
-                        self.len - end,
-                    );
-
-                    self.len -= end - start;
+                if drain_len < self.len {
+                    // self.arr[start..self.len].rotate_left(drain_len);
+                    unsafe {
+                        core::ptr::copy(
+                            self.arr[end..].as_ptr(),
+                            self.arr[start..].as_mut_ptr(),
+                            self.len - end,
+                        );
+                    }
                 }
+
+                self.len -= drain_len;
             },
         )
     }
 
-    pub fn iter<'a>(&'a self) -> impl Iterator<Item = &'a T> + 'a {
-        self[..].iter()
-    }
-
-    pub fn iter_mut<'a>(&'a mut self) -> impl Iterator<Item = &'a mut T> + 'a {
-        self[..].iter_mut()
-    }
-
-    pub fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        let mut it = Self::new();
-
-        it.extend(iter);
-
-        it
-    }
-
-    /// Extend without trunction (be careful of overflow)
-    pub fn extend(&mut self, iter: impl IntoIterator<Item = T>) {
-        for val in iter.into_iter() {
-            self.push(val);
-        }
-    }
-
-    pub fn into_iter(self) -> impl Iterator<Item = T> {
-        self.arr.into_iter().take(self.len).map(|x| x.unwrap())
-    }
-
     pub fn as_slice(&self) -> &[T] {
-        unimplemented!()
+        unsafe { self.arr[..self.len].assume_init_ref() }
     }
 
     pub fn as_slice_mut(&mut self) -> &mut [T] {
-        unimplemented!()
+        unsafe { self.arr[..self.len].assume_init_mut() }
     }
 }
 
-impl<T, const C: usize> FromIterator<T> for StackVec<T, C> {
-    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        Self::from_iter(iter)
+impl<T, const C: usize> Drop for StackVec<T, C> {
+    fn drop(&mut self) {
+        unsafe { self.arr[..self.len].assume_init_drop() };
     }
 }
 
-impl<T, const C: usize> Extend<T> for StackVec<T, C> {
-    fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
-        self.extend(iter);
+impl<T, const C: usize> Deref for StackVec<T, C> {
+    type Target = [T];
+
+    fn deref(&self) -> &Self::Target {
+        self.as_slice()
     }
 }
 
-impl<T, const C: usize> IntoIterator for StackVec<T, C> {
-    type Item = T;
-
-    type IntoIter = impl Iterator<Item = Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.into_iter()
+impl<T, const C: usize> DerefMut for StackVec<T, C> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.as_slice_mut()
     }
 }
-
-// impl<T, const C: usize> AsMut<[T]> for StackVec<T, C> {
-//     fn as_mut(&mut self) -> &mut [T] {
-//         todo!()
-//     }
-// }
-
-/// Refer the [doc](https://doc.rust-lang.org/core/option/index.html)
-///
-/// transmute from T::Some(_) to T or vice versa is guaranted
-impl<T, const C: usize> Borrow<[T]> for StackVec<T, C> {
-    fn borrow(&self) -> &[T] {
-        &self[..]
-    }
-}
-
-impl<T, const C: usize> BorrowMut<[T]> for StackVec<T, C> {
-    fn borrow_mut(&mut self) -> &mut [T] {
-        &mut self[..]
-    }
-}
-
-impl<T, const C: usize, I: std::slice::SliceIndex<[T]>> Index<I> for StackVec<T, C>{
-    type Output = I::Output;
-
-    fn index(&self, index: I) -> &Self::Output {
-        Index::index(self.as_slice(), index)
-    }
-}
-
-impl<T, const C: usize, I: std::slice::SliceIndex<[T]>> IndexMut<I> for StackVec<T, C>{
-    fn index_mut(&mut self, index: I) -> &mut Self::Output {
-        IndexMut::index_mut(self.as_slice_mut(), index)
-    }
-}
-
 
 ////////////////////////////////////////
 //// impl PartialInitArray
@@ -330,15 +267,19 @@ impl<T, const C: usize> PartialInitArray<T, C> {
         self.len() == 0
     }
 
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             len: 0,
             arr: [const { MaybeUninit::uninit() }; C],
         }
     }
 
-    pub fn exact(&self) -> &[T] {
+    pub fn as_slice(&self) -> &[T] {
         unsafe { self.arr[..self.len].assume_init_ref() }
+    }
+
+    pub fn as_slice_mut(&mut self) -> &mut [T] {
+        unsafe { self.arr[..self.len].assume_init_mut() }
     }
 
     pub fn insert(&mut self, idx: usize, val: T) {
@@ -360,7 +301,7 @@ impl<T, const C: usize> PartialInitArray<T, C> {
     pub fn remove(&mut self, idx: usize) -> T {
         debug_assert!(
             idx < self.len,
-            "index {idx} overflow for lenghth {} ",
+            "index {idx} overflow for length {} ",
             self.len
         );
 
@@ -385,7 +326,7 @@ impl<T, const C: usize> PartialInitArray<T, C> {
     where
         T: Ord,
     {
-        match self.exact().binary_search(&val) {
+        match self.as_slice().binary_search(&val) {
             Ok(idx) => {
                 /* Repalce Data */
 
@@ -436,6 +377,20 @@ impl<T, const C: usize> PartialInitArray<T, C> {
 
 impl<T: Copy, const C: usize> Copy for PartialInitArray<T, C> {}
 
+impl<T, const C: usize> Deref for PartialInitArray<T, C> {
+    type Target = [T];
+
+    fn deref(&self) -> &Self::Target {
+        self.as_slice()
+    }
+}
+
+impl<T, const C: usize> DerefMut for PartialInitArray<T, C> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.as_slice_mut()
+    }
+}
+
 impl<T, const C: usize> Extend<T> for PartialInitArray<T, C> {
     /// Extend without trunction (be careful of overflow)
     fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
@@ -445,33 +400,16 @@ impl<T, const C: usize> Extend<T> for PartialInitArray<T, C> {
     }
 }
 
-impl<T, const C: usize> Index<usize> for PartialInitArray<T, C> {
-    type Output = T;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        debug_assert!(index < self.len);
-
-        unsafe { self.arr[index].assume_init_ref() }
-    }
-}
-
-impl<T, const C: usize> IndexMut<usize> for PartialInitArray<T, C> {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        debug_assert!(index < self.len);
-
-        unsafe { self.arr[index].assume_init_mut() }
-    }
-}
-
 impl<T: Clone, const C: usize> Clone for PartialInitArray<T, C> {
     fn clone(&self) -> Self {
+        let len = self.len;
         let mut arr = [const { MaybeUninit::uninit() }; C];
 
         unsafe {
-            std::ptr::copy(&self.arr, &mut arr, self.len);
+            core::ptr::copy(&self.arr, &mut arr, len);
         }
 
-        Self { len: self.len, arr }
+        Self { len, arr }
     }
 }
 
@@ -521,4 +459,44 @@ mod tests {
     pub(super) use dict_get;
     pub(super) use dict_insert;
     pub(super) use dict_remove;
+
+    use rand::*;
+
+    use crate::bt::StackVec;
+
+
+    #[test]
+    fn test_stack_vec() {
+        const C: usize = 500;
+
+        let mut cg = Vec::<u16>::with_capacity(C);
+        let mut eg = StackVec::<u16, 500>::new();
+
+        /* test basic insert */
+
+        for _ in 0..C {
+            let idx = thread_rng().gen_range(0..=cg.len());
+            let v = thread_rng().gen_range(0..=C as u16);
+
+            cg.insert(idx, v);
+            eg.insert(idx, v);
+
+            assert_eq!(cg.get(idx), eg.get(idx))
+        }
+
+        for _ in 0..cg.len() * 10 {
+            // 50-50 get
+            let idx = thread_rng().gen_range(0..cg.len() * 2);
+
+            assert_eq!(cg.get(idx), eg.get(idx))
+        }
+
+        /* test basic remove */
+
+        while !cg.is_empty() {
+            let idx = thread_rng().gen_range(0..cg.len());
+
+            assert_eq!(cg.remove(idx), eg.remove(idx))
+        }
+    }
 }

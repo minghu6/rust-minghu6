@@ -7,13 +7,14 @@ use m6_coll_st::{
     bt,
 };
 use test::Bencher;
-
+use std::hint::black_box;
 
 extern crate test;
 
 mod dict_common;
 
-const BATCH_NUM: usize = 40_000;
+const BATCH_NUM: usize = 4000_000;
+const Q_COEFF: usize = 1;
 
 enum OP {
     Insert(u64, u64),
@@ -76,7 +77,7 @@ lazy_static! {
 
         let mut q = vec![];
 
-        for _i in 0..BATCH_NUM * 20 {
+        for _i in 0..BATCH_NUM * Q_COEFF {
             q.push((random::<u32>() % aux.len() as u32) as u64);
         }
 
@@ -86,10 +87,10 @@ lazy_static! {
 
 
 macro_rules! bench_dict_get {
-    ($v:ident, $name: ident, $dict: expr) => {
-        bench_dict_get!($v, $name, $dict, i: insert, d: remove, q: get);
+    ($v:ident, $name: ident, $dict: expr ; $($tail:tt)*) => {
+        bench_dict_get!($v, $name, $dict, i: insert, d: remove, q: get ; $($tail)*);
     };
-    ($v:ident, $name: ident, $dict: expr, i: $i:ident, d: $d:ident, q: $q:ident) => {
+    ($v:ident, $name: ident, $dict: expr, i: $i:ident, d: $d:ident, q: $q:ident ; $($tail:tt)*) => {
         coll::paste! (
             #[allow(non_snake_case)]
             #[bench]
@@ -109,17 +110,17 @@ macro_rules! bench_dict_get {
                     }
                 }
 
+                // dict_introspection!(dict $($tail)*);
+
                 b.iter(|| {
                     for v in q.iter() {
-                        dict.$q(&v);
+                        black_box(dict.$q(&v));
                     }
                 })
             }
         );
     };
 }
-
-
 
 
 // bench_dict_get!(V2, SG, bst::sg::SG::new(0.7));
@@ -132,28 +133,43 @@ macro_rules! bench_dict_get {
 // bench_dict_get!(V2, RB, bst::rb::RB::new());
 // bench_dict_get!(V2, AA, bst::aa::AA::new());
 
-bench_dict_get!(_0__07, B, bt::bt::BT::<u64, u64, 7>::new());
-bench_dict_get!(_0__11, B, bt::bt::BT::<u64, u64, 11>::new());
-bench_dict_get!(_0__20, B, bt::bt::BT::<u64, u64, 20>::new());
-bench_dict_get!(_0__30, B, bt::bt::BT::<u64, u64, 30>::new());
-bench_dict_get!(_0__100, B, bt::bt::BT::<u64, u64, 100>::new());
+// bench_dict_get!(_0__07, B, bt::bt::BT::<u64, u64, 7>::new());
+// bench_dict_get!(_0__11, B, bt::bt::BT::<u64, u64, 11>::new());
+// bench_dict_get!(_0__20, B, bt::bt::BT::<u64, u64, 20>::new());
+// bench_dict_get!(_0__30, B, bt::bt::BT::<u64, u64, 30>::new());
+// bench_dict_get!(_0__100, B, bt::bt::BT::<u64, u64, 100>::new());
 
-bench_dict_get!(_V1__07, BP, bt::bpt::BPT::<u64, u64, 7>::new());
-bench_dict_get!(_V1__11, BP, bt::bpt::BPT::<u64, u64, 11>::new());
-bench_dict_get!(_V1__20, BP, bt::bpt::BPT::<u64, u64, 20>::new());
-bench_dict_get!(_V1__30, BP, bt::bpt::BPT::<u64, u64, 30>::new());
-bench_dict_get!(_V1__100, BP, bt::bpt::BPT::<u64, u64, 100>::new());
+// bench_dict_get!(_V1__07, BP, bt::bpt::BPT::<u64, u64, 7>::new());
+// bench_dict_get!(_V1__11, BP, bt::bpt::BPT::<u64, u64, 11>::new());
+// bench_dict_get!(_V1__20, BP, bt::bpt::BPT::<u64, u64, 20>::new());
+// bench_dict_get!(_V1__30, BP, bt::bpt::BPT::<u64, u64, 30>::new());
+// bench_dict_get!(_V1__90, BP, bt::bpt::BPT::<u64, u64, 90>::new());
 
-bench_dict_get!(_V2__07, BP, bt::bpt2::BPT2::<u64, u64, 7>::new());
-bench_dict_get!(_V2__11, BP, bt::bpt2::BPT2::<u64, u64, 11>::new());
-bench_dict_get!(_V2__20, BP, bt::bpt2::BPT2::<u64, u64, 20>::new());
-bench_dict_get!(_V2__30, BP, bt::bpt2::BPT2::<u64, u64, 30>::new());
-bench_dict_get!(_V2__100, BP, bt::bpt2::BPT2::<u64, u64, 100>::new());
+// bench_dict_get!(_V2__07, BP, bt::bpt2::BPT2::<u64, u64, 7>::new());
+// bench_dict_get!(_V2__11, BP, bt::bpt2::BPT2::<u64, u64, 11>::new());
+// bench_dict_get!(_V2__20, BP, bt::bpt2::BPT2::<u64, u64, 20>::new());
+// bench_dict_get!(_V2__30, BP, bt::bpt2::BPT2::<u64, u64, 30>::new());
+// bench_dict_get!(_V2__90, BP, bt::bpt2::BPT2::<u64, u64, 90>::new());
 
-bench_dict_get!(_0_, HASH_MAP, std::collections::HashMap::new());
-bench_dict_get!(_0_, BTree_MAP, std::collections::BTreeMap::new());
-bench_dict_get!(_0__07, FBPT, bt::flatbpt::FlatBPT::<u64, u64, 7>::new());
-bench_dict_get!(_0__11, FBPT, bt::flatbpt::FlatBPT::<u64, u64, 11>::new());
-bench_dict_get!(_0__20, FBPT, bt::flatbpt::FlatBPT::<u64, u64, 20>::new());
-bench_dict_get!(_0__30, FBPT, bt::flatbpt::FlatBPT::<u64, u64, 30>::new());
-bench_dict_get!(_0__100, FBPT, bt::flatbpt::FlatBPT::<u64, u64, 100>::new());
+// bench_dict_get!(_V3__03, BP, bt::bpt3::BPT::<u64, u64, 3>::new());
+// bench_dict_get!(_V3__07, BP, bt::bpt3::BPT::<u64, u64, 7>::new(); @height);
+// bench_dict_get!(_V3__11, BP, bt::bpt3::BPT::<u64, u64, 11>::new(); @height);
+// bench_dict_get!(_V3__20, BP, bt::bpt3::BPT::<u64, u64, 20>::new());
+// bench_dict_get!(_V3__26, BP, bt::bpt3::BPT::<u64, u64, 26>::new(); @height);
+bench_dict_get!(_V3__32, BP, bt::bpt3::BPT::<u64, u64, 32>::new(); @height);
+bench_dict_get!(_V3__48, BP, bt::bpt3::BPT::<u64, u64, 48>::new(); @height);
+bench_dict_get!(_V3__64, BP, bt::bpt3::BPT::<u64, u64, 64>::new(); @height);
+// bench_dict_get!(_V3__128, BP, bt::bpt3::BPT::<u64, u64, 128>::new(); @height);
+// bench_dict_get!(_V3__512, BP, bt::bpt3::BPT::<u64, u64, 512>::new(); @height);
+// bench_dict_get!(_V3__1024, BP, bt::bpt3::BPT::<u64, u64, 1024>::new(); @height);
+// bench_dict_get!(_V3__2048, BP, bt::bpt3::BPT::<u64, u64, 2048>::new(); @height);
+// bench_dict_get!(_V3__4096, BP, bt::bpt3::BPT::<u64, u64, 4096>::new(); @height);
+
+bench_dict_get!(_0_, HASH_MAP, std::collections::HashMap::new(););
+bench_dict_get!(_0_, BTree_MAP, std::collections::BTreeMap::new(););
+// bench_dict_get!(_0__07, FBPT, bt::flatbpt::FlatBPT::<u64, u64, 7>::new());
+// bench_dict_get!(_0__11, FBPT, bt::flatbpt::FlatBPT::<u64, u64, 11>::new());
+// bench_dict_get!(_0__20, FBPT, bt::flatbpt::FlatBPT::<u64, u64, 20>::new());
+// bench_dict_get!(_0__30, FBPT, bt::flatbpt::FlatBPT::<u64, u64, 30>::new());
+// bench_dict_get!(_0__90, FBPT, bt::flatbpt::FlatBPT::<u64, u64, 90>::new());
+

@@ -920,7 +920,7 @@ macro_rules! test_dict {
             /* Verify Create */
 
             for (i, (k, v)) in elems.iter().cloned().enumerate() {
-                // println!("{i:03}. insert: k:{k:05}");
+                println!("{i:03}. insert: k:{k:05}");
 
                 assert!(
                     dict.insert(k, v).is_none(),
@@ -974,7 +974,7 @@ macro_rules! test_dict {
             elems.shuffle(&mut thread_rng());
 
             for (i, (k, v)) in elems.clone().into_iter().enumerate() {
-                // println!("[dict remove]: {i:03}: {k:05}");
+                println!("[dict remove]: {i:03}: {k:05}");
 
                 assert_eq!(
                     dict.get(&k),

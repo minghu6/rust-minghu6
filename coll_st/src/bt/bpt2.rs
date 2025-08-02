@@ -472,10 +472,8 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
 
                 entries_mut!(x).insert(k.clone(), v);
 
-                // remove x from p
+                // for x is empty, min_key of it has been changed
                 Self::update_index(x_k, &x);
-
-                // 不需要更新索引，因为 sib_rh 值更大
             } else {
                 let old_key_sib_rh = min_key!(sib_rh);
                 children_mut!(p).remove(&old_key_sib_rh);
@@ -486,8 +484,6 @@ impl<K: Ord, V, const M: usize> BPT2<K, V, M> {
                     paren!(child, x.clone());
                     children_mut!(x).push_back(child_k, child);
                 }
-
-                Self::update_index(x_k, &x);
             }
         }
 
