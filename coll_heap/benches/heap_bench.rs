@@ -12,12 +12,12 @@ use m6_coll_heap::{
     fib::FibHeap,
 };
 
-use test::Bencher;
+use test::{ Bencher, black_box };
 
 lazy_static::lazy_static!{
     pub static ref BASIC_BNECH_DATA: Vec<(usize, isize)> = {
         let mut unique = gen_unique();
-        (0..400_000).map(|_| (unique(), random())).collect()
+        (0..4_000).map(|_| (unique(), random())).collect()
     };
 
     pub static ref CLASSIC_BNECH_SET: (Vec<(usize, usize)>, Vec<Vec<(usize, usize)>>) = {
@@ -40,7 +40,7 @@ macro_rules! bench_heap_basic {
                         push!(@$push_method heap, k, v);
                     }
 
-                    while heap.pop().is_some() {}
+                    while black_box(heap.pop()).is_some() {}
                 })
             }
         );
@@ -59,7 +59,7 @@ macro_rules! push {
 ////////////////////////////////////////////////////////////////////////////////
 //// Bench Heap Basic
 
-bench_heap_basic!(SDaryHeap1, sdary::DaryHeap::<1, _>::new(), @basic_heap);
+// bench_heap_basic!(SDaryHeap1, sdary::DaryHeap::<1, _>::new(), @basic_heap);
 
 bench_heap_basic!(SDaryHeap2, sdary::DaryHeap::<2, _>::new(), @basic_heap);
 
@@ -67,7 +67,11 @@ bench_heap_basic!(SDaryHeap3, sdary::DaryHeap::<3, _>::new(), @basic_heap);
 
 bench_heap_basic!(SDaryHeap4, sdary::DaryHeap::<4, _>::new(), @basic_heap);
 
-bench_heap_basic!(SDaryHeap5, sdary::DaryHeap::<5, _>::new(), @basic_heap);
+// bench_heap_basic!(SDaryHeap5, sdary::DaryHeap::<5, _>::new(), @basic_heap);
+
+// bench_heap_basic!(SDaryHeap6, sdary::DaryHeap::<6, _>::new(), @basic_heap);
+
+// bench_heap_basic!(SDaryHeap7, sdary::DaryHeap::<7, _>::new(), @basic_heap);
 
 bench_heap_basic!(BinaryHeap, BinaryHeap::new(), @basic_heap);
 
@@ -179,7 +183,7 @@ fn bench_heap_classic_dary8heap(b: &mut Bencher) {
 
         for dks in dk_batch.iter().cloned() {
             for (i, w) in dks {
-                heap.decrease_key(i, w);
+                heap.decrease_key(&i, w);
             }
 
             heap.pop();
@@ -199,7 +203,7 @@ fn bench_heap_classic_dary5heap(b: &mut Bencher) {
 
         for dks in dk_batch.iter().cloned() {
             for (i, w) in dks {
-                heap.decrease_key(i, w);
+                heap.decrease_key(&i, w);
             }
 
             heap.pop();
@@ -219,7 +223,7 @@ fn bench_heap_classic_dary1heap(b: &mut Bencher) {
 
         for dks in dk_batch.iter().cloned() {
             for (i, w) in dks {
-                heap.decrease_key(i, w);
+                heap.decrease_key(&i, w);
             }
 
             heap.pop();

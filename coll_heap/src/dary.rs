@@ -2,10 +2,11 @@
 
 use std::{
     borrow::Borrow,
-    cmp::{min, Ordering::*},
+    cmp::{Ordering::*, min},
     collections::HashMap,
     hash::Hash,
-    mem::replace,
+    mem::{replace},
+    ops::Index,
 };
 
 use coll::easycoll::EasyCollGet;
@@ -15,15 +16,11 @@ use coll::easycoll::EasyCollGet;
 //// Macros
 
 macro_rules! base {
-    () => {{
-        1 << E
-    }};
+    () => {{ 1 << E }};
 }
 
 macro_rules! basen {
-    ($n:expr) => {{
-        1 << E * ($n)
-    }};
+    ($n:expr) => {{ 1 << E * ($n) }};
 }
 
 /// get level from no. of node. (no. = idx + 1)
@@ -65,11 +62,7 @@ macro_rules! total {
 
         debug_assert!(ln > 0);
 
-        if ln == 1 {
-            col
-        } else {
-            total!(ln - 1) + col
-        }
+        if ln == 1 { col } else { total!(ln - 1) + col }
     }};
 }
 
@@ -143,7 +136,7 @@ impl<const E: usize, I, T> DaryHeap<E, I, T> {
 
 
 /// New and Init Implementation
-impl<const E: usize, I: Clone, T: Clone> DaryHeap<E, I, T> {
+impl<const E: usize, I, T> DaryHeap<E, I, T> {
     pub fn new() -> Self {
         Self::with_capacity(E)
     }
@@ -169,6 +162,18 @@ impl<const E: usize, I: Clone, T: Clone> DaryHeap<E, I, T> {
     pub fn top(&self) -> Option<&T> {
         self.top_item().map(|x| x.1)
     }
+
+    pub fn indexes(&self) -> impl Iterator<Item = &I> {
+        self.index.keys()
+    }
+
+    pub fn get<Q: ?Sized>(&self, i: &Q) -> Option<&T>
+    where
+        I: Hash + Eq + Borrow<Q>,
+        Q: Hash + Eq,
+    {
+        self.index.get(i).map(|&idx| self.w(idx))
+    }
 }
 
 
@@ -176,13 +181,16 @@ impl<const E: usize, I: Clone, T: Clone> DaryHeap<E, I, T> {
 impl<const E: usize, I, T> DaryHeap<E, I, T>
 where
     I: Eq + Hash + Clone,
-    T: Ord,
 {
     ////////////////////////////////////////////////////////////////////////////
     //// Public method
 
     /// ReplaceOrPush
-    pub fn insert(&mut self, i: I, v: T) -> Option<T> {
+    pub fn insert(&mut self, i: I, v: T) -> Option<T>
+    where
+        I: Clone,
+        T: Ord,
+    {
         if let Some(idx) = self.index.remove(&i) {
             let (_, oldv) = replace(&mut self.raw[idx], (i.clone(), v));
 
@@ -201,7 +209,10 @@ where
         }
     }
 
-    pub fn pop_item(&mut self) -> Option<(I, T)> {
+    pub fn pop_item(&mut self) -> Option<(I, T)>
+    where
+        T: Ord
+    {
         if self.len() == 0 {
             return None;
         }
@@ -215,30 +226,24 @@ where
         Some((i, v))
     }
 
-    pub fn get<Q>(&self, i: &Q) -> Option<&T>
-    where
-        I: Borrow<Q>,
-        Q: Hash + Eq,
-    {
-        self.index.get(i).map(|&idx| self.w(idx))
-    }
-
-    pub fn indexes(&self) -> impl Iterator<Item = &I> {
-        self.index.keys()
-    }
-
-
     ////////////////////////////////////////////////////////////////////////////
     //// Public method alias
 
-    pub fn pop(&mut self) -> Option<T> {
+    pub fn pop(&mut self) -> Option<T>
+    where T: Ord
+    {
         self.pop_item().map(|x| x.1)
     }
 
-    pub fn decrease_key(&mut self, i: I, v: T) -> Option<T> {
+    pub fn decrease_key<Q: ?Sized>(&mut self, i: &Q, v: T) -> Option<T>
+    where
+        I: Borrow<Q>,
+        Q: Hash + Eq,
+        T: Ord
+    {
         #[cfg(debug_assertions)]
         {
-            if let Some(oldv) = self.get(&i) {
+            if let Some(oldv) = self.get(i) {
                 assert!(&v < oldv);
             }
         }
@@ -249,7 +254,11 @@ where
     ////////////////////////////////////////////////////////////////////////////
     //// Assistant method
 
-    fn push(&mut self, i: I, v: T) {
+    fn push(&mut self, i: I, v: T)
+    where
+        I: Clone,
+        T: Ord
+    {
         self.raw.push((i.clone(), v));
         self.index.insert(i, self.len() - 1);
 
@@ -257,16 +266,19 @@ where
     }
 
     /// ReplaceOrSkip
-    fn update(&mut self, i: I, v: T) -> Option<T> {
-        let idx = if let Some(idx) = self.index.remove(&i) {
-            idx
-        } else {
+    fn update<Q: ?Sized>(&mut self, i: &Q, v: T) -> Option<T>
+    where
+        I: Borrow<Q>,
+        Q: Hash + Eq,
+        T: Ord,
+    {
+        let Some((i, idx)) = self.index.remove_entry(i) else {
             return None;
         };
 
-        let (_, oldv) = replace(&mut self.raw[idx], (i.clone(), v));
+        let old_v = replace(&mut self.raw[idx].1, v);
 
-        let newidx = match self.w(idx).cmp(&oldv) {
+        let newidx = match self.w(idx).cmp(&old_v) {
             Less => self.sift_up(idx),
             Equal => idx,
             Greater => self.sift_down(idx),
@@ -274,11 +286,14 @@ where
 
         self.index.insert(i, newidx);
 
-        Some(oldv)
+        Some(old_v)
     }
 
     /// return insert_idx
-    fn sift_up(&mut self, idx: usize) -> usize {
+    fn sift_up(&mut self, idx: usize) -> usize
+    where
+        T: Ord,
+    {
         let mut cur = idx;
 
         while cur != 0 {
@@ -296,7 +311,10 @@ where
     }
 
     /// return insert_idx
-    fn sift_down(&mut self, idx: usize) -> usize {
+    fn sift_down(&mut self, idx: usize) -> usize
+    where
+        T: Ord,
+    {
         let mut cur_idx = idx;
 
         while let Some((child_idx, child_w)) = self.min_child(cur_idx)
@@ -309,7 +327,8 @@ where
         cur_idx
     }
 
-    fn swap(&mut self, idx1: usize, idx2: usize) {
+    fn swap(&mut self, idx1: usize, idx2: usize)
+    {
         if idx1 == idx2 {
             return;
         }
@@ -320,7 +339,10 @@ where
         self.index.insert(self.raw[idx2].0.clone(), idx2);
     }
 
-    fn min_child(&self, idx: usize) -> Option<(usize, &T)> {
+    fn min_child(&self, idx: usize) -> Option<(usize, &T)>
+    where
+        T: Ord
+    {
         let start = child!(idx);
         let end = min(self.len(), start + base!());
 
@@ -336,6 +358,18 @@ where
     }
 }
 
+impl<const E: usize, I, Q: ?Sized, T> Index<&Q> for DaryHeap<E, I, T>
+where
+    I: Hash + Eq + Borrow<Q>,
+    Q: Hash + Eq,
+    T: Ord,
+{
+    type Output = T;
+
+    fn index(&self, index: &Q) -> &Self::Output {
+        self.get(index).expect("no entry found for key")
+    }
+}
 
 impl<const E: usize, I, T> EasyCollGet<I, T> for DaryHeap<E, I, T>
 where
@@ -437,7 +471,7 @@ mod tests {
                     let newkey = get_one();
                     let i = random::<usize>() % heap.len();
                     // println!("update: i:{i}, w:{newkey}");
-                    heap.update(i as i32, newkey.clone());
+                    heap.update(&(i as i32), newkey.clone());
 
                     validate(&heap, non_dec);
                 }

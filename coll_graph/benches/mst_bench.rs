@@ -23,7 +23,6 @@ lazy_static::lazy_static! {
 }
 
 
-
 fn prepare_low_density_graphs() -> Vec<Graph> {
     let opt = GraphGenOptions::undir_conn();
     let wrange = 1..1000;
@@ -39,7 +38,6 @@ fn prepare_low_density_graphs() -> Vec<Graph> {
 
     res
 }
-
 
 fn prepare_high_density_graphs() -> Vec<Graph> {
     let opt = GraphGenOptions::undir_conn();
@@ -58,7 +56,6 @@ fn prepare_high_density_graphs() -> Vec<Graph> {
 }
 
 
-
 #[bench]
 fn bench_mst_lowdensity_krusal(b: &mut Bencher) {
     let gs = &*LOW_DENSITY_GRAPHS;
@@ -69,7 +66,6 @@ fn bench_mst_lowdensity_krusal(b: &mut Bencher) {
         }
     })
 }
-
 
 #[bench]
 fn bench_mst_lowdensity_prim(b: &mut Bencher) {
@@ -82,8 +78,6 @@ fn bench_mst_lowdensity_prim(b: &mut Bencher) {
     })
 }
 
-
-
 #[bench]
 fn bench_mst_lowdensity_boruvka(b: &mut Bencher) {
     let gs = &*LOW_DENSITY_GRAPHS;
@@ -94,7 +88,6 @@ fn bench_mst_lowdensity_boruvka(b: &mut Bencher) {
         }
     })
 }
-
 
 
 #[bench]
@@ -120,8 +113,6 @@ fn bench_mst_highdensity_prim(b: &mut Bencher) {
     })
 }
 
-
-
 #[bench]
 fn bench_mst_highdensity_boruvka(b: &mut Bencher) {
     let gs = &*HIGH_DENSITY_GRAPHS;
@@ -132,4 +123,3 @@ fn bench_mst_highdensity_boruvka(b: &mut Bencher) {
         }
     })
 }
-

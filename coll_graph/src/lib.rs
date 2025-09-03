@@ -132,12 +132,30 @@ impl Graph {
         vertexs.into_iter()
     }
 
+    pub fn undir_edges<'a>(
+        &'a self,
+    ) -> impl Iterator<Item = (usize, usize, isize)> + 'a {
+        std::iter::from_coroutine(#[coroutine] || {
+            debug_assert!(self.e[0].is_empty());
+
+            for (u, tos) in self.e.iter().enumerate() {
+                for v in tos.iter().cloned() {
+                    if v > u {
+                        continue;
+                    }
+
+                    yield (u, v, get!(self.w => (u, v)))
+                }
+            }
+        })
+    }
+
     pub fn edges<'a>(
         &'a self,
     ) -> impl Iterator<Item = (usize, usize, isize)> + 'a {
         std::iter::from_coroutine(#[coroutine] || {
-            for (u, tos) in self.e.iter().cloned().enumerate() {
-                for v in tos {
+            for (u, tos) in self.e.iter().enumerate() {
+                for v in tos.iter().cloned() {
                     yield (u, v, get!(self.w => (u, v)))
                 }
             }

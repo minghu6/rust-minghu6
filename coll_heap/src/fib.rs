@@ -1,25 +1,23 @@
 //! Fibonacci Heap (decent impl)
-//!
 
 use std::{
     borrow::Borrow,
     cmp::Ordering::*,
-    collections::{hash_map::Entry::*, HashMap},
+    collections::{HashMap, hash_map::Entry::*},
     fmt::{Debug, Display},
-    hash::Hash, mem::replace,
+    hash::Hash,
+    mem::replace,
+    ops::Index,
 };
 
-use common::hashmap;
-
 use coll::*;
+use common::hashmap;
 
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Macros
 
-def_attr_macro!(clone|
-    left, right, child, paren, rank, marked, idx
-);
+def_attr_macro!(clone | left, right, child, paren, rank, marked, idx);
 
 def_attr_macro!(ref|
     (val, T)
@@ -142,11 +140,7 @@ impl<I, T> Node<I, T> {
     }
 
     /// replace with new val, return old val
-    fn replace_key(&self, val: T) -> T
-    where
-        I: Debug,
-        T: Debug
-    {
+    fn replace_key(&self, val: T) -> T {
         replace(val_mut!(self), val)
     }
 
@@ -244,15 +238,10 @@ impl<I: Debug, T: Debug> Display for Node<I, T> {
 }
 
 
+////////////////////////////////////////////////////////////////////////////
+//// Public method
 
-impl<I, T> FibHeap<I, T>
-where
-    I: Eq + Hash + Clone + Debug,
-    T: Ord + Debug
-{
-    ////////////////////////////////////////////////////////////////////////////
-    //// Public method
-
+impl<I, T> FibHeap<I, T> {
     pub fn new() -> Self {
         Self {
             len: 0,
@@ -266,10 +255,46 @@ where
         self.len
     }
 
-    /// Same index node would be overidden
-    pub fn push(&mut self, i: I, v: T)
+    pub fn indexes(&self) -> impl Iterator<Item = &I> {
+        self.nodes.keys()
+    }
+}
 
+impl<I: Hash + Eq, T> FibHeap<I, T> {
+    pub fn get<Q>(&self, i: &Q) -> Option<&T>
+    where
+        I: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
     {
+        self.nodes.get(i).map(|node| val!(node))
+    }
+
+    pub fn top_item(&self) -> Option<(I, &T)>
+    where
+        I: Clone,
+    {
+        if self.min.is_some() {
+            Some((idx!(self.min), val!(self.min)))
+        } else {
+            None
+        }
+    }
+
+    pub fn top(&self) -> Option<&T>
+    where
+        I: Clone,
+    {
+        self.top_item().map(|x| x.1)
+    }
+}
+
+impl<I, T> FibHeap<I, T>
+where
+    I: Eq + Hash + Clone,
+    T: Ord,
+{
+    /// Same index node would be overidden
+    pub fn push(&mut self, i: I, v: T) {
         let node = node!(i.clone(), v);
         self.nodes.insert(i, node.clone());
 
@@ -282,13 +307,15 @@ where
         self.len += 1;
     }
 
-
     /// Amortized cost O(rank(H))
     ///
     /// trees(H') <= rank(H) + 1 # since no two trees have same rank.
     ///
     /// delete-min
     pub fn pop_item(&mut self) -> Option<(I, T)>
+    where
+        I: Debug,
+        T: Debug,
     {
         if self.min.is_none() {
             return None;
@@ -318,10 +345,7 @@ where
 
         self.consolidate();
 
-        Some((
-            self.remove_from_index(&oldmin),
-            unwrap_into!(oldmin).val
-        ))
+        Some((self.remove_from_index(&oldmin), unwrap_into!(oldmin).val))
     }
 
 
@@ -342,11 +366,10 @@ where
     /// Return oldval, alias of ReplaceOrPush
     ///
     /// Exec push if the val doesn't exist.
-    ///
     pub fn insert(&mut self, i: I, v: T) -> Option<T>
     where
         I: Eq + Hash + Clone,
-        T: Ord + Debug
+        T: Ord + Debug,
     {
         match self.nodes.entry(i.clone()) {
             Occupied(ent) => {
@@ -367,26 +390,22 @@ where
         }
     }
 
-
     pub fn union(&mut self, _other: Self) {
         unimplemented!("link roots, but not O(1) for link index reference")
     }
-
 
     pub fn delete<Q: AsRef<I>>(&mut self, _i: Q) -> Option<T> {
         unimplemented!("1. decrease-val to -infi, 2. pop");
     }
 
-
     ////////////////////////////////////////////////////////////////////////////
     //// Extra functional method
 
     /// Return oldval
-    ///
     pub fn decrease_key(&mut self, i: I, v: T) -> Option<T>
     where
         I: Eq + Hash + Clone,
-        T: Debug
+        T: Debug,
     {
         let x;
         match self.nodes.entry(i.clone()) {
@@ -401,46 +420,24 @@ where
         }
     }
 
-
-    pub fn top_item(&self) -> Option<(I, &T)>
+    pub fn pop(&mut self) -> Option<T>
     where
-        I: Eq + Clone
+        I: Debug,
+        T: Debug,
     {
-        if self.min.is_some() {
-            Some((idx!(self.min), val!(self.min)))
-        } else {
-            None
-        }
-    }
-
-
-    pub fn top(&self) -> Option<&T> {
-        self.top_item().map(|x| x.1)
-    }
-
-
-    pub fn pop(&mut self) -> Option<T> {
         self.pop_item().map(|x| x.1)
     }
+}
 
 
-    pub fn get<Q>(&self, i: &Q) -> Option<&T>
-    where
-        I: Borrow<Q>,
-        Q: Ord + Hash + ?Sized,
-    {
-        self.nodes.get(i).map(|node| val!(node))
-    }
+////////////////////////////////////////////////////////////////////////////
+//// Private methods
 
-
-    pub fn indexes(&self) -> impl Iterator<Item = &I> {
-        self.nodes.keys()
-    }
-
-
-    ////////////////////////////////////////////////////////////////////////////
-    //// Assistant method
-
+impl<I, T> FibHeap<I, T>
+where
+    I: Eq + Hash + Clone,
+    T: Ord,
+{
     fn decrease_key_(&mut self, x: Node<I, T>) {
         let ent;
         let p = paren!(x);
@@ -460,7 +457,6 @@ where
             self.min = x;
         }
     }
-
 
     /// WARNING: O(rank) = O(n)
     fn increase_key_(&mut self, x: Node<I, T>) {
@@ -500,7 +496,6 @@ where
         }
     }
 
-
     fn cut_meld_unmark_to_roots(&mut self, ent: WeakNode<I, T>) {
         if ent.is_none() {
             return;
@@ -524,17 +519,15 @@ where
         marked!(x, true);
     }
 
-
     fn remove_from_index(&mut self, x: &Node<I, T>) -> I
     where
-        I: Eq + Hash + Clone
+        I: Eq + Hash + Clone,
     {
         let k = idx!(x);
         self.nodes.remove(&k);
 
         k
     }
-
 
     /// insert at sib of self.min, with purge
     fn push_into_roots(&mut self, x: Node<I, T>) {
@@ -559,7 +552,6 @@ where
         }
     }
 
-
     /// from self.min go through all roots
     fn roots(&self) -> Vec<Node<I, T>> {
         let mut sibs = vec![];
@@ -580,7 +572,6 @@ where
         sibs
     }
 
-
     fn remove_from_roots(&mut self, x: Node<I, T>) {
         self.rcnt -= 1;
 
@@ -591,7 +582,6 @@ where
 
         x.purge_as_root();
     }
-
 
     /// update self.rcnt
     fn merge_same_rank_root(
@@ -622,7 +612,6 @@ where
 
         x
     }
-
 
     ////////////////////////////////////////////////////////////////////////////
     //// Validation method
@@ -655,7 +644,6 @@ where
         }
     }
 }
-
 
 impl<I: Eq + Hash + Clone, T: Clone> FibHeap<I, T> {
     fn overall_clone(
@@ -733,7 +721,9 @@ impl<T: Debug, K: Debug> Display for FibHeap<T, K> {
 }
 
 
-impl<I: Ord + Hash + Clone + Debug, T: Ord + Clone + Debug> Clone for FibHeap<I, T> {
+impl<I: Ord + Hash + Clone + Debug, T: Ord + Clone + Debug> Clone
+    for FibHeap<I, T>
+{
     fn clone(&self) -> Self {
         let len = self.len;
         let rcnt = self.rcnt;
@@ -770,14 +760,25 @@ impl<I: Ord + Hash + Clone + Debug, T: Ord + Clone + Debug> Clone for FibHeap<I,
     }
 }
 
+impl<I, Q: ?Sized, T> Index<&Q> for FibHeap<I, T>
+where
+    I: Hash + Eq + Borrow<Q>,
+    Q: Hash + Eq,
+    T: Ord,
+{
+    type Output = T;
 
-
+    fn index(&self, index: &Q) -> &Self::Output {
+        self.get(index).expect("no entry found for key")
+    }
+}
 
 
 #[cfg(test)]
 mod tests {
-    use super::{ FibHeap, super::* };
     use common::random;
+
+    use super::{super::*, FibHeap};
 
 
     #[ignore = "for debug"]
