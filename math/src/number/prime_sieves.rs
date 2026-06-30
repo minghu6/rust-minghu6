@@ -1703,8 +1703,8 @@ mod tests {
         use atkin::*;
 
         #[derive(new)]
-        #[derive_where(PartialEq, Eq, PartialOrd, Ord)]
-        #[derive(Clone, Copy, Debug)]
+        #[derive_where(PartialEq, PartialOrd, Ord)]
+        #[derive(Clone, Copy, Debug, Eq)]
         struct T4 {
             #[derive_where(skip)]
             x: usize,

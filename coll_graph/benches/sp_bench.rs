@@ -20,12 +20,12 @@ lazy_static::lazy_static! {
 
 #[cfg(test)]
 fn prepare_data_detect_negative_cycle() -> Vec<Graph> {
-    batch_graph(45, 35, -40..60, &GraphGenOptions::dir_conn())
+    batch_graph(45, 35, -40..60, &GraphGenOptions::undir_conn())
 }
 
 #[cfg(test)]
 fn prepare_data_dir_positive() -> Vec<Graph> {
-    batch_graph(50, 50, 1..100, &GraphGenOptions::dir_conn())
+    batch_graph(50, 50, 1..100, &GraphGenOptions::undir_conn())
 }
 
 
@@ -102,3 +102,27 @@ fn bench_sp_dijkstra(b: &mut Bencher) {
         }
     });
 }
+
+#[cfg(test)]
+#[bench]
+fn bench_sp_dijkstra2(b: &mut Bencher) {
+    let gs = &*DIR_POSITIVE_GRAPH;
+
+    b.iter(|| {
+        for g in gs.into_iter() {
+            for u in g.vertexs() {
+                if u % 3 != 0 {
+                    continue;
+                }
+
+                let spdijkstra = SPDijkstra::new2(g, u);
+
+                for v in g.vertexs() {
+                    spdijkstra.query(v);
+                }
+            }
+        }
+    });
+}
+
+

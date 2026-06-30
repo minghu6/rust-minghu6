@@ -3,8 +3,6 @@
 
 use std::{borrow::Borrow, fmt::*, mem::swap};
 
-use coll::*;
-
 use crate::{
     bst::{Left, Right},
     bt::*,

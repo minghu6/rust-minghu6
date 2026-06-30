@@ -1,10 +1,9 @@
 #![allow(incomplete_features)]
 
-#![feature(test)]
+#![cfg_attr(test, feature(test))]
 #![feature(iter_from_coroutine)]
 #![feature(coroutines)]
 #![feature(generic_const_exprs)]
-#![feature(associated_const_equality)]
 #![feature(str_as_str)]
 
 
@@ -34,8 +33,6 @@ pub fn lexi_cmp<E: Ord>(l1: &[E], l2: &[E]) -> Ordering {
 
 #[cfg(test)]
 mod test {
-
-    use std::cmp::Ordering::*;
 
     use super::*;
 

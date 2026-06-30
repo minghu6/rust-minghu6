@@ -8,8 +8,6 @@ use std::{
     ops::{Bound::*, RangeBounds},
 };
 
-use coll::*;
-
 use crate::{
     bst::{Dir, Left, Right},
     bt::*,
@@ -1774,8 +1772,6 @@ pub(crate) mod tests {
 
 
     pub(crate) use assert_select_eq;
-    pub(crate) use prepare_dict;
-    pub(crate) use verify_bulk;
     pub(crate) use verify_select;
 
     #[test]

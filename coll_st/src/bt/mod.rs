@@ -366,7 +366,7 @@ impl<T, const C: usize> PartialInitArray<T, C> {
         unsafe {
             std::ptr::copy(
                 slice.as_ptr(),
-                MaybeUninit::slice_as_mut_ptr(&mut self.arr[self.len..]),
+                self.arr[self.len..].as_mut_ptr() as *mut T,
                 slice.len(),
             );
         }

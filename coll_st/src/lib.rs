@@ -3,11 +3,8 @@
 #![feature(iter_from_coroutine)]
 #![feature(coroutines)]
 #![feature(stmt_expr_attributes)]
-#![feature(maybe_uninit_slice)]
-#![feature(mem_copy_fn)]
 #![feature(box_into_inner)]
 #![feature(impl_trait_in_assoc_type)]
-#![feature(trace_macros)]
 #![feature(trait_alias)]
 #![feature(slice_range)]
 

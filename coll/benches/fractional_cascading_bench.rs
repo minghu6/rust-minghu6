@@ -1,5 +1,4 @@
 #![feature(test)]
-#![feature(closure_lifetime_binder)]
 
 extern crate test;
 

@@ -663,7 +663,7 @@ mod tests {
     #[test]
     fn test_sp_randomdata_nw() {
         let graphs = batch_graph(
-            25,
+            45,
             35,
             -35..65,
             &GraphGenOptions::undir_conn().non_negative_cycle(),
@@ -712,6 +712,8 @@ mod tests {
             for src in g.vertexs() {
                 let sp_bellmanford = SPBellmanFord::new(&g, src).unwrap();
                 let sp_fa = SPFA::new(&g, src).unwrap();
+                let sp_dijkstra = SPDijkstra::new(&g, src);
+                let sp_dijkstra2 = SPDijkstra::new2(&g, src);
 
                 for dst in g.vertexs() {
                     let (w_bellmanford, p_bellmanford) =
@@ -719,20 +721,26 @@ mod tests {
                     let (w_spfa, p_spfa) = sp_fa.query(dst);
                     let (w_johnson, p_johnson) = sp_johnson.query(src, dst);
                     let (w_floyd, p_floyd) = sp_floyd.query(src, dst);
+                    let (w_spdijkstra, p_spdijkstra) = sp_dijkstra.query(dst);
+                    let (w_spdijkstra2, p_spdijkstra2) = sp_dijkstra2.query(dst);
 
                     g.verify_path(src, dst, &p_bellmanford).unwrap();
                     g.verify_path(src, dst, &p_spfa).unwrap();
                     g.verify_path(src, dst, &p_johnson).unwrap();
                     g.verify_path(src, dst, &p_floyd).unwrap();
+                    g.verify_path(src, dst, &p_spdijkstra).unwrap();
+                    g.verify_path(src, dst, &p_spdijkstra2).unwrap();
 
                     let w_min = min!(w_floyd, w_johnson, w_spfa);
 
-                    if !same!(w_floyd, w_spfa, w_johnson, w_bellmanford) {
+                    if !same!(w_floyd, w_spfa, w_johnson, w_bellmanford, w_spdijkstra, w_spdijkstra2) {
                         println!("w_min: {w_min}");
                         println!("w_floyd: {w_floyd}");
                         println!("w_johnson: {w_johnson}");
                         println!("w_spfa: {w_spfa}");
                         println!("w_bellmanford: {w_bellmanford}");
+                        println!("w_spdijkstra: {w_spdijkstra}");
+                        println!("w_spdijkstra2: {w_spdijkstra2}");
 
                         assert!(false);
                     }

@@ -1,6 +1,5 @@
 #![feature(iter_from_coroutine)]
 #![feature(coroutines)]
-#![feature(type_alias_impl_trait)]
 
 
 pub mod mst;

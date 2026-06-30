@@ -166,7 +166,6 @@ pub fn scc_tarjan(g: &Graph) -> Vec<Vec<usize>> {
 }
 
 
-
 /// or Gabow
 pub fn scc_path_based(g: &Graph) -> Vec<Vec<usize>> {
     fn find_comp(
