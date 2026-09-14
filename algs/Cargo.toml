@@ -5,8 +5,8 @@ edition = "2024"
 
 
 [dependencies]
-m6entry = { path = "../../m6coll/m6entry" }
-m6ptr = { path = "../../m6coll/m6ptr" }
+m6entry = { path = "../../m6kit/core/m6entry" }
+m6ptr = { path = "../../m6kit/core/m6ptr" }
 
 common = { package = "m6-common", path = "../common" }
 

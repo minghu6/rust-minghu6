@@ -11,7 +11,7 @@ extern_rand = { package = "rand", version = "0.8" }
 log = "0.4"
 pretty_env_logger = "0.5"
 
-m6entry = { path = "../../m6coll/m6entry" }
+m6entry = { path = "../../m6kit/core/m6entry" }
 
 resource_config = { package = "m6-resource-config", path = "../resource_config"}
 
